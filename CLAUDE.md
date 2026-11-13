@@ -30,6 +30,11 @@
 ## Plan
 - Follow `PLAN.md` for what we're building, in what order, and what we're not building yet.
 
+## Pull requests
+- Every PR that changes the website needs before-and-after screenshots in its description. There is no GitHub job for this: whoever opens the PR (you, Claude, or another coding agent) takes them on this computer.
+- After opening or updating the PR, run `cd frontend && npm run pr-shots` (or `npm run pr-shots -- <number>`). It builds this branch and `main`, takes desktop and phone screenshots of both, saves them on the `pr-screenshots` branch, and writes the table into the PR description between the `pbj-shots` markers.
+- Then look at the screenshots yourself before asking the owner to review.
+
 ## Inspiration
 - Check `INSPIRATION.md` (and screenshots in `inspiration/`) whenever we build something new.
 
