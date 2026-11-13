@@ -5,7 +5,8 @@
       "name": "pbj-site",
       "runtimeExecutable": "/usr/local/bin/node",
       "runtimeArgs": [
-        "node_modules/vite/bin/vite.js",
+        "frontend/node_modules/vite/bin/vite.js",
+        "frontend",
         "--port",
         "5173",
         "--strictPort"
@@ -16,7 +17,8 @@
       "name": "pbj-site-phone",
       "runtimeExecutable": "/usr/local/bin/node",
       "runtimeArgs": [
-        "node_modules/vite/bin/vite.js",
+        "frontend/node_modules/vite/bin/vite.js",
+        "frontend",
         "--host",
         "0.0.0.0",
         "--port",

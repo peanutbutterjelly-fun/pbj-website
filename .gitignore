@@ -140,5 +140,12 @@ exports/
 shots/
 
 # lab/ experiments stay on this computer; only the README is shared
-lab/*
-!lab/README.md
+frontend/lab/*
+!frontend/lab/README.md
+
+# Python (backend)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
