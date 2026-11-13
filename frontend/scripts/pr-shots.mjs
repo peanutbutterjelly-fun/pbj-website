@@ -35,6 +35,7 @@ const cleanup = () => {
 
 try {
   run(`git fetch -q origin ${pr.baseRefName}`, root);
+  run("npx playwright install chromium", frontend, false); // no-op once downloaded
 
   step("AFTER: building this branch");
   run("npm run build", frontend, false);
