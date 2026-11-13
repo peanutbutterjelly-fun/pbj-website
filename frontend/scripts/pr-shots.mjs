@@ -73,7 +73,7 @@ try {
 
   step("Updating the PR description");
   const img = (p) => `<img src="https://raw.githubusercontent.com/${repo}/${sha}/${dir}/${p}" width="100%">`;
-  const lines = [START, "## Before and after", `_Taken locally against \`${base}\` on ${new Date().toISOString().slice(0, 10)}._`, ""];
+  const lines = [START, "## Before / after", `_Taken locally against \`${base}\` on ${new Date().toISOString().slice(0, 10)}._`, ""];
   for (const s of ["desktop", "phone"]) {
     lines.push(`### ${s[0].toUpperCase() + s.slice(1)}`, "| Before (main) | After (this PR) |", "|---|---|");
     for (let i = 1; i <= 3; i++) lines.push(`| ${img(`before/${s}-${i}.png`)} | ${img(`after/${s}-${i}.png`)} |`);
