@@ -8,8 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "node scripts/check-pr.mjs",
-    "shots": "node scripts/screenshots.mjs dist shots",
-    "pr-shots": "node scripts/pr-shots.mjs"
+    "shots": "node scripts/screenshots.mjs dist shots"
   },
   "dependencies": {
     "@svg-maps/india": "^2.0.0",

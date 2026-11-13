@@ -10,10 +10,8 @@
 ## How it was verified
 <!-- Builds and tests run, what was clicked through in the browser, at which sizes. -->
 
-<!-- pbj-shots:start -->
 ## Before / after
-_Website changes only. Run `cd frontend && npm run pr-shots` after opening the PR to fill this in._
-<!-- pbj-shots:end -->
+<!-- Website changes only: screenshots of each screen you touched, desktop and phone. Delete otherwise. -->
 
 ## Risk / rollback
 <!-- Optional: only for backend, data, deploy or payments changes. Delete otherwise. -->

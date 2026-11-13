@@ -45,14 +45,28 @@ The change itself, plus anything a reviewer wouldn't guess from the diff.
 ## How it was verified
 Builds and tests run, what was clicked through in the browser, at which sizes.
 
-<!-- pbj-shots:start -->
 ## Before / after
-<!-- website changes only: filled in by `cd frontend && npm run pr-shots` -->
-<!-- pbj-shots:end -->
+<!-- website changes only -->
 
 ## Risk / rollback
 <!-- optional: only for backend, data, deploy or payments changes -->
 ```
 
-- **Website changes:** after opening or updating the PR, run `cd frontend && npm run pr-shots` (or `npm run pr-shots -- <number>`). It builds this branch and `main`, takes desktop and phone screenshots of both on this computer, saves them on the `pr-screenshots` branch and writes the table between the `pbj-shots` markers. There is no GitHub job for this. Look at the screenshots yourself before asking for review. Skip them only for a change where nothing looks different.
+- **Website changes:** include before and after screenshots of each screen you touched, at desktop and phone sizes. Skip them only for a change where nothing looks different.
+  - Take them yourself: run the site (`cd frontend && npm run dev`) on `main` for *before* and on your branch for *after*, and screenshot the screens you changed, scrolled to the part that changed. Look at them before asking for review.
+  - Upload them to the `pr-assets` branch, in a folder named after your branch, and never to `main`:
+    ```bash
+    git fetch origin pr-assets
+    git worktree add /tmp/pr-assets origin/pr-assets   # first time ever: git worktree add --orphan -b pr-assets /tmp/pr-assets
+    mkdir -p /tmp/pr-assets/<branch> && cp <your .jpg/.png files> /tmp/pr-assets/<branch>/
+    cd /tmp/pr-assets && git add . && git commit -m "assets: <branch>" && git push origin HEAD:pr-assets
+    cd - && git worktree remove /tmp/pr-assets
+    ```
+  - Put them in a table in the description, linking with `https://github.com/peanutbutterjelly-fun/pbj-website/blob/pr-assets/<branch>/<file>?raw=true`:
+    ```markdown
+    | | Before | After |
+    |---|---|---|
+    | Desktop, 1440px | <img src="…/before-desktop.jpg?raw=true" width="400"> | <img src="…/after-desktop.jpg?raw=true" width="400"> |
+    | Phone, 390px | <img src="…/before-phone.jpg?raw=true" width="220"> | <img src="…/after-phone.jpg?raw=true" width="220"> |
+    ```
 - Before asking for review, also check: no experiment files outside `frontend/lab/`, no heavy images or videos, colours stay in the Deep Jam palette, and motion respects "reduced motion".
