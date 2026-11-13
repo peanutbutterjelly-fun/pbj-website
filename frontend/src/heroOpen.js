@@ -75,11 +75,10 @@ export function playHeroOpen({ hero, mascot, lenis }) {
     }));
 
     // Phones: there is plenty of room above and below the sandwich, so the words spread out into it. PEANUT sits just
-    // under the folder tabs and JELLY near the bottom edge; BUTTER goes exactly halfway between them, so the gap above
+    // under the options bar and JELLY near the bottom edge, with the same gap at both ends; BUTTER goes exactly halfway between them, so the gap above
     // it is the same as the gap below it.
     if (window.matchMedia("(max-width: 767px)").matches) {
-      const tabs = document.querySelector(".tabs");
-      const topY = (tabs ? tabs.offsetHeight : 0) + H * 0.012;
+      const topY = H * 0.035; // the hero already starts below the folder tabs and the options bar
       const bottomY = H - H * 0.035;
       const cap = CAP_EM * sB;
       const tops = [topY, (topY + bottomY - cap) / 2, bottomY - cap];

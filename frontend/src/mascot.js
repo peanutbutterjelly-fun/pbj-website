@@ -264,6 +264,7 @@ export function createMascot(root) {
   const dxOf = [0, 0, 0, 0]; // per layer, phones only: how far its middle sits off the middle of the hero, sideways
   const fitOf = [1, 1, 1, 1]; // per layer, phones only: how much it shrinks to fit its box
   let isPhone = false;
+  let heroH = 0; // the hero's own height (the picture can be taller than it)
 
   const FOCUS_DEPTH = 8; // how far a tapped layer is pulled toward the viewer while it swings round
   const squareYaw = []; // per layer: the turn that makes its edges run level with the screen
@@ -449,10 +450,13 @@ export function createMascot(root) {
     if (cw === size.w && ch === size.h) return;
     renderer.setSize(cw, ch, false);
     size = { w: cw, h: ch };
-    const W = Math.min(cw * 0.95, ch * 0.8); // width of the whole photo on screen
+    // On computers the picture reaches a little above and below the hero (see .mascot in style.css), so the layers can cross its edges.
+    // Everything is still sized by the hero itself, not by the taller picture.
+    heroH = ch + 2 * Math.min(0, root.offsetTop);
+    const W = Math.min(cw * 0.95, heroH * 0.8); // width of the whole photo on screen
     ppu = W / PHOTO_W;
     // Keep the whole floating-apart stack inside the hero, even on short screens
-    spread = Math.min(1, Math.max(0.35, (0.97 * ch / W - 0.54) / 0.73));
+    spread = Math.min(1, Math.max(0.35, (0.97 * heroH / W - 0.54) / 0.73));
     isPhone = window.matchMedia("(max-width: 767px)").matches;
     stories.forEach((el) => {
       el.style.top = "";
@@ -674,7 +678,7 @@ export function createMascot(root) {
       const hi = seenHi;
       const lo = seenLo;
       const nowY = ((1 - (hi + lo) / 2) / 2) * size.h; // where the middle of the layers is on screen right now
-      const wantY = (tabBar.offsetHeight + size.h) / 2 + size.h * 0.02; // the middle of the space below the tabs, a touch lower (the top bread's tilted edge makes the stack look higher than it measures)
+      const wantY = size.h / 2 + size.h * 0.02; // the middle of the hero (it already starts below the tabs and the options), a touch lower (the top bread's tilted edge makes the stack look higher than it measures)
       if (opening.apart >= 1) {
         // right after the opening the slide eases in gently (it was worked out off screen, so any leftover correction is tiny and should not be seen)
         if (apartDoneAt === null) apartDoneAt = time;
@@ -740,7 +744,7 @@ export function createMascot(root) {
       // past its final size on the way for a soft "breath", and never bigger than the screen allows
       const widthPx = L * ppu * cam.zoom;
       const heightPx = (box.max.z - box.min.z) * size_ * ppu * cam.zoom;
-      const grow = Math.min(1.7, (size.w * 0.86) / widthPx, (size.h * 0.8) / heightPx);
+      const grow = Math.min(1.7, (size.w * 0.86) / widthPx, (heroH * 0.8) / heightPx);
       const arrive = ease((u - 0.4) / 0.6);
       // Once it has slid to the right it may need to be a little smaller, to leave room for the words
       const sh = storyOn ? fs : 0;
@@ -1015,8 +1019,8 @@ export function createMascot(root) {
 
     ScrollTrigger.create({
     trigger: hero,
-    // On phones the folder tabs sit at the top, so pin the hero just below them
-    start: () => `top ${window.matchMedia("(max-width: 767px)").matches ? document.querySelector(".tabs").offsetHeight : 0}`,
+    // The top bar (and on phones the folder tabs above it) sits at the top, so pin the hero just below it
+    start: () => `top ${Math.round(document.querySelector(".topbar").getBoundingClientRect().bottom)}`,
     end: "+=180%",
     pin: true,
     scrub: 0.3, // light smoothing only: the page already smooths scrolling, and more would make it trail behind

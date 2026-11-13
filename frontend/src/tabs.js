@@ -16,12 +16,13 @@ export function setupTabs({ onSwitch } = {}) {
 
   const clearPeek = () => tabs.forEach((t) => t.classList.remove("peek"));
 
-  function open(name, { toEnd = false } = {}) {
+  function open(name, { toEnd = false, instant = false } = {}) {
     clearPeek();
     if (name === current) return;
     const from = panels.find((p) => p.dataset.panel === current);
     const to = panels.find((p) => p.dataset.panel === name);
     current = name;
+    try { sessionStorage.setItem("pbj-tab", name); } catch (e) {} // a refresh comes back to this page
 
     tabs.forEach((t) =>
       t.dataset.tab === name ? t.setAttribute("aria-current", "page") : t.removeAttribute("aria-current")
@@ -34,7 +35,15 @@ export function setupTabs({ onSwitch } = {}) {
     if (toEnd) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
 
     // Folder shuffle: the new page slides in like a folder pulled to the front
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (instant) {
+      // no folder animation (used when a refresh puts you back on your page)
+    } else if (name === "home" || name === "list") {
+      // Home has a pinned (position: fixed) hero, and List Your Event has pinned sections: a transform on their folder would hold
+      // them at the wrong spot (shifted to the side) until the transform is cleared (they then jump to the left), so they only fade in
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        gsap.fromTo(to, { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power1.out", clearProps: "opacity" });
+      }
+    } else if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       gsap.fromTo(
         to,
         { xPercent: phoneQuery.matches ? 0 : 6, yPercent: phoneQuery.matches ? 4 : 0, rotate: 1.5, opacity: 0 },
@@ -80,6 +89,7 @@ export function setupTabs({ onSwitch } = {}) {
       // wheel: positive = scrolling down; touch: a finger dragging up gives a negative change, so flip it
       const dir = Math.sign(isTouch ? -self.deltaY : self.deltaY);
       if (!dir) return;
+      if (document.documentElement.hasAttribute("data-loop-lock")) { push = 0; edgeSince = 0; return; } // List Your Event's sections are using the scroll
 
       if (current === "hosts") {
         const deliberate = isTouch ? (ev.touches?.length ?? 1) >= 3 : !ev.shiftKey;
@@ -107,4 +117,10 @@ export function setupTabs({ onSwitch } = {}) {
   });
 
   tabs[0].setAttribute("aria-current", "page");
+
+  // After a refresh, come back to the page you were on
+  try {
+    const saved = sessionStorage.getItem("pbj-tab");
+    if (saved && saved !== "home" && tabs.some((t) => t.dataset.tab === saved)) open(saved, { instant: true });
+  } catch (e) {}
 }

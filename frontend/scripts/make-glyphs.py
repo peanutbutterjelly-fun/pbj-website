@@ -9,6 +9,7 @@ from fontTools.ttLib import TTFont
 from fontTools.pens.recordingPen import RecordingPen
 
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+PUNCT = "?!,.'-&"  # drawn the same way as the letters (no kerning), for the sentences on List Your Event
 FONT = "public/fonts/texgyreheros-bold.woff2"
 
 f = TTFont(FONT)
@@ -48,7 +49,7 @@ def flatten(rec):
 
 
 out = {"upm": f["head"].unitsPerEm, "cap": f["OS/2"].sCapHeight, "glyphs": {}, "kern": {}, "space": hmtx[cmap[32]][0]}
-for ch in LETTERS:
+for ch in LETTERS + PUNCT:
     name = cmap[ord(ch)]
     pen = RecordingPen()
     gs[name].draw(pen)

@@ -38,6 +38,8 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 
 **List Your Event:** who can list, a peek at "how to list" (design to be decided), a few rules (including outside venues only) and a host interest signup.
 
+**Host sign-up and event form (new):** the host dashboard is only reachable after someone signs up and fills out the event form. On List Your Event, the button first asks them to sign up. Once signed up, they see a form to enter details about the event they want to list, plus the option to book a call with us if they're seriously considering becoming one of our pilot hosts. Only after that do they get into the dashboard.
+
 **Meet Our Hosts:** an endless, draggable grid of 3D magazine covers, one per host. Tapping a cover grows it to the middle while the others drift away, then the magazine opens wide and people tap to flip its pages (cover, host profile, past events, current events, then teasers of future events; each host's page count varies). Built (blank) in `src/hosts.js` and `src/magazine.js`; the details and design come later. The partner-program pitch ("Be Our Partner") moves elsewhere for now.
 
 **Our Secret:** "What PBJ does differently: it's a secret we can share if you reach out." Helps hosts see why to choose us over other platforms, and sparks curiosity in guests. Ends with a "reach out" button.
@@ -74,8 +76,7 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 - Spin-off Events section (later, once we've handpicked and organised our own events)
 - Partner Hosts list with a profile page for each host (later, once we have partners on our roster; see "No Art Music Week artist page" in INSPIRATION.md)
 - Buying tickets or paying on the site
-- Hosts listing events themselves (for now, List Your Event only collects interest)
-- User accounts and logins
+- Guest accounts and logins (host sign-up for the dashboard is the only login for now)
 - Curator program (3rd wave)
 - Sections for hobby learners and parents (2nd and 3rd waves)
 - AI helper to catch events cancelled before their date

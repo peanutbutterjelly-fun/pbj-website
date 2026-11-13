@@ -108,13 +108,33 @@ export function playIntro({ lenis, onDone = () => {} }) {
 
   // Each piece of the page spins and grows around the centre of the screen
   const layers = [...site.children];
+  // The page can still be settling while the loading screen plays (heights and bars change a moment after load), so each
+  // piece is turned around the screen's centre using its layout position (offsets ignore transforms), re-read every frame
   const originFor = (el) => {
-    const r = el.getBoundingClientRect();
-    return `${cx - r.left}px ${cy - r.top}px`;
+    let left = 0;
+    let top = 0;
+    for (let n = el; n; n = n.offsetParent) {
+      left += n.offsetLeft;
+      top += n.offsetTop;
+    }
+    return `${cx - left}px ${cy - top}px`;
   };
+
+  // ScrollTrigger measures the page when it refreshes (on load, on resize). While the pieces are turned and shrunk that would
+  // measure a tiny, tilted hero and pin it at the wrong size, so for the instant of a refresh the pieces are set straight
+  let saved = [];
+  const straighten = () => {
+    saved = layers.map((el) => el.style.transform);
+    layers.forEach((el) => (el.style.transform = "none"));
+  };
+  const turnBack = () => layers.forEach((el, i) => (el.style.transform = saved[i] ?? ""));
+  ScrollTrigger.addEventListener("refreshInit", straighten);
+  ScrollTrigger.addEventListener("refresh", turnBack);
 
   let cleanupSwirl = () => {};
   const finish = () => {
+    ScrollTrigger.removeEventListener("refreshInit", straighten);
+    ScrollTrigger.removeEventListener("refresh", turnBack);
     cutLines.forEach((w) => w.dispose());
     cleanupSwirl();
     html.classList.remove("intro");
@@ -186,6 +206,7 @@ export function playIntro({ lenis, onDone = () => {} }) {
   let paintedVersion = -1;
   const tick = (time) => {
     material.uniforms.time.value = time;
+    layers.forEach((el) => (el.style.transformOrigin = originFor(el)));
     // the letters keep wobbling while the screen is sucked in: repaint the picture whenever they take a new wobble
     if (canvas.style.visibility !== "hidden" && cutVersion() !== paintedVersion) {
       paintedVersion = cutVersion();

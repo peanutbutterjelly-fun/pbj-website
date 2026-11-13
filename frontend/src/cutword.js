@@ -22,6 +22,7 @@ const reduceMotion = window.matchMedia(
 ).matches;
 
 // ---- Letters ready to wobble: dense outline points, with a direction "out of the edge" for each ----
+const prepGlyphs = (STEP) => {
 const glyphs = {};
 Object.entries(data.glyphs).forEach(([ch, g]) => {
   glyphs[ch] = {
@@ -58,6 +59,13 @@ Object.entries(data.glyphs).forEach(([ch, g]) => {
     }),
   };
 });
+return glyphs;
+};
+const glyphs = prepGlyphs(STEP);
+// Small lettering does not need an outline cut into pieces as short as the headlines': a coarser one (made the first time it is asked for)
+// has several times fewer points, so it is several times cheaper to redraw twelve times a second, and looks the same at that size
+let coarseGlyphs = null;
+const glyphFor = (ch, coarse) => (coarse ? (coarseGlyphs ??= prepGlyphs(110)) : glyphs)[ch];
 
 // A steady "random" number for (a, b): the same input always gives the same wobble
 const rnd = (a, b) => {
@@ -75,13 +83,13 @@ const smooth = (u, f, seed) => {
   );
 };
 
-function roughPath(letter, f, seed, amp = AMP) {
+function roughPath(letter, f, seed, amp = AMP, jag = 0.25) { // jag: how much of the edge is small nicks (1) rather than slow waves (0)
   let d = "";
   letter.contours.forEach((c, ci) => {
     for (let i = 0; i < c.m; i++) {
       const lo = smooth(i / 7 + ci * 3.7, f, seed);
       const hi = rnd(f * 97 + seed + ci, i) * 2 - 1;
-      const a = (lo * 0.75 + hi * 0.25) * amp;
+      const a = (lo * (1 - jag) + hi * jag) * amp;
       const x = Math.round(c.xs[i] + c.nx[i] * a);
       const y = Math.round(c.ys[i] + c.ny[i] * a);
       d += i === 0 ? `M${x} ${y}L` : `${x} ${y} `;
@@ -230,11 +238,13 @@ export function createCutWord(text, { fill, shadow, calm }) {
 // el is an <svg> exactly one letter wide (its width is the letter's advance, so text around it flows as usual) and
 // one capital tall, sitting on the text's baseline; the wobble and shadow spill over its edges.
 let letterSeed = 0;
-export function createCutLetter(ch, { fill, shadow, calm }) {
+// one watcher for every letter: letters that are off screen (or in a hidden tab) stop redrawing, so scrolling a busy page stays light
+const seeing = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver((list) => { list.forEach((e) => { e.target._off = !e.isIntersecting; }); }, { rootMargin: "120px" });
+export function createCutLetter(ch, { fill, shadow, calm, skip, rough = 1, shadowK = 1, jag = 0.25, coarse = false, seed: fixedSeed }) { // seed: reuse another letter's wobble (so a shadow layer and a face layer match); skip: () => true while the letter is out of sight (it then stops redrawing); rough / shadowK / jag: a stronger, nickier edge and a longer shadow for small lettering (1, 1, 0.25 = as for headlines)
   const c = calm ?? calmFor(); // calm: 0 keeps the letters level (no jitter), for headings that must line up with their neighbours
-  const glyph = glyphs[ch.toUpperCase()];
+  const glyph = glyphFor(ch.toUpperCase(), coarse);
   if (!glyph) return null;
-  const seed = (letterSeed += 7);
+  const seed = fixedSeed ?? (letterSeed += 7);
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("viewBox", `0 ${-data.cap} ${glyph.adv} ${data.cap}`);
@@ -249,23 +259,26 @@ export function createCutLetter(ch, { fill, shadow, calm }) {
   const self = {
     el: svg,
     step(f) {
+      if ((!skip && svg._off) || skip?.()) return; // (letters that say for themselves when they are out of sight do not rely on the page-wide watcher)
       const [sx, sy] = shadowAt(f);
-      const d = roughPath(glyph, f, seed, AMP * (0.6 + 0.4 * c));
+      const d = roughPath(glyph, f, seed, AMP * (0.6 + 0.4 * c) * rough, jag);
       back.setAttribute("d", d);
       face.setAttribute("d", d);
-      back.setAttribute("transform", `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
+      back.setAttribute("transform", `translate(${(sx * shadowK).toFixed(1)} ${(sy * shadowK).toFixed(1)})`);
       const rot = (rnd(f, seed) - 0.5) * 5 * c;
       const dx = (rnd(f, seed + 101) - 0.5) * 30 * c;
       const dy = (rnd(f, seed + 202) - 0.5) * 30 * c;
       el.setAttribute("transform", `translate(${dx.toFixed(1)} ${dy.toFixed(1)}) rotate(${rot.toFixed(2)} ${glyph.adv / 2} ${-data.cap / 2})`);
     },
     dispose() {
+      seeing?.unobserve(svg);
       words.delete(self);
       if (!words.size) gsap.ticker.remove(tick);
     },
   };
   words.add(self);
   self.step(Math.max(0, lastFrame));
+  seeing?.observe(svg);
   if (!reduceMotion && words.size === 1) gsap.ticker.add(tick);
   return self;
 }
