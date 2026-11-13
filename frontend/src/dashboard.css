@@ -1618,3 +1618,13 @@ select.box { appearance: none; -webkit-appearance: none; background-image: url("
 .tkt.locked { opacity: 0.45; cursor: not-allowed; }
 .tkt.locked:hover { background: var(--card); }
 #typenote .notice .btn.small { margin: 0.3em 0.4em 0 0; padding: 0.5em 1em; font-size: 0.85em; }
+
+/* "+ Add “…”" row in the search lists when what was typed isn't there */
+.pop li.addnew, .combo-list li.addnew { font-weight: 700; color: var(--crust); }
+
+/* "Make cover" pill on every image except the cover */
+.thumb button.mk { top: auto; right: auto; left: 0.5em; bottom: 0.5em; width: auto; height: auto; border-radius: 999px; padding: 0.4em 0.9em; font: inherit; font-size: 0.85em; background: var(--bread); color: var(--ink); box-shadow: 0 2px 0 var(--ink); }
+.thumb button.mk:hover { background: var(--pop); }
+.thumb button.mk, .thumb figcaption { left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.thumb figcaption { left: 0.5em; transform: none; }
+.thumb button.mk { font-size: 1em; line-height: inherit; padding: 0.3em 0.8em; }
