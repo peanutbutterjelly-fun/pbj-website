@@ -1,17 +1,19 @@
-## What changed (plain words)
-<!-- One idea per PR. Example: "Jelly J now spins on the hero" -->
+## Why
+<!-- What's broken or missing, and for whom. One or two sentences. -->
 
-## Which part of PLAN.md is this?
+## Source
+<!-- Owner request, bug report, part of PLAN.md, issue link. For a fix, the root cause in one line. -->
 
-## Checklist
-- [ ] Added before/after screenshots (`cd frontend && npm run pr-shots`, which fills in the section below)
-- [ ] Looked at the desktop screenshots below (before and after)
-- [ ] Looked at the phone screenshots below (before and after)
-- [ ] No experiment files left in the main folder (experiments live in `frontend/lab/`)
-- [ ] No huge images or videos added (the checks below will warn me)
-- [ ] Colours stay in the Deep Jam palette, and motion respects "reduced motion"
+## What changed
+<!-- The change itself, plus anything a reviewer wouldn't guess from the diff. -->
+
+## How it was verified
+<!-- Builds and tests run, what was clicked through in the browser, at which sizes. -->
 
 <!-- pbj-shots:start -->
-## Before and after
-_Not added yet. Run `cd frontend && npm run pr-shots` after opening the PR._
+## Before / after
+_Website changes only. Run `cd frontend && npm run pr-shots` after opening the PR to fill this in._
 <!-- pbj-shots:end -->
+
+## Risk / rollback
+<!-- Optional: only for backend, data, deploy or payments changes. Delete otherwise. -->
