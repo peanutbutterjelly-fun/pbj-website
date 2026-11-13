@@ -20,11 +20,15 @@ supabase link --project-ref xpzrsslqfnhzqcxxkkjo # from the repo's top folder; a
 
 ```bash
 supabase migration new add_events   # creates supabase/migrations/<timestamp>_add_events.sql
-# write the SQL, then:
-supabase db push                    # applies new migrations to the live project
 ```
 
-Every new table needs row level security turned on and policies saying who can read and write it. Use a `feat(backend)` or `chore(backend)` PR for the change.
+1. Write the SQL in that file. Every new table needs row level security turned on and policies saying who can read and write it.
+2. Open a PR titled `feat(backend): …` (or `fix`/`chore`). The **Migrations check** on the PR does a dry run against the live project and lists the migrations that would be applied, so a broken file fails there first.
+3. Merge it. GitHub applies the new migrations to Supabase (`supabase db push`), then deploys the backend, in that order, so new tables exist before code that uses them.
+
+Don't run `supabase db push` by hand for a migration that's still in a PR: the PR's file would then be marked as applied before it's reviewed. To apply by hand in an emergency, use GitHub → Actions → Deploy backend → Run workflow.
+
+Never edit or rename a migration that has been applied; add a new one.
 
 ## Keys
 

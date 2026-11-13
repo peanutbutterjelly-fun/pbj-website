@@ -18,7 +18,7 @@ Read by every coding agent in this repo (Claude Code loads it through `CLAUDE.md
 
 The title decides what deploys when a PR is squash-merged into `main`:
 - `feat`, `fix`, `chore` with scope **`frontend`** deploy the website (Vercel).
-- `feat`, `fix`, `chore` with scope **`backend`** deploy the server (Railway, `.github/workflows/deploy-backend.yml`), after its tests pass. GitHub's Revert button on such a PR deploys too.
+- `feat`, `fix`, `chore` with scope **`backend`** first apply any new database migrations (`supabase/migrations/`) to Supabase, then deploy the server to Railway after its tests pass (`.github/workflows/deploy-backend.yml`). GitHub's Revert button on such a PR runs too. Database changes use the `backend` scope.
 - Anything else, including every `docs` title and other scopes, deploys nothing. So a PR that changes the site or server must use `frontend` or `backend` as its scope.
 
 ## Commits
