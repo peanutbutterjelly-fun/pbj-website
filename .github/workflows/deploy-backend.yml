@@ -14,9 +14,6 @@ concurrency:
   group: deploy-backend
   cancel-in-progress: false
 
-env:
-  SUPABASE_PROJECT_REF: xpzrsslqfnhzqcxxkkjo
-
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -62,18 +59,22 @@ jobs:
     if: needs.plan.outputs.go == 'true' && needs.plan.outputs.migrations == 'true'
     runs-on: ubuntu-latest
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with: { version: 2.98.2 }
-      - name: Link the project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Database address
+        # The IPv4 pooler (GitHub's machines can't reach Supabase's IPv6-only direct address).
+        # Built from the password secret, URL-encoded, and masked in the logs.
+        run: |
+          pw=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')
+          echo "::add-mask::$pw"
+          echo "DB_URL=postgresql://postgres.xpzrsslqfnhzqcxxkkjo:${pw}@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres" >> "$GITHUB_ENV"
       - name: Apply new migrations
         run: |
-          supabase db push --dry-run
-          supabase db push --yes
+          supabase db push --dry-run --db-url "$DB_URL"
+          supabase db push --yes --db-url "$DB_URL"
 
   deploy:
     needs: [plan, migrate]
