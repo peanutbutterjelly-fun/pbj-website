@@ -71,8 +71,8 @@
         <button class="tb-btn" type="button" id="tb-menu"><i>[</i><span>Menu</span><i>]</i></button>
       </div>
       <div class="tb-item" data-menu="account">
-        <button class="tb-btn" type="button" aria-expanded="false" aria-haspopup="true"><i>[</i><span data-out>Sign in</span><span data-in hidden>Account</span><i>]</i></button>
-        <div class="tb-pop tb-acct" hidden>
+        <button class="tb-btn" type="button" aria-expanded="false" aria-controls="acct-card"><i>[</i><span data-out>Sign in</span><span data-in hidden>Account</span><i>]</i></button>
+        <div class="tb-pop tb-acct" id="acct-card" role="region" aria-label="Sign in" hidden>
           <p class="tb-head">Sign in</p>
           <form id="acct-form" class="acct-form" novalidate>
             <label for="acct-email">Your email</label>

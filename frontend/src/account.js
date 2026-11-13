@@ -7,9 +7,11 @@ const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 let clientPromise;
 const client = () =>
-  (clientPromise ??= import("@supabase/supabase-js").then(({ createClient }) =>
-    createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" } })
-  ));
+  (clientPromise ??= import("@supabase/supabase-js")
+    .then(({ createClient }) =>
+      createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" } })
+    )
+    .catch((err) => { clientPromise = undefined; throw err; })); // a failed load (bad connection) can be tried again
 
 const storageKey = () => `sb-${new URL(SB_URL).hostname.split(".")[0]}-auth-token`;
 const hasSavedSession = () => { try { return !!localStorage.getItem(storageKey()); } catch { return false; } };
@@ -37,7 +39,10 @@ export function setupAccount() {
     msg.hidden = !text;
   }
 
+  let activeUser = null; // whose details the card is showing; a late answer for anyone else is ignored
+
   async function showProfile(session) {
+    const userId = session.user.id;
     mailEl.textContent = session.user.email || "";
     nameEl.textContent = "";
     if (!API) return;
@@ -45,13 +50,14 @@ export function setupAccount() {
       const res = await fetch(`${API}/api/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) {
         const me = await res.json();
-        nameEl.textContent = me.full_name ? `Hi, ${me.full_name}` : "";
+        if (activeUser === userId) nameEl.textContent = me.full_name ? `Hi, ${me.full_name}` : "";
       }
     } catch { /* the backend being away doesn't stop you being signed in */ }
   }
 
   function render(session) {
     const inNow = !!session;
+    activeUser = session?.user.id ?? null;
     form.hidden = inNow;
     signedIn.hidden = !inNow;
     labelOut.hidden = inNow;
@@ -62,12 +68,14 @@ export function setupAccount() {
 
   let started;
   const start = () =>
-    (started ??= client().then(async (sb) => {
-      sb.auth.onAuthStateChange((_event, session) => render(session));
-      const { data } = await sb.auth.getSession();
-      render(data.session);
-      return sb;
-    }));
+    (started ??= client()
+      .then(async (sb) => {
+        sb.auth.onAuthStateChange((_event, session) => render(session));
+        const { data } = await sb.auth.getSession();
+        render(data.session);
+        return sb;
+      })
+      .catch((err) => { started = undefined; throw err; }));
 
   // Coming back from the email link: open the card to show you're in (or why the link didn't work), and tidy the address bar
   if (cameFromLink()) {
@@ -77,13 +85,17 @@ export function setupAccount() {
       history.replaceState(null, "", location.pathname + location.search);
       if (error) say(error.includes("expired") ? "That link has expired. Ask for a new one." : error, "bad");
       btn.click();
+    }).catch(() => {
+      say("Couldn't finish signing in. Check your connection and try the link again.", "bad");
+      btn.click();
     });
   } else if (hasSavedSession()) {
-    start();
+    start().catch(() => {});
   }
-  // Start loading the library as soon as someone heads for the button
-  btn.addEventListener("pointerenter", start, { once: true });
-  btn.addEventListener("click", start);
+  // Start loading the library as soon as someone heads for the button (a failure here is retried when they send the form)
+  const warmUp = () => { start().catch(() => {}); };
+  btn.addEventListener("pointerenter", warmUp, { once: true });
+  btn.addEventListener("click", warmUp);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -108,8 +120,12 @@ export function setupAccount() {
   });
 
   out.addEventListener("click", async () => {
-    const sb = await start();
-    await sb.auth.signOut();
-    say("Signed out.");
+    try {
+      const sb = await start();
+      await sb.auth.signOut();
+      say("Signed out.");
+    } catch {
+      say("Couldn't sign out. Check your connection and try again.", "bad");
+    }
   });
 }

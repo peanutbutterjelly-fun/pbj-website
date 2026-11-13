@@ -1381,14 +1381,14 @@ html.intro .intro-swirl {
 /* Sign in card (top bar): email box, one big button, a status line. Same rounded, bouncy look as the other cards */
 .tb-pop[data-menu="account"] { width: 19em; }
 .acct-form, .acct-in { display: grid; gap: 0.6em; padding: 0 0.4em 0.3em; }
-.acct-form label { font-size: 0.65em; text-transform: uppercase; opacity: 0.7; margin: 0 0.4em -0.2em; }
+.acct-form label { font-size: 0.75em; text-transform: uppercase; margin: 0 0.4em -0.2em; }
 .acct-form input { font: inherit; font-family: var(--mono); font-size: 16px; /* 16px stops phones zooming in */ padding: 0.7em 0.9em; border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); border-radius: 12px; background: #fff; color: var(--brown); }
 .acct-form input:focus { outline: 2px solid var(--peanut); outline-offset: 1px; border-color: var(--brown); }
 .acct-btn { min-height: 44px; padding: 0.7em 1em; border: 0; border-radius: 99px; background: var(--strawberry); color: var(--cream); font-family: var(--mono); font-size: 0.75em; text-transform: uppercase; cursor: pointer; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s; }
 .acct-btn:hover:not(:disabled) { transform: translateY(-2px) rotate(-1deg); }
 .acct-btn:disabled { opacity: 0.6; cursor: default; }
 .acct-quiet { background: var(--peanut); color: var(--brown); }
-.acct-note { margin: 0 0.4em; font-size: 0.6em; text-transform: uppercase; opacity: 0.55; }
+.acct-note { margin: 0 0.4em; font-size: 0.75em; text-transform: uppercase; color: var(--ink); }
 .acct-name { margin: 0 0.4em; font-size: 0.85em; text-transform: uppercase; }
 .acct-name:empty { display: none; }
 .acct-mail { margin: 0 0.4em; font-size: 0.7em; opacity: 0.7; word-break: break-all; }
