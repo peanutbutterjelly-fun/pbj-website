@@ -1,21 +1,29 @@
 name: Deploy backend
-# Deploys backend/ to Railway (project pbj-backend, service api) when a backend PR
-# is squash-merged into main. Follows the PR title rules in AGENTS.md:
-#   feat(backend): …  fix(backend): …  chore(backend): …  and GitHub's Revert "…(backend): …"
-# Anything else (docs, other scopes) does not deploy.
+# When a backend PR is squash-merged into main:
+#   1. new database migrations (supabase/migrations/) are applied to Supabase
+#   2. then backend/ is deployed to Railway (project pbj-backend, service api)
+# Only for titles that follow AGENTS.md: feat(backend): …  fix(backend): …  chore(backend): …
+# and GitHub's Revert "…(backend): …". Anything else (docs, other scopes) changes nothing.
 on:
   push:
     branches: [main]
-    paths: ["backend/**"]
-  workflow_dispatch: # "Run workflow" button: deploy main by hand
+    paths: ["backend/**", "supabase/migrations/**"]
+  workflow_dispatch: # "Run workflow" button: apply any new migrations and deploy main by hand
 
 concurrency:
   group: deploy-backend
   cancel-in-progress: false
 
+env:
+  SUPABASE_PROJECT_REF: xpzrsslqfnhzqcxxkkjo
+
 jobs:
-  deploy:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.title.outputs.go }}
+      migrations: ${{ steps.changed.outputs.migrations }}
+      backend: ${{ steps.changed.outputs.backend }}
     steps:
       - name: Check the title
         id: title
@@ -26,25 +34,65 @@ jobs:
           title=$(printf '%s' "$MESSAGE" | head -n 1)
           echo "Title: ${title:-<manual run>}"
           if [ "$EVENT" = "workflow_dispatch" ] || printf '%s' "$title" | grep -Eq '^((feat|fix|chore)\(backend\): |Revert ".*\(backend\): )'; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "go=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Not a feat/fix/chore/revert(backend) title: skipping deploy."
+            echo "Not a feat/fix/chore/revert(backend) title: nothing to do."
           fi
 
       - uses: actions/checkout@v4
-        if: steps.title.outputs.deploy == 'true'
+        if: steps.title.outputs.go == 'true'
+        with: { fetch-depth: 2 }
+
+      - name: What changed
+        id: changed
+        if: steps.title.outputs.go == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"; echo "backend=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files=$(git diff --name-only HEAD^ HEAD)
+          echo "$files"
+          echo "$files" | grep -q '^supabase/migrations/' && echo "migrations=true" >> "$GITHUB_OUTPUT" || true
+          echo "$files" | grep -q '^backend/' && echo "backend=true" >> "$GITHUB_OUTPUT" || true
+
+  migrate:
+    needs: plan
+    if: needs.plan.outputs.go == 'true' && needs.plan.outputs.migrations == 'true'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with: { version: 2.98.2 }
+      - name: Link the project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Apply new migrations
+        run: |
+          supabase db push --dry-run
+          supabase db push --yes
+
+  deploy:
+    needs: [plan, migrate]
+    # runs after migrations succeed, or when there were none to apply
+    if: >-
+      always() && needs.plan.outputs.go == 'true' && needs.plan.outputs.backend == 'true' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
-        if: steps.title.outputs.deploy == 'true'
         with: { python-version: "3.12", cache: pip, cache-dependency-path: backend/requirements*.txt }
 
       - name: Tests pass
-        if: steps.title.outputs.deploy == 'true'
         working-directory: backend
         run: pip install -r requirements-dev.txt && pytest
 
       - name: Deploy to Railway
-        if: steps.title.outputs.deploy == 'true'
         working-directory: backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -53,10 +101,9 @@ jobs:
           railway up . --path-as-root --service api --environment production --ci -m "${GITHUB_SHA::7}"
 
       - name: Health check
-        if: steps.title.outputs.deploy == 'true'
         run: |
           for i in $(seq 1 12); do
-            curl -fsS https://api-production-bb76bfb9.up.railway.app/api/health && exit 0
+            curl -fsS https://api-production-bb76bfb9.up.railway.app/api/health/db && exit 0
             sleep 10
           done
           echo "Health check failed"; exit 1
