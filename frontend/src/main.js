@@ -9,6 +9,7 @@ import { playHeroOpen } from "./heroOpen.js";
 import { setupHosts } from "./hosts.js";
 import { setupEvents, setupLoop } from "./events.js";
 import { setupTopbar } from "./topbar.js";
+import { setupAccount } from "./account.js";
 import { createCutLetter } from "./cutword.js";
 import { setupAboutWho } from "./aboutWho.js";
 import { setupAboutStory } from "./aboutStory.js";
@@ -40,6 +41,7 @@ setupLoop(document.querySelector('[data-panel="list"]'), lenis); // the looping 
 const hosts = setupHosts(document.querySelector('[data-panel="hosts"]'));
 
 setupTopbar();
+setupAccount();
 setupTabs({
   onSwitch(name) {
     document.documentElement.dataset.page = name; // (the phone's top bar lets List Your Event's colours show through)

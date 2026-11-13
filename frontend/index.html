@@ -70,6 +70,24 @@
       <div class="tb-item">
         <button class="tb-btn" type="button" id="tb-menu"><i>[</i><span>Menu</span><i>]</i></button>
       </div>
+      <div class="tb-item" data-menu="account">
+        <button class="tb-btn" type="button" aria-expanded="false" aria-controls="acct-card"><i>[</i><span data-out>Sign in</span><span data-in hidden>Account</span><i>]</i></button>
+        <div class="tb-pop tb-acct" id="acct-card" role="region" aria-label="Sign in" hidden>
+          <p class="tb-head">Sign in</p>
+          <form id="acct-form" class="acct-form" novalidate>
+            <label for="acct-email">Your email</label>
+            <input id="acct-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required />
+            <button id="acct-send" type="submit" class="acct-btn">Email me a link</button>
+            <p class="acct-note">No password. We email you a link that signs you in.</p>
+          </form>
+          <div id="acct-in" class="acct-in" hidden>
+            <p id="acct-name" class="acct-name"></p>
+            <p id="acct-mail" class="acct-mail"></p>
+            <button id="acct-out" type="button" class="acct-btn acct-quiet">Sign out</button>
+          </div>
+          <p id="acct-msg" class="acct-msg" role="status" aria-live="polite" hidden></p>
+        </div>
+      </div>
     </div>
 
     <main class="folder">
