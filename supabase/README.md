@@ -1,13 +1,32 @@
-# Saving sign-ups and filled forms (Supabase)
+# Supabase (database and login)
 
-The "SIGN UP" and "FILL THE FORM" buttons in the Know more windows on List Your Event already work on the page. They save to a Supabase table called `leads` once these three steps are done (about 10 minutes, free plan is enough):
+Project: `xpzrsslqfnhzqcxxkkjo`, Singapore region. Dashboard: https://supabase.com/dashboard/project/xpzrsslqfnhzqcxxkkjo
 
-1. Make a free project at supabase.com.
-2. In the project: SQL Editor > New query, paste everything from `supabase/schema.sql` (in the top folder), press Run.
-3. In the project: Project Settings > API. Copy the **Project URL** and the **anon public** key. Copy `frontend/.env.example` to `frontend/.env.local` and paste them in. Restart the site.
+## What's here
 
-Until then the forms still open and check the details, but say "Saving is not connected yet" and nothing is sent or stored.
+- `migrations/`: every change to the database, as numbered SQL files, applied in order. Never edit one that has been applied; add a new file instead.
+  - `…_leads.sql`: sign-ups and filled forms from the List Your Event page. The website can only add rows; read them in the dashboard's Table Editor.
+  - `…_profiles.sql`: one profile per login (name, photo, city, role), made automatically on sign-up. People can read and edit only their own; only the team changes roles.
+- `config.toml`: settings for the Supabase CLI and a local copy of Supabase (`supabase start`, needs Docker).
 
-To read the sign-ups: Supabase > Table Editor > `leads` (it can export to a spreadsheet). Each row says whether it was a quick `signup` or a `form`, and which slide it came from (`role`). The website can only add rows; it cannot read, change or delete any.
+## One-time setup on your computer
 
-When the site goes live, add the same two values in the hosting service's settings (they are not stored in the code).
+```bash
+supabase login                                   # opens the browser, or paste an access token
+supabase link --project-ref xpzrsslqfnhzqcxxkkjo # from the repo's top folder; asks for the database password
+```
+
+## Making a database change
+
+```bash
+supabase migration new add_events   # creates supabase/migrations/<timestamp>_add_events.sql
+# write the SQL, then:
+supabase db push                    # applies new migrations to the live project
+```
+
+Every new table needs row level security turned on and policies saying who can read and write it. Use a `feat(backend)` or `chore(backend)` PR for the change.
+
+## Keys
+
+- **Website** (`frontend/.env.local`): `VITE_SUPABASE_URL` and the **publishable** key. Safe in the browser.
+- **Backend** (`backend/.env`, and Railway variables): `SUPABASE_URL`, `DATABASE_URL`, and the **secret** key. Never in the website.
