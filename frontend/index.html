@@ -19,7 +19,9 @@
     <script>
       // Play the loading intro on the first visit of a session (always while developing, or with ?intro)
       try {
-        if (location.hostname === "localhost" || location.search.includes("intro") || !sessionStorage.getItem("pbj-intro"))
+        // (never on a refresh: refreshing keeps you on the page you are on, without the loading screen)
+        const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
+        if (!reloaded && (location.hostname === "localhost" || location.search.includes("intro") || !sessionStorage.getItem("pbj-intro")))
           document.documentElement.classList.add("intro");
         history.scrollRestoration = "manual"; // always start the intro at the top of the page
       } catch (e) {
@@ -34,7 +36,7 @@
 
     <div id="site">
     <!-- Folder tabs: right edge on computers, stacked at the top on phones -->
-    <nav class="tabs" aria-label="Sections">
+    <nav class="tabs" id="sections" aria-label="Sections">
       <button class="tab" data-tab="home" style="--tab: #fffffa; --on: var(--brown); --top: 2vh; --len: 12vh">Home</button>
       <button class="tab" data-tab="events" style="--tab: var(--honey); --on: var(--brown); --top: 16vh; --len: 12vh">Events</button>
       <button class="tab" data-tab="about" style="--tab: var(--crust); --on: var(--cream); --top: 30vh; --len: 12vh">About</button>
@@ -42,6 +44,33 @@
       <button class="tab" data-tab="hosts" style="--tab: var(--brown); --on: var(--cream); --top: 62vh; --len: 17vh">Meet Our Hosts</button>
       <button class="tab" data-tab="secret" style="--tab: var(--pop); --on: var(--brown); --top: 80vh; --len: 14vh">Our Secret</button>
     </nav>
+
+    <!-- Top bar: who you are, your city, and the menu that pulls the folder tabs out -->
+    <div class="topbar" role="toolbar" aria-label="Quick choices">
+      <div class="tb-item" data-menu="who">
+        <button class="tb-btn" type="button" aria-expanded="false" aria-haspopup="true"><i>[</i><span>Your role</span><i>]</i></button>
+        <div class="tb-pop" hidden>
+          <p class="tb-head">Who are you?</p>
+          <ul class="tb-list">
+            <li><button type="button" data-value="PBJ Exclusive Host"><span>PBJ Exclusive Host</span><em class="tb-tag">Interested to be</em></button></li>
+            <li><button type="button" data-value="Host">Host</button></li>
+            <li><button type="button" data-value="Spontaneous Planner">Spontaneous Planner</button></li>
+            <li><button type="button" data-value="Venue">Venue</button></li>
+            <li><button type="button" data-value="Brand">Brand</button></li>
+          </ul>
+        </div>
+      </div>
+      <div class="tb-item" data-menu="city">
+        <button class="tb-btn" type="button" aria-expanded="false" aria-haspopup="true"><i>[</i><span>Mumbai</span><i>]</i></button>
+        <div class="tb-pop tb-wide" hidden>
+          <p class="tb-head">Choose your city</p>
+          <ul class="tb-list tb-two" id="tb-cities"></ul>
+        </div>
+      </div>
+      <div class="tb-item">
+        <button class="tb-btn" type="button" id="tb-menu"><i>[</i><span>Menu</span><i>]</i></button>
+      </div>
+    </div>
 
     <main class="folder">
       <!-- HOME -->
@@ -118,49 +147,16 @@
       <!-- OTHER TABS (placeholders for now) -->
       <section class="panel" data-panel="events" hidden>
         <div class="block">
-          <p class="kicker">■ Events</p>
           <div class="events-intro">
-            <h2 class="story-title">PBJ-approved events happening around you until we mine exclusive hidden gems for you.</h2>
-            <p class="story-left">Hand-picked <em>nights out</em> around <em>Mumbai</em>. The first ones land <em>soon</em>.</p>
+            <h2 class="story-title">Find your fun</h2>
           </div>
         </div>
-        <div class="pins" aria-hidden="true">
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-          <div class="pin"></div>
-        </div>
+        <div class="ev-browse"></div>
       </section>
       <section class="panel" data-panel="about" hidden>
         <div class="about-hero">
           <div class="about-image">
-            <p class="about-pbj-note" aria-live="polite">Warming up the letters…</p>
+            <img class="about-pbj-still" src="/pbj-letters.webp" width="1400" height="612" alt="The letters P, B and J, made of peanut, butter and jelly" decoding="async" fetchpriority="high">
             <iframe class="about-pbj" title="P, B and J in 3D: a peanut P, a butter B and a jelly J. Drag to turn them." data-src="/pbj.html?inline"></iframe>
           </div>
           <div class="about-cols">
@@ -170,19 +166,57 @@
             </div>
             <div class="about-right">
               <p>PBJ is a guide to the unexplored crowd and nooks of Mumbai that don't make the usual lists. Think odd corners, creative experiments, a roadmap to undercover artists and people with curated taste. Every week, we discover and present hidden gems worth leaving the house for.</p>
-              <p>The goal is to make you know where to come looking for after the boredom of a rinse-and-repeat weekend plan leaves you wanting something fresh.</p>
+              <p>The goal is to make you know where to come looking after the boredom of a rinse-and-repeat weekend plan leaves you wanting something fresh.</p>
             </div>
           </div>
         </div>
-      </section>
-      <section class="panel" data-panel="list" hidden>
-        <div class="block">
-          <p class="kicker">■ List Your Event</p>
-          <h2>Got something worth finding?</h2>
-          <p class="placeholder">Coming soon: who can list, how to list, a few rules and a host signup.</p>
-          <p><a class="btn" href="/dashboard.html">Your events</a></p>
+        <div class="about-who">
+          <h2 class="who-title">Who's cooking?</h2>
+          <p class="who-sub">Meet the team assembling this delicious PBJ sandwich for y'all</p>
         </div>
+        <div class="about-founders" aria-label="The founders">
+          <article class="fpanel" data-tone="pop">
+            <img src="/founder-1.webp" width="1280" height="853" alt="Drishti Gowda, CEO and founder of PBJ" loading="lazy" decoding="async">
+            <div class="fmeta">
+              <h3 class="fname">Drishti Gowda</h3>
+              <p class="frole">CEO &amp; founder · mostly goes by Vision</p>
+              <button class="fbtn" type="button" aria-expanded="false" aria-controls="bio-drishti"><i>[</i><span>Read more</span><i>]</i></button>
+            </div>
+            <div class="fbio" id="bio-drishti" role="region" aria-label="About Drishti Gowda">
+              <p>One whom people hand the talking pillow to, even when she is not ready. Because she has a switch. At least that is what she calls it, a switch that lights up when she has to speak, engage, converse, chat, convince, sell or simply impress anyone in a room. She's known for not being outgoing, but when she is, she's always seen charming people and making new friends as if it's a Pokémon-collecting hobby. In a few words, she is a selective participant who survives on day-round cups of coffee, books she cannot keep down, songs that itch her brain, and people she refers to as &quot;The Twinkle Of Her Eyes&quot;.</p>
+              <button class="fclose" type="button"><i>[</i><span>Close</span><i>]</i></button>
+            </div>
+          </article>
+          <article class="fpanel" data-tone="butter">
+            <img src="/founder-2.webp" width="1280" height="853" alt="Disha Gowda, CMO and founder of PBJ" loading="lazy" decoding="async">
+            <div class="fmeta">
+              <h3 class="fname">Disha Gowda</h3>
+              <p class="frole">CMO &amp; founder</p>
+              <button class="fbtn" type="button" aria-expanded="false" aria-controls="bio-disha"><i>[</i><span>Read more</span><i>]</i></button>
+            </div>
+            <div class="fbio" id="bio-disha" role="region" aria-label="About Disha Gowda">
+              <p>One who will never talk to you if you make her talk without her heart in it. Talking depletes her, but two things refill her energy: Orange Mocha + Her Passion for Cinematography + Money. She loves money, but her major motivator to make money is the month-end credit card bills she piles up because she never believes she could be broke, like ever. One thing this girl does well is never saying &quot;NO&quot; to a plan. Every new plan includes Disha. OUTGOING for her is self-explanatory. Her committed energy toward her friendships and work is what earns her lasting connections and that enjoyable money. In a few words, she is SORTED.</p>
+              <button class="fclose" type="button"><i>[</i><span>Close</span><i>]</i></button>
+            </div>
+          </article>
+        </div>
+        <section class="about-fact" aria-label="Fun fact">
+          <div class="fstage"><p class="ftext">Fun fact: they are sisters who cannot put a stop to the length of their dreams.</p></div>
+        </section>
+        <section class="about-journey" aria-label="The journey behind PBJ">
+          <div class="jstage">
+            <div class="jsteps">
+              <div class="jstep"><div class="jnumbox"><span class="jnum">01</span></div><div class="jbody"><h3 class="jtitle">Two sisters</h3><p class="jtext">Since they were teenagers, they have dreamed of becoming business partners, and their first dream was to open a coffee shop called Two Sisters;</p></div></div>
+              <div class="jstep"><div class="jnumbox"><span class="jnum">02</span></div><div class="jbody"><h3 class="jtitle">ByeBye</h3><p class="jtext">But before they could make it real, two other sisters across the seven seas trademarked the name. It was one sad day for our founders.</p></div></div>
+              <div class="jstep"><div class="jnumbox"><span class="jnum">03</span></div><div class="jbody"><h3 class="jtitle">AdVows</h3><p class="jtext">Then, in 2024, they stopped overthinking and started a creative advertising agency, AdVows; they even tried their hands at hosting a podcast together, and at each step, they had a lot of fun.</p></div></div>
+              <div class="jstep"><div class="jnumbox"><span class="jnum">04</span></div><div class="jbody"><h3 class="jtitle">More fun</h3><p class="jtext">As they are wired, yet again, they boldly decided, wanting more from life. More fun, more success, and, above all, a sense of friendship and community. It was time they oozed the fun out for everyone to enjoy.</p></div></div>
+              <div class="jstep"><div class="jnumbox"><span class="jnum">05</span></div><div class="jbody"><h3 class="jtitle">Show time</h3><p class="jtext">So they sandwiched up Peanut Butter Jelly, also known as PBJ, to take on that goal.</p></div></div>
+            </div>
+            <div class="jdots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+        </section>
       </section>
+      <section class="panel" data-panel="list" hidden></section> <!-- the looping sections are built by src/events.js (setupLoop); the "Your events" button is on the last one -->
       <section class="panel" data-panel="hosts" hidden>
         <div class="hosts-stage" data-lenis-prevent>
           <div class="hosts-book-wrap"><canvas class="hosts-book" aria-label="A host's magazine: tap the right side for the next pages, the left side to go back"></canvas></div>

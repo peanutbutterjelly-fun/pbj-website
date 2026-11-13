@@ -188,7 +188,7 @@ function renderList() {
             <div class="st-wrap"><button type="button" class="kebab" data-act="kebab" aria-label="More options" aria-haspopup="menu" aria-expanded="${kebab}">${ic("dots", "1.3em")}</button>
               <div class="st-menu small" ${kebab ? "" : "hidden"}><button type="button" data-act="dup"><span><b>Duplicate</b></span></button><button type="button" data-act="del" class="dangerous"><span><b>Delete</b></span></button></div></div>
           </div></div>
-        <div class="ev-tags"><span class="tag dark1">${esc(TYPE_SHORT[e.type] || "No type")}</span>${(e.tickets || []).length ? `<span class="tag ${paid ? "dark2" : "free"}">${paid ? "Paid" : "Free"}</span>` : ""}${!done ? `<span class="tag soft">Step ${Math.min(e.step ?? 0, STEPS.length - 1) + 1} of ${STEPS.length}</span>` : ""}${past ? '<span class="tag soft">Past</span>' : ""}</div>
+        <div class="ev-tags"><span class="tag dark1">${esc(typeClash(e) ? "Fix event type" : TYPE_SHORT[e.type] || "No type")}</span>${(e.tickets || []).length ? `<span class="tag ${paid ? "dark2" : "free"}">${paid ? "Paid" : "Free"}</span>` : ""}${!done ? `<span class="tag soft">Step ${Math.min(e.step ?? 0, STEPS.length - 1) + 1} of ${STEPS.length}</span>` : ""}${past ? '<span class="tag soft">Past</span>' : ""}</div>
         <div class="sold">${ic("ticket", "1.2em")}<b>0</b> sold</div>
         ${done ? `<div class="ev-link">${ic("link", "1.1em")}<span>${eventLink(e)}</span><button type="button" data-act="copy">${ic("copy", "1.1em")}Copy</button></div>` : ""}
         <div class="ev-actions">
@@ -211,8 +211,7 @@ function renderList() {
     const shown = events.filter((e) => inTab(e, tab) && (!q || (e.title || "").toLowerCase().includes(q)));
     if (!shown.length) {
       listEl.innerHTML = `<div class="empty"><h2 class="cut" data-fill="var(--brown)" data-shadow="var(--cream)">${events.length ? "Nothing here" : "No events yet"}</h2>
-        <p>${events.length ? "No events match this tab or search." : "Got something worth finding? Create your first event and share it with Mumbai."}</p>
-        ${events.length ? "" : '<a class="btn" href="#/create/0">+ Create event</a>'}</div>`;
+        <p>${events.length ? "No events match this tab or search." : "Got something worth finding? Create your first event and share it with Mumbai."}</p></div>`;
     } else listEl.innerHTML = shown.map(card).join("");
     cutHeadings();
   };
@@ -1160,6 +1159,7 @@ function stepTickets(host) {
   host.innerHTML = `
     <h2 class="section-title cut">Tickets</h2>
     <p class="section-sub">Select ticket type</p>
+    <div id="typenote"></div>
     <div class="tickets" role="group" aria-label="Ticket types">
       ${TICKET_TYPES.map((t) => `<button type="button" class="tkt" data-t="${t.id}">
         <span class="tkt-badge" data-count="${t.id}" hidden></span>
@@ -1169,8 +1169,15 @@ function stepTickets(host) {
     <div class="nav three"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button><button class="btn" type="button" id="save">Save draft</button></div>`;
   cutHeadings();
   const next = host.querySelector("#next"), made = host.querySelector("#made");
+  const note = host.querySelector("#typenote");
   const paint = () => {
+    // a Free Impromptu event only has free tickets: the paid kinds are locked, and a clash is explained with a one-tap fix
+    const free = draft.type === "guestlist";
+    note.innerHTML = free ? `<p class="notice"><b>${typeClash(draft) ? "This event is set to Free Impromptu but it has a paid ticket." : "Free Impromptu events only have free tickets."}</b> To sell paid tickets, switch the event type: <button type="button" class="btn small" data-settype="exclusive">Exclusive event</button> <button type="button" class="btn small" data-settype="open">Non-exclusive event</button></p>` : "";
     TICKET_TYPES.forEach((tt) => {
+      const el = host.querySelector(`[data-t="${tt.id}"]`);
+      el.classList.toggle("locked", free && tt.id !== "guest");
+      el.setAttribute("aria-disabled", free && tt.id !== "guest");
       const n = draft.tickets.filter((x) => x.type === tt.id).length;
       const badge = host.querySelector(`[data-count="${tt.id}"]`);
       badge.hidden = !n; badge.textContent = n;
@@ -1199,7 +1206,17 @@ function stepTickets(host) {
     if (i >= 0) draft.tickets[i] = t; else draft.tickets.push(t);
     persist(4); paint();
   });
-  host.querySelector(".tickets").addEventListener("click", (e) => { const b = e.target.closest("[data-t]"); if (b) add(TICKET_TYPES.find((t) => t.id === b.dataset.t)); });
+  note.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-settype]");
+    if (!b) return;
+    draft.type = b.dataset.settype; persist(4); paint(); toast("Event type changed");
+  });
+  host.querySelector(".tickets").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-t]");
+    if (!b) return;
+    if (b.classList.contains("locked")) { toast("Free Impromptu events only have free tickets. Switch the event type to sell paid ones."); return; }
+    add(TICKET_TYPES.find((t) => t.id === b.dataset.t));
+  });
   made.addEventListener("click", async (e) => {
     const ed = e.target.closest("[data-edit-t]"), del = e.target.closest("[data-del-t]");
     if (ed) { const x = draft.tickets.find((q) => q.id === ed.dataset.editT); add(TICKET_TYPES.find((t) => t.id === x.type), x); }
@@ -1391,6 +1408,8 @@ function stepOrganizer(host) {
 const dmy = (v) => { if (!v) return "—"; const [y, m, d] = v.split("-").map(Number); return `${d} ${SHORT[m - 1]} ${y}`; };
 const hm = (t) => (t && t.h && t.m ? `${t.h}:${t.m}` : "—");
 const TYPE_SHORT = { guestlist: "Free impromptu", exclusive: "Exclusive", open: "Non-exclusive" };
+// a Free Impromptu event can only have free tickets: paid tickets on one is a mix-up that has to be fixed (see the Tickets step)
+const typeClash = (e) => e.type === "guestlist" && (e.tickets || []).some((t) => t.paid);
 
 function stepReview(host) {
   const d = draft;
@@ -1400,7 +1419,7 @@ function stepReview(host) {
   const tickets = d.tickets || [], orgs = d.organizers || [], images = (d.images || []).filter(Boolean);
   // Anything still missing, with the step that fixes it
   const missing = [
-    [!d.type, "Event type", 0], [!d.title, "Title", 1], [!d.description || !textLen(d.description), "Description", 1],
+    [!d.type, "Event type", 0], [typeClash(d), "Event type (a Free Impromptu event can only have free tickets)", 4], [!d.title, "Title", 1], [!d.description || !textLen(d.description), "Description", 1],
     [!d.category, "Category", 2], [!(d.subs || []).length, "Sub categories", 2], [!d.city, "City", 2], [!images.length, "A cover image", 2],
     [!d.dateFrom, "Event dates", 3], [!(d.start && d.start.h && d.start.m), "Start time", 3],
     [!tickets.length, "At least one ticket", 4], [!orgs.length, "An organizer", 6],
@@ -1583,7 +1602,11 @@ function openCouponModal(ev, existing, onSave) {
 // PBJ doesn't sell tickets yet, so every number here is zero. The page is ready for when sales exist.
 const SALES_TABS = [["overview", "Overview"], ["analytics", "Analytics"], ["tickets", "Ticket wise"]];
 // A small graph that draws itself in, then keeps a gentle motion going (stops for people who turn motion off). Shape only for now: it becomes real once there are sales.
-const spark = (color, delay = 0) => `<svg class="spark" viewBox="0 0 80 28" aria-hidden="true" style="--c:${color}; --d:${delay}s"><path class="sp-area" d="M2 22 L16 17 L30 21 L44 11 L58 16 L76 7 L76 28 L2 28 Z" fill="${color}"/><path class="sp-line" pathLength="100" d="M2 22 L16 17 L30 21 L44 11 L58 16 L76 7" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="sp-dot" cx="76" cy="7" r="2.6" fill="${color}"/><circle class="sp-ring" cx="76" cy="7" r="2.6" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
+const spark = (color, delay = 0, down = false) => {
+  const pts = down ? "M2 7 L16 12 L30 8 L44 18 L58 13 L76 22" : "M2 22 L16 17 L30 21 L44 11 L58 16 L76 7"; // up for sales, down for refunds
+  const y = down ? 22 : 7;
+  return `<svg class="spark" viewBox="0 0 80 28" aria-hidden="true" style="--c:${color}; --d:${delay}s"><path class="sp-area" d="${pts} L76 28 L2 28 Z" fill="${color}"/><path class="sp-line" pathLength="100" d="${pts}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="sp-dot" cx="76" cy="${y}" r="2.6" fill="${color}"/><circle class="sp-ring" cx="76" cy="${y}" r="2.6" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
+};
 
 function renderSales(id) {
   const events = load(), ev = events.find((e) => e.id === id);
@@ -1601,13 +1624,13 @@ function renderSales(id) {
     <div class="ev-tabs" role="tablist">${SALES_TABS.map(([k, n]) => `<button type="button" role="tab" class="ev-tab" data-tab="${k}">${n}</button>`).join("")}</div>
     <div id="sales-body"></div>`;
   const body = app.querySelector("#sales-body");
-  const tile = (label, value, cap, color, delay = 0, extra = "") => `<div class="an-tile"><div class="an-top"><span>${label}</span>${spark(color, delay)}</div><b class="an-num">${value}</b><small>${cap}</small>${extra}</div>`;
+  const tile = (label, value, cap, color, delay = 0, extra = "", down = false) => `<div class="an-tile"><div class="an-top"><span>${label}</span>${spark(color, delay, down)}</div><b class="an-num">${value}</b><small>${cap}</small>${extra}</div>`;
   const empty = (title, text) => `<div class="empty"><h2 class="cut" data-fill="var(--brown)" data-shadow="var(--cream)">${title}</h2><p>${text}</p></div>`;
   const draw = () => {
     app.querySelectorAll("[data-tab]").forEach((b) => { const on = b.dataset.tab === tab; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     const tickets = ev.tickets || [];
     if (tab === "overview") body.innerHTML = `
-      <div class="an-grid four">${tile("Total revenue", "₹0", "Total sales", "#463721", 0)}${tile("Total tickets", "0", "Tickets sold", "#f0a830", 0.15)}${tile("Total pax", "0", "People attending", "#6b2d5c", 0.3)}${tile("Refunds", "0", "Refund orders", "#c2184f", 0.45)}</div>
+      <div class="an-grid four">${tile("Total revenue", "₹0", "Total sales", "#463721", 0)}${tile("Total tickets", "0", "Tickets sold", "#f0a830", 0.15)}${tile("Total pax", "0", "People attending", "#6b2d5c", 0.3)}${tile("Refunds", "0", "Refund orders", "#c2184f", 0.45, "", true)}</div>
       <div class="an-grid two">
         <div class="an-panel"><span class="an-label">Today's sales snapshot</span><div class="snap"><div><small>Tickets</small><b>0</b></div><div><small>Pax</small><b class="c2">0</b></div><div><small>Refunds</small><b class="c3">0</b></div></div><div class="snap-foot"><span>Today's revenue</span><b>₹0</b></div></div>
         <div class="an-panel"><span class="an-label">Check-in status</span><div class="ring-row"><div class="ring"><b>0%</b></div><div class="ring-txt"><small>Checked in</small><b>0 / 0</b><small>Remaining</small><b>0</b></div></div></div>

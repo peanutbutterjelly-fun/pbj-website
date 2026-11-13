@@ -55,6 +55,22 @@ _Bounces, wiggles, hover effects, page transitions._
 - **Screenshot:** inspiration/
 - **Phone version:** Phones have no cursor, so on phones the button sits on each event card as a normal button.
 
+### Flip Carousel demo (the "caterpillar")
+- **Link:** https://demos.gsap.com/demo/flip-carousel
+- **Code:** https://codepen.io/GreenSock/pen/eYwbjdz (uses GSAP's Flip plugin)
+- **What I like:** A line of cards that moves like a caterpillar. On "Next", the first card shrinks away into its bottom-left corner, all the others glide one place to the left, and a new card grows in at the end from its bottom-right corner. "Previous" does it the other way round.
+- **Where I'd use it:** On the Events page, on the brown belt where the event cards are lined up. Built in `src/events.js` (the arrows, or a swipe, move the belt).
+- **Screenshot:** none (it's an animation, nothing to see in a still)
+- **To plan for:** The belt always shows the same number of cards (5 on computers); on tablets and phones the extra cards are hidden off the edge. When we have real events, the cards that grow in will be the next real events in the list.
+
+### Flexbox Filtering demo
+- **Link:** https://demos.gsap.com/demo/flexbox-filtering
+- **Code:** https://codepen.io/GreenSock/pen/NWRxarv (uses GSAP's Flip plugin)
+- **What I like:** When you switch a filter, nothing just pops. The boxes that still match glide smoothly to their new places, the ones that don't match shrink and fade away, and any that come back grow in, one after another.
+- **Where I'd use it:** On the Events page, when someone uses the filters (sort, day, month, area, price) or the category line: the event cards glide into place, shrink away or grow in. Built in `src/events.js`.
+- **Screenshot:** none (it's an animation, nothing to see in a still)
+- **To plan for:** While the cards fly about, the space under the grid is held in place so the page below doesn't jump. With "reduce motion" switched on, the cards just swap.
+
 ## Scrolling
 _What happens as people scroll down the page._
 
@@ -165,3 +181,22 @@ _Anything that doesn't fit above._
 - **What it looks like:** Each artist gets a profile: a big bold name, a large photo, the event they're playing (with date), and buttons to their Instagram and SoundCloud. Below it, a "Discover more artists" list shows everyone else on the lineup.
 - **Where I'd use it:** Our list of Partner Hosts under PBJ, once we have them on our roster. Each host gets a profile like this (photo, name, their upcoming PBJ event, links to their Instagram or website), with "Discover more hosts" below.
 - **Screenshot:** inspiration/
+
+## GSAP "Layered pinning with infinite looping" (codepen.io/GreenSock/pen/VwbywPd), with ScrollTrigger pinning and ScrollTrigger.maxScroll()
+- **Where I'd use it:** The List Your Event page: six full-screen sections, each pinned at the top while the next slides up over it like cards on a pile. The page snaps to the nearest section. The page does not loop: the last section (a typewriter line) is the end, and scrolling on opens the next folder. (`ScrollTrigger.maxScroll()` finds the end for the snapping.) The "Your events" button sits on the last section so it is never lost. Built in `src/events.js` (`setupLoop`).
+- **To plan for:** The sections' wording and colours are placeholders until final.
+
+## GSAP "Animated Continuous Sections with GSAP Observer" (codepen.io/GreenSock/pen/XWzRraJ)
+- **Where I'd use it:** The List Your Event page (tried and set aside for now; the "Layered pinning" version above is the one in use. To try this one again, set `LOOP_MODE` to `"observer"` in `src/events.js`). The page itself does not scroll: each scroll gesture wipes the next section in like a curtain (the colour slides one way while its content slides the other), the old colour drifts away, and the new letters fly up in random order. The last section types itself out. After the last section, scrolling on opens the next folder; scrolling up from the first opens the previous one.
+- **To plan for:** Uses GSAP's Observer plugin (no ScrollTrigger). The sections' wording and colours are placeholders until final.
+
+- **List Your Event on phones:** same pile-of-cards look, but swipe-driven: the page itself does not scroll on phones (native scrolling with pinned layers glitches on touch screens). One swipe slides the next section up over the last (a swipe the other way slides the top one away); built with GSAP's Observer in `src/events.js` (`setupObserverLoop`, "layered"). Computers keep the ScrollTrigger pinning.
+
+- **List Your Event on computers (update):** the sections are still pinned by ScrollTrigger, but one scroll gesture now glides exactly one section (an eased move of the page, driven by us, not by the wheel), so a hard flick or a trackpad's coasting can never skip a section. `ScrollTrigger.maxScroll()` marks the end of the page; scrolling on past it opens the next folder.
+
+- **List Your Event, final (computers and phones):** both now use the same swipe/scroll-driven version: the page itself never scrolls, and one gesture slides the next section up over the last (and back). The ScrollTrigger pinning version is still in `src/events.js`; set `LOOP_MODE` to `"pinned"` there to use it again.
+
+## "Know more" website box (List Your Event, slides 2 to 7)
+- **What it is:** a "Know more" button under each in-between slide's title opens a small window (a tiny notepad look, in our own colours: rounded cream body, crust-brown title bar, thin edge, no shadow). It grows out of the button, types the slide's text, then asks a paper-cut question (Is this you? etc.) with Yes / No / Maybe; Yes brings a reply, a note and two buttons (sign up / fill the form). Buttons copy the NEXT button look (soft yellow, rounded, hard brown shadow).
+- **Rules the owner set:** never on the first or last slide; the typed text can't be backspaced (only the visitor's own lines can); it opens centred with equal space above and below and never covers the three top options; menus, toolbar and fonts work but start tucked away.
+- **Earlier idea, switched off:** the cream block-dissolve and the two-piece "rip here" ticket (code kept dormant in src/events.js as setupTickets).
