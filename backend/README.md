@@ -21,6 +21,14 @@ Then open http://localhost:8000/api/health (should say `{"status":"ok"}`) or htt
 pytest
 ```
 
+## Where it runs
+
+On Railway: project **pbj-backend**, service **api**, Singapore region (the closest to Mumbai).
+- Live: https://api-production-bb76bfb9.up.railway.app/api/health
+- Deploys automatically when a `feat(backend)`, `fix(backend)` or `chore(backend)` PR is merged into `main` (see `.github/workflows/deploy-backend.yml`). To deploy `main` by hand: GitHub → Actions → Deploy backend → Run workflow.
+- `railway.json` holds the Railway settings (region, health check, restarts). `railpack.json` holds the start command.
+- Settings and secrets (like `ENVIRONMENT`) are set in Railway under the **api** service's Variables, never in code.
+
 ## Layout
 
 ```
@@ -33,6 +41,8 @@ backend/
       routes/
         health.py    # GET /api/health
   tests/             # pytest tests
+  railway.json           # Railway settings (region, health check)
+  railpack.json          # how Railway starts the server
   requirements.txt       # what the server needs
   requirements-dev.txt   # plus testing tools
   .env.example           # copy to .env for local settings
