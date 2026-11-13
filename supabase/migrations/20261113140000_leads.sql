@@ -1,5 +1,5 @@
--- PBJ sign-ups and filled forms. Run this once in Supabase: SQL Editor > New query > paste > Run.
--- One table holds both: kind = 'signup' (notify me) or 'form' (the longer "fill the form" answers).
+-- Sign-ups and filled forms from the List Your Event page (was supabase/schema.sql).
+-- One table holds both: kind = 'signup' (notify me) or 'form' (the longer answers).
 -- role says which slide it came from (For artists, For venues, For brands...).
 
 create table if not exists public.leads (
@@ -16,12 +16,11 @@ create table if not exists public.leads (
   page        text
 );
 
--- The website may only ADD rows. Nobody on the website can read, change or delete them;
--- you read them in the Supabase dashboard (Table Editor), which can also export to a spreadsheet.
+-- The website may only ADD rows. Nobody on the website can read, change or delete them.
 alter table public.leads enable row level security;
 
 drop policy if exists "anyone can add a lead" on public.leads;
-create policy "anyone can add a lead" on public.leads for insert to anon with check (true);
+create policy "anyone can add a lead" on public.leads
+  for insert to anon, authenticated with check (true);
 
--- Added later (the slide-by-slide questions). If the table already existed, this adds the column; safe to run again.
-alter table public.leads add column if not exists answers jsonb check (answers is null or char_length(answers::text) <= 8000);
+grant insert on public.leads to anon, authenticated;
