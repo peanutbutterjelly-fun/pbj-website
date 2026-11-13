@@ -18,7 +18,7 @@ const BUILT = 8; // every step exists now
 
 // Commission and payout lines are placeholders until the owner decides PBJ's real terms
 const TYPES = [
-  { id: "guestlist", icon: "📋", name: "Free Impromptu Event", desc: "Entry only for the guests you approve and admit.", commission: "Free (excl. listing fee)", payout: "N/A" },
+  { id: "guestlist", icon: "📋", name: "Sponty Event", desc: "Entry only for the guests you approve and admit.", commission: "Free (excl. listing fee)", payout: "N/A" },
   { id: "exclusive", icon: "🔒", name: "Exclusive event", desc: "Tickets are available only on PBJ and no other platform.", commission: "To be set by PBJ", payout: "To be set by PBJ" },
   { id: "open", icon: "🌐", name: "Non-exclusive event", desc: "Tickets are available on multiple platforms.", commission: "To be set by PBJ", payout: "To be set by PBJ" },
 ];
@@ -230,7 +230,7 @@ function renderList() {
     if (what === "status") { openMenu = openMenu === `st-${e.id}` ? null : `st-${e.id}`; paint(); }
     else if (what === "kebab") { openMenu = openMenu === `k-${e.id}` ? null : `k-${e.id}`; paint(); }
     else if (what === "edit") { draft = e; location.hash = `#/create/${e.submitted ? 1 : Math.min(e.step ?? 0, STEPS.length - 1)}`; }
-    else if (what === "view") { draft = e; location.hash = "#/create/7"; }
+    else if (what === "view") { location.href = `/event.html?id=${encodeURIComponent(e.id)}`; }
     else if (what === "flip") { const art = act.closest(".ev-card"); if (art.classList.toggle("flipped")) flipped.add(e.id); else flipped.delete(e.id); }
     else if (what === "coupons") location.hash = `#/event/${e.id}/coupons`;
     else if (what === "sales") location.hash = `#/event/${e.id}/sales`;
@@ -644,15 +644,21 @@ function stepDetails(host) {
   const $ = (q) => host.querySelector(q);
   const subs = $("#subs"), city = $("#city"), list = $("#city-list");
   const subPop = $("#subpop"), subQ = $("#subq"), subList = $("#sublist"), subAdd = $("#subadd");
+  // Typed something that isn't in a list? Offer to add it as its own entry (attr = the data attribute the list's click handler reads)
+  const addRow = (typed, all, attr) => {
+    const t = typed.trim().replace(/\s+/g, " ").slice(0, 40);
+    return t && !all.some((o) => o.toLowerCase() === t.toLowerCase()) ? `<li role="option" tabindex="-1" class="addnew" ${attr}="${esc(t)}"><span>+ Add “${esc(t)}”</span></li>` : "";
+  };
   const paintSubList = () => {
     const q = subQ.value.trim().toLowerCase();
     const hits = (CATEGORIES[draft.category] || []).filter((o) => o.toLowerCase().includes(q));
-    subList.innerHTML = hits.length ? hits.map((o) => `<li role="option" tabindex="-1" data-sub="${esc(o)}" aria-selected="${draft.subs.includes(o)}" class="${draft.subs.includes(o) ? "sel" : ""}"><span>${esc(o)}</span>${draft.subs.includes(o) ? "<b>✓</b>" : ""}</li>`).join("") : '<li class="none">No match</li>';
+    const add = addRow(subQ.value, [...(CATEGORIES[draft.category] || []), ...draft.subs], "data-sub");
+    subList.innerHTML = (hits.length || add) ? hits.map((o) => `<li role="option" tabindex="-1" data-sub="${esc(o)}" aria-selected="${draft.subs.includes(o)}" class="${draft.subs.includes(o) ? "sel" : ""}"><span>${esc(o)}</span>${draft.subs.includes(o) ? "<b>✓</b>" : ""}</li>`).join("") + add : '<li class="none">No match</li>';
   };
   const paintSubs = () => {
     subs.innerHTML = draft.subs.map((o) => `<span class="tag">${esc(o)}<button type="button" data-rm-sub="${esc(o)}" aria-label="Remove ${esc(o)}">×</button></span>`).join("");
-    $("#subcount").innerHTML = `<b>${draft.subs.length}</b>/5 sub-categories selected${CATEGORIES[draft.category] ? "" : " · pick a category first"}`;
-    subAdd.disabled = !CATEGORIES[draft.category] || draft.subs.length >= 5;
+    $("#subcount").innerHTML = `<b>${draft.subs.length}</b>/5 sub-categories selected${draft.category ? "" : " · pick a category first"}`;
+    subAdd.disabled = !draft.category || draft.subs.length >= 5;
     if (!subPop.hidden) paintSubList();
   };
   const setSub = (on) => { subPop.hidden = !on; subAdd.setAttribute("aria-expanded", on); if (on) { subQ.value = ""; paintSubList(); subQ.focus(); } };
@@ -664,7 +670,8 @@ function stepDetails(host) {
   const paintCats = () => {
     const q = catQ.value.trim().toLowerCase();
     const hits = Object.keys(CATEGORIES).filter((c) => c.toLowerCase().includes(q));
-    catList.innerHTML = hits.length ? hits.map((c) => `<li role="option" tabindex="-1" data-cat="${esc(c)}" aria-selected="${c === draft.category}" class="${c === draft.category ? "sel" : ""}">${esc(c)}</li>`).join("") : '<li class="none">No match</li>';
+    const add = addRow(catQ.value, Object.keys(CATEGORIES), "data-cat");
+    catList.innerHTML = (hits.length || add) ? hits.map((c) => `<li role="option" tabindex="-1" data-cat="${esc(c)}" aria-selected="${c === draft.category}" class="${c === draft.category ? "sel" : ""}">${esc(c)}</li>`).join("") + add : '<li class="none">No match</li>';
   };
   const setCat = (on) => { catPop.hidden = !on; catBtn.setAttribute("aria-expanded", on); if (on) { catQ.value = ""; paintCats(); catQ.focus(); } };
   catLabel();
@@ -713,7 +720,9 @@ function stepDetails(host) {
     const q = city.value.trim().toLowerCase();
     if (q.length < 3) { closeList(); return; }
     const hits = CITIES.filter((c) => c.toLowerCase().includes(q));
-    list.innerHTML = hits.length ? hits.map((c) => `<li role="option" data-city="${c}" tabindex="-1">${c}</li>`).join("") : '<li class="none">No match yet</li>';
+    const typed = city.value.trim().replace(/\s+/g, " ").slice(0, 40);
+    const add = CITIES.some((c) => c.toLowerCase() === typed.toLowerCase()) ? "" : `<li role="option" class="addnew" data-city="${esc(typed)}" tabindex="-1"><span>+ Add “${esc(typed)}”</span></li>`;
+    list.innerHTML = hits.map((c) => `<li role="option" data-city="${c}" tabindex="-1">${c}</li>`).join("") + add;
     list.hidden = false; city.setAttribute("aria-expanded", "true");
   });
   const pick = (c) => { draft.city = c; city.value = c; closeList(); $("#f-city").classList.remove("bad"); };
@@ -801,7 +810,7 @@ function stepDetails(host) {
   // Images: drag and drop or click; shrunk before saving so a draft stays small
   const drop = $("#drop"), files = $("#files"), thumbs = $("#thumbs");
   const paintThumbs = () => {
-    thumbs.innerHTML = draft.images.map((src, i) => `<figure class="thumb"><img src="${src}" alt="Event image ${i + 1}" /><button type="button" data-rm="${i}" aria-label="Remove image ${i + 1}">×</button>${i === 0 ? "<figcaption>Cover</figcaption>" : ""}</figure>`).join("");
+    thumbs.innerHTML = draft.images.map((src, i) => `<figure class="thumb"><img src="${src}" alt="Event image ${i + 1}" /><button type="button" data-rm="${i}" aria-label="Remove image ${i + 1}">×</button>${i === 0 ? "<figcaption>Cover</figcaption>" : src ? `<button type="button" class="mk" data-cover="${i}">Make cover</button>` : ""}</figure>`).join("");
   };
   paintThumbs();
   const add = (fileList) => {
@@ -819,7 +828,11 @@ function stepDetails(host) {
   ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
   drop.addEventListener("drop", (e) => add(e.dataTransfer.files));
-  thumbs.addEventListener("click", (e) => { const b = e.target.closest("[data-rm]"); if (b) { draft.images.splice(+b.dataset.rm, 1); paintThumbs(); } });
+  thumbs.addEventListener("click", (e) => {
+    const c = e.target.closest("[data-cover]");
+    if (c) { const [img] = draft.images.splice(+c.dataset.cover, 1); draft.images.unshift(img); paintThumbs(); return; }
+    const b = e.target.closest("[data-rm]"); if (b) { draft.images.splice(+b.dataset.rm, 1); paintThumbs(); }
+  });
 
   const yt = $("#yt");
   yt.value = draft.youtube;
@@ -979,7 +992,7 @@ function stepSchedule(host) {
 /* ---------- Step 4: Tickets ---------- */
 const tIco = (d) => `<svg viewBox="0 0 24 24" width="2.6em" height="2.6em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const TICKET_TYPES = [
-  { id: "guest", name: "Guest Ticket", desc: "Perfect for casual guests attending your event or impromptu events. Free tickets / RSVP only.", icon: tIco('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>') },
+  { id: "guest", name: "Guest Ticket", desc: "Perfect for casual guests attending your event or sponty events. Free tickets / RSVP only.", icon: tIco('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>') },
   { id: "single", name: "Single Ticket", desc: "Standard ticket for one individual attendee with full event access.", icon: tIco('<path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 1 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M13 5v3M13 11v2M13 16v3"/>') },
   { id: "group", name: "Group Ticket", desc: "Discounted package for groups. Purchase multiple tickets at once for better pricing.", icon: tIco('<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a7 7 0 0 1 4 6"/>') },
   { id: "season", name: "Season Pass", desc: "Reserved seating for a group. Comes with reserved table and premium experience.", icon: tIco('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>') },
@@ -1171,9 +1184,9 @@ function stepTickets(host) {
   const next = host.querySelector("#next"), made = host.querySelector("#made");
   const note = host.querySelector("#typenote");
   const paint = () => {
-    // a Free Impromptu event only has free tickets: the paid kinds are locked, and a clash is explained with a one-tap fix
+    // a Sponty event only has free tickets: the paid kinds are locked, and a clash is explained with a one-tap fix
     const free = draft.type === "guestlist";
-    note.innerHTML = free ? `<p class="notice"><b>${typeClash(draft) ? "This event is set to Free Impromptu but it has a paid ticket." : "Free Impromptu events only have free tickets."}</b> To sell paid tickets, switch the event type: <button type="button" class="btn small" data-settype="exclusive">Exclusive event</button> <button type="button" class="btn small" data-settype="open">Non-exclusive event</button></p>` : "";
+    note.innerHTML = free ? `<p class="notice"><b>${typeClash(draft) ? "This event is set to Sponty but it has a paid ticket." : "Sponty events only have free tickets."}</b> To sell paid tickets, switch the event type: <button type="button" class="btn small" data-settype="exclusive">Exclusive event</button> <button type="button" class="btn small" data-settype="open">Non-exclusive event</button></p>` : "";
     TICKET_TYPES.forEach((tt) => {
       const el = host.querySelector(`[data-t="${tt.id}"]`);
       el.classList.toggle("locked", free && tt.id !== "guest");
@@ -1214,7 +1227,7 @@ function stepTickets(host) {
   host.querySelector(".tickets").addEventListener("click", (e) => {
     const b = e.target.closest("[data-t]");
     if (!b) return;
-    if (b.classList.contains("locked")) { toast("Free Impromptu events only have free tickets. Switch the event type to sell paid ones."); return; }
+    if (b.classList.contains("locked")) { toast("Sponty events only have free tickets. Switch the event type to sell paid ones."); return; }
     add(TICKET_TYPES.find((t) => t.id === b.dataset.t));
   });
   made.addEventListener("click", async (e) => {
@@ -1407,8 +1420,8 @@ function stepOrganizer(host) {
 /* ---------- Step 7: Review & create ---------- */
 const dmy = (v) => { if (!v) return "—"; const [y, m, d] = v.split("-").map(Number); return `${d} ${SHORT[m - 1]} ${y}`; };
 const hm = (t) => (t && t.h && t.m ? `${t.h}:${t.m}` : "—");
-const TYPE_SHORT = { guestlist: "Free impromptu", exclusive: "Exclusive", open: "Non-exclusive" };
-// a Free Impromptu event can only have free tickets: paid tickets on one is a mix-up that has to be fixed (see the Tickets step)
+const TYPE_SHORT = { guestlist: "Sponty", exclusive: "Exclusive", open: "Non-exclusive" };
+// a Sponty event can only have free tickets: paid tickets on one is a mix-up that has to be fixed (see the Tickets step)
 const typeClash = (e) => e.type === "guestlist" && (e.tickets || []).some((t) => t.paid);
 
 function stepReview(host) {
@@ -1419,10 +1432,11 @@ function stepReview(host) {
   const tickets = d.tickets || [], orgs = d.organizers || [], images = (d.images || []).filter(Boolean);
   // Anything still missing, with the step that fixes it
   const missing = [
-    [!d.type, "Event type", 0], [typeClash(d), "Event type (a Free Impromptu event can only have free tickets)", 4], [!d.title, "Title", 1], [!d.description || !textLen(d.description), "Description", 1],
+    [!d.type, "Event type", 0], [typeClash(d), "Event type (a Sponty event can only have free tickets)", 4], [!d.title, "Title", 1], [!d.description || !textLen(d.description), "Description", 1],
     [!d.category, "Category", 2], [!(d.subs || []).length, "Sub categories", 2], [!d.city, "City", 2], [!images.length, "A cover image", 2],
     [!d.dateFrom, "Event dates", 3], [!(d.start && d.start.h && d.start.m), "Start time", 3],
-    [!tickets.length, "At least one ticket", 4], [!orgs.length, "An organizer", 6],
+    [!tickets.length, "At least one ticket", 4],
+    // (the organizer is optional for now: add `[!orgs.length, "An organizer", 6]` back to make it required)
   ].filter((m) => m[0]);
   const edit = (step, label = "Edit") => `<button type="button" class="rv-edit" data-go-step="${step}">${label}</button>`;
   const field = (label, value, cls = "") => `<div class="rv-f ${cls}"><span>${label}</span><b>${value}</b></div>`;

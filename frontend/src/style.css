@@ -1374,3 +1374,6 @@ html.intro .intro-swirl {
 /* the window can never be wider than the screen, however long its title or content is */
 .ev-win-wrap { grid-template-columns: minmax(0, 1fr); }
 .ev-win-wrap .ev-win, .ev-win-wrap .ev-win-in { min-width: 0; }
+
+/* An event published in the host dashboard (preview): its cover on the poster */
+.ev-poster.ev-cover { background-size: cover; background-position: center; background-color: var(--bread); box-shadow: none; transition: none; }

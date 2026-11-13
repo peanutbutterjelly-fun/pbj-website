@@ -1352,11 +1352,42 @@ const longDate = (ev) => { const d = dateOf(ev); return `${String(d.getDate()).p
 
 // For now every card is empty, with only "Coming soon" on it in the same paper-cut lettering as the page headline
 const SHOWN = 5; // cards in the line on the brown belt
-const slideHTML = (i) => `<div class="ev-slide" data-i="${i}">${emptyCard()}</div>`;
+let bannerList = []; // the events on the belt, so the belt can draw real ones as it turns
+const slideHTML = (i) => bannerList[i]?.real
+  ? `<a class="ev-slide" data-i="${i}" href="${eventUrl(bannerList[i])}">${coverCard(bannerList[i], true)}</a>`
+  : `<div class="ev-slide" data-i="${i}">${emptyCard()}</div>`;
 const emptyCard = () => `<div class="ev-poster ev-empty"><span class="ev-soon" aria-label="Coming soon">Coming soon</span></div>`;
 function poster() { return emptyCard(); }
-function card() { return `<div class="ev-card-b">${emptyCard()}</div>`; }
-// (the cards in the big grid are drawn once and then keep still, so twenty of them don't slow the page down; the belt's cards still wobble)
+function card(ev) { return ev.real ? `<a class="ev-card-b real" href="${eventUrl(ev)}">${coverCard(ev)}</a>` : `<div class="ev-card-b">${emptyCard()}</div>`; }
+
+// A real event: its cover on the poster, then category, title, date and price (the belt shows the poster with the title on it)
+const eventUrl = (ev) => `/event.html?id=${encodeURIComponent(ev.id)}`;
+function coverCard(ev, onBelt = false) {
+  const poster = `<div class="ev-poster ev-cover" style="background-image:url('${ev.cover}')"${onBelt ? ` role="img" aria-label="${esc(ev.title)}"` : ""}></div>`;
+  if (onBelt) return poster;
+  return `${poster}<p class="ev-cat">${esc(ev.category || "Event")}</p><h3>${esc(ev.title)}</h3>
+    <p class="ev-line">${longDate(ev)}${ev.time ? ` · ${esc(ev.time)}` : ""}</p><p class="ev-line">${esc(ev.area)} · <span class="ev-price">${esc(ev.price)}</span></p>`;
+}
+
+// PREVIEW ONLY: events published in the host dashboard (they are saved in this browser, so only you can see them for now).
+// Once there is a place on the internet to keep them, this is the one spot to swap for the real list.
+function publishedEvents(today) {
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem("pbj-host-events")) || []; } catch { /* nothing saved */ }
+  const hm = (t) => { const h = Number(t?.h), m = String(t?.m ?? "00").padStart(2, "0"); return Number.isFinite(h) ? `${h % 12 || 12}:${m} ${h >= 12 ? "PM" : "AM"}` : ""; };
+  return saved.filter((e) => e.status === "published" && e.dateFrom && (e.images || []).some(Boolean)).map((e) => {
+    const [y, mo, d] = (e.dateTo || e.dateFrom).split("-").map(Number);
+    if (new Date(y, mo - 1, d) < today) return null; // an event hides itself once its last day has passed
+    const prices = (e.tickets || []).filter((t) => t.enabled !== false).map((t) => (t.paid ? Number(t.price) || 0 : 0));
+    const low = prices.length ? Math.min(...prices) : 0;
+    return {
+      real: true, kind: e.type === "guestlist" ? "sponty" : e.type === "exclusive" ? "exclusive" : "open", id: e.id, title: e.title || "Untitled event", cover: e.images.filter(Boolean)[0].replace(/'/g, "%27"),
+      category: e.category, area: e.venueStatus === "Decided" && e.venue ? e.venue : e.city || "Mumbai",
+      price: low ? `₹${low.toLocaleString("en-IN")}` : "Free", date: e.dateFrom, time: hm(e.start),
+    };
+  }).filter(Boolean);
+}
+// (the "Coming soon" lettering wobbles on every card; letters that are off screen stop redrawing by themselves, see cutword.js)
 function cutSoon(scope, still = false) {
   scope.querySelectorAll(".ev-soon:not([data-cut])").forEach((el) => {
     el.dataset.cut = "1";
@@ -1399,6 +1430,7 @@ function makePlaceholders(today) {
       category: i < cats.length ? catOrder[i] : pick(cats), // every category gets at least one, then it is up to chance
       area: i < areas.length ? areaOrder[i] : pick(areas),
       price: i < prices.length ? prices[i] : pick(prices),
+      kind: ["exclusive", "sponty", "open"][i % 3], // placeholders: a fixed mix, so the PBJ Exclusive and Sponty tabs have cards to show
       date,
       time: "7:00 PM",
     });
@@ -1419,7 +1451,8 @@ function setupBrowse(root) {
   if (!host) return;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const upcoming = makePlaceholders(today);
+  // real (published) events first, soonest first, then the "Coming soon" placeholders
+  const upcoming = [...publishedEvents(today), ...makePlaceholders(today)].sort((a, b) => (b.real ? 1 : 0) - (a.real ? 1 : 0) || a.date.localeCompare(b.date));
   if (!upcoming.length) {
     host.innerHTML = `<p class="lineup-empty">The next lineup is being mined. Check back soon.</p>`;
     return;
@@ -1430,7 +1463,8 @@ function setupBrowse(root) {
   const cats = uniq(upcoming.map((e) => e.category));
 
   const state = { cat: "", sort: "soon", day: "", month: "", area: "", price: "" };
-  const banner = upcoming.slice(0, 8);
+  const banner = [...upcoming.filter((e) => e.real), ...upcoming.filter((e) => !e.real)].slice(0, 8); // real events lead the belt
+  bannerList = banner;
 
   host.innerHTML = `
     <div class="ev-banner">
@@ -1439,7 +1473,7 @@ function setupBrowse(root) {
       <button class="ev-arrow next" aria-label="Next">→</button>
     </div>
     <div class="ev-cats"><button class="ev-arrow sm prev" aria-label="Previous">←</button>
-      <div class="ev-cats-track"><button class="on" data-cat="">All events</button><button data-cat="PBJ Exclusive Events">PBJ Exclusive Events</button>${cats.map((c) => `<button data-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+      <div class="ev-cats-track"><button class="on" data-cat="">All events</button><button data-cat="PBJ Exclusive Events">PBJ Exclusive Events</button><button data-cat="Sponty Events">Sponty Events</button>${cats.map((c) => `<button data-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
       <button class="ev-arrow sm next" aria-label="Next">→</button></div>
     <div class="ev-body">
       <aside class="ev-filters">
@@ -1463,7 +1497,7 @@ function setupBrowse(root) {
   const emptyMsg = host.querySelector(".lineup-empty");
   // one card per event, made once; filtering only hides, shows and re-orders them (so they can glide, like GSAP's "Flexbox Filtering")
   grid.innerHTML = upcoming.map(card).join("");
-  cutSoon(grid, true);
+  cutSoon(grid); // (every card wobbles like the belt; only the cards on screen redraw, so it stays light)
   const cardEls = [...grid.children];
   const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let firstRender = true;
@@ -1483,8 +1517,10 @@ function setupBrowse(root) {
   const render = () => {
     let list = upcoming.filter((ev) => {
       const d = dateOf(ev), p = priceNum(ev.price);
-      // (PBJ Exclusive Events has no real events yet, so for now it shows the same "Coming soon" cards)
-      if (state.cat && state.cat !== "PBJ Exclusive Events" && ev.category !== state.cat) return false;
+      if (state.cat && state.cat !== "PBJ Exclusive Events" && state.cat !== "Sponty Events" && ev.category !== state.cat) return false;
+      // PBJ Exclusive and Sponty: only that kind of event, so the cards shuffle like with the other categories
+      if (state.cat === "PBJ Exclusive Events" && ev.kind !== "exclusive") return false;
+      if (state.cat === "Sponty Events" && ev.kind !== "sponty") return false;
       if (state.day === "today" && !same(d, today)) return false;
       if (state.day === "tomorrow" && !same(d, tomorrow)) return false;
       if (state.day === "weekend" && ![0, 6].includes(d.getDay())) return false;
@@ -1646,6 +1682,9 @@ function setupCaterpillar(banner, total) {
     if (startX === null) return;
     const dx = e.clientX - startX;
     startX = null;
-    if (Math.abs(dx) > 40) step(dx < 0);
+    if (Math.abs(dx) > 40) { dragged = true; step(dx < 0); }
   });
+  // a swipe that ends on an event poster shouldn't open it
+  let dragged = false;
+  track.addEventListener("click", (e) => { if (dragged) e.preventDefault(); dragged = false; }, true);
 }
