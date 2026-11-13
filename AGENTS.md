@@ -2,16 +2,28 @@
 
 Read by every coding agent in this repo (Claude Code loads it through `CLAUDE.md`).
 
+## Titles (commits and PRs)
+
+- **Format:** `type(scope): short summary`, lowercase, no full stop. The summary after the colon is **5 words at most**.
+  - `type` is one of `feat`, `fix`, `chore`, `docs`, `revert`.
+    - `feat`: something new people can see or use.
+    - `fix`: something that was broken now works.
+    - `chore`: housekeeping (folders, tooling, CI, dependencies).
+    - `docs`: notes and instructions only (`AGENTS.md`, `CLAUDE.md`, `PLAN.md`, READMEs).
+    - `revert`: undoing an earlier change. GitHub's Revert button (`Revert "…"`) counts too.
+  - `scope` is required but free-form: one short word for the area touched (`frontend`, `backend`, `hero`, `events`, `dashboard`, `film`, `ci`, `agents`, …).
+  - Examples: `feat(hero): jelly j spins on scroll`, `fix(dashboard): coupon card on phones`, `chore(backend): fastapi starter`, `docs(agents): pr title conventions`.
+
 ## Commits
 
-- **Title: 5 words at most.** Plain words, no full stop. Example: `Add FastAPI backend starter`.
+- **Title:** the format above.
 - **Message: 2 lines at most** under the title. Leave it out if the title says it all.
 - One change per commit. If the title needs "and", split it.
 
 ## Pull requests and merging
 
 - **Always squash and merge** into `main` (`gh pr merge --squash`). No merge commits, no rebase merges.
-- The PR title becomes the one commit on `main`, so it follows the commit title rule: **5 words at most**.
+- The PR title becomes the one commit on `main`, so it follows the title format above. Get it right before opening or merging.
 - One PR = one change. If the summary needs "and", split it.
 - Never push straight to `main` (the pre-push hook blocks it).
 

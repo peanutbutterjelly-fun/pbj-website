@@ -31,7 +31,7 @@
 - Follow `PLAN.md` for what we're building, in what order, and what we're not building yet.
 
 ## Git and pull requests
-- Follow `AGENTS.md`: squash-merge only, commit and PR titles of 5 words at most, commit messages of 2 lines at most, and its PR description format with before/after screenshots.
+- Follow `AGENTS.md`: squash-merge only, `type(scope): summary` titles with a summary of 5 words at most, commit messages of 2 lines at most, and its PR description format with before/after screenshots.
 
 @AGENTS.md
 
