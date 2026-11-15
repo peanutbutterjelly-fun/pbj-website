@@ -4,6 +4,7 @@
 // Everything is kept in this browser (localStorage) until accounts and a database exist. Photos are shrunk before they are saved.
 import { EVENTS } from "./eventsData.js";
 import { PAST, PEOPLE, BADGES, personBy, isPast, hostOfEvent } from "./people.js";
+import { hasTicket, chatIdForEvent } from "./chats.js";
 
 const ATT = "pbj-sponty-attended", REC = "pbj-sponty-recaps";
 const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
@@ -30,7 +31,7 @@ const shrink = (file) => new Promise((done) => {
 });
 
 export function initEvents(k) {
-  const { app, esc, toast, bread, ic, when, PAPER, KINDS, bdg, fBtn, places, writePlaces, profile, enhanceSelects } = k;
+  const { app, esc, toast, bread, ic, when, PAPER, KINDS, bdg, fBtn, places, writePlaces, profile, enhanceSelects, ch } = k;
   const attended = () => read(ATT, []), recaps = () => read(REC, []);
   const evId = (e) => e.id || "u" + EVENTS.findIndex((x) => x.title === e.title);
   const emoji = (e) => KINDS[e.kind] || "✨";
@@ -93,7 +94,7 @@ export function initEvents(k) {
       <section class="ep-hero" style="${e.photos?.length ? `background-image:url(${e.photos[0]})` : `background:${PAPER[e.paper] || "var(--bread)"};color:${ink(e)}`}"><span class="ep-emoji">${e.photos?.length ? "" : emoji(e)}</span><span class="ep-st">${past ? "Past event" : "Coming up"}</span></section>
       <header class="ep-head"><h1 class="cut">${esc(e.title)}</h1><p class="ep-meta">${when(e)}${e.time ? " · " + esc(e.time) : ""} · ${esc(e.area || "Mumbai")} · ${esc(e.price || "Free")}</p>
         <div class="ep-host">${e.mine ? `<a class="ep-hav" href="#/profile">${bread(me)}</a><span><b>${esc(me.name || "You")}</b><small>Hosted by you</small></span>` : host ? `<a class="ep-hav" href="#/u/${esc(host.handle.slice(1))}">${bread({ name: host.name })}</a><span><a class="th-name" href="#/u/${esc(host.handle.slice(1))}">${esc(host.name)}</a><small>${esc(host.handle)}</small>${bdg(host.badge)}</span>${fBtn(host.handle)}` : ""}</div></header>
-      <div class="ep-acts">${past && e.mine ? "" : past ? `<button type="button" class="btn ${mine ? "ghost" : ""}" data-went="${esc(id)}">${mine ? "✓ You went" : "I went"}</button>` : `<button type="button" class="fd-rx big" data-rx-open="${esc(e.title)}" aria-haspopup="menu" aria-label="Love, like or be curious about this">${ic("heart", "1.5em")}</button>`}${e.mine ? '<a class="btn ghost" href="#/profile">Your profile</a><button type="button" class="btn ghost danger" data-del>Delete recap</button>' : ""}</div>
+      <div class="ep-acts">${past && e.mine ? "" : past ? `<button type="button" class="btn ${mine ? "ghost" : ""}" data-went="${esc(id)}">${mine ? "✓ You went" : "I went"}</button>` : `${EVENTS.some((x) => x.title === e.title) ? (hasTicket(e.title) ? `<a class="btn" href="#/chat/${esc(chatIdForEvent(e.title))}">✓ You have a ticket · open chat</a>` : `<button type="button" class="btn" data-ticket="${esc(e.title)}">${/free/i.test(e.price || "") ? "Reserve a spot" : "Get ticket"}</button>`) : ""}<button type="button" class="fd-rx big" data-rx-open="${esc(e.title)}" aria-haspopup="menu" aria-label="Love, like or be curious about this">${ic("heart", "1.5em")}</button>`}${e.mine ? '<a class="btn ghost" href="#/profile">Your profile</a><button type="button" class="btn ghost danger" data-del>Delete recap</button>' : ""}</div>
       ${mine ? `<section class="sp-card ep-mine"><b>${MOODS.find((m) => m[0] === mine.mood)?.[1] || ""} ${MOODS.find((m) => m[0] === mine.mood)?.[2] || ""}</b>${mine.note ? `<p>${esc(mine.note)}</p>` : ""}<button type="button" class="fd-link" data-went="${esc(id)}">edit your note</button></section>` : ""}
       ${e.blurb || e.details ? `<h2 class="ep-h">About</h2><p class="ep-text">${esc(e.details || e.blurb)}</p>` : ""}
       ${past ? `<h2 class="ep-h">How it went</h2>${recap ? `<p class="ep-text">${esc(recap.summary)}</p>${recap.best ? `<p class="ep-best">⭐ Best moment: ${esc(recap.best)}</p>` : ""}${recap.photos?.length ? `<div class="ep-gal">${recap.photos.map((p, i) => `<button type="button" data-ph="${i}" aria-label="Open photo"><img src="${p}" alt="" loading="lazy" /></button>`).join("")}</div>` : e.mine ? "" : `<p class="sp-sub">No photos from the host yet.</p>`}` : `<p class="sp-sub">The host hasn't written this one up yet.</p>`}` : ""}
@@ -101,6 +102,7 @@ export function initEvents(k) {
       <p class="ep-text">${went ? `${went} ${past ? "went" : "interested"}` : "Nobody yet. Be the first!"}</p>
       ${who.length ? `<div class="ep-who">${who.map((p) => `<a href="#/u/${esc(p.handle.slice(1))}" title="${esc(p.name)}">${bread({ name: p.name })}</a>`).join("")}</div>` : ""}`;
     app.querySelectorAll("[data-went]").forEach((b) => b.addEventListener("click", () => openWent(id, () => renderEvent(id))));
+    app.querySelector("[data-ticket]")?.addEventListener("click", (ev2) => ch.openTicket(ev2.currentTarget.dataset.ticket, () => renderEvent(id)));
     app.querySelector("[data-back]")?.addEventListener("click", (ev) => { if (history.length > 1) { ev.preventDefault(); history.back(); } });
     app.querySelectorAll("[data-ph]").forEach((b) => b.addEventListener("click", () => viewPhoto(recap.photos[+b.dataset.ph])));
     const del = app.querySelector("[data-del]");
