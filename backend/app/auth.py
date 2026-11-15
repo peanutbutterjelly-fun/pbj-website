@@ -57,4 +57,12 @@ def current_user(
         raise _unauthorized("Login expired or invalid") from None
 
 
+def maybe_user(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> CurrentUser | None:
+    """Like current_user, but for pages anyone can see: no login gives None. A bad or expired login still gives 401."""
+    return None if creds is None else current_user(creds)
+
+
 LoggedIn = Annotated[CurrentUser, Depends(current_user)]
+OptionalUser = Annotated[CurrentUser | None, Depends(maybe_user)]
