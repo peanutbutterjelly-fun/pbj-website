@@ -19,7 +19,8 @@ Then open http://localhost:8000/api/health (should say `{"status":"ok"}`) or htt
 
 - `GET /api/health`: the server is up.
 - `GET /api/health/db`: the server can reach the database.
-- `GET /api/me` and `PATCH /api/me`: the logged-in person's profile. Send the Supabase login token as `Authorization: Bearer <token>`. Only `full_name`, `avatar_url` and `city` can be changed.
+- `GET /api/me` and `PATCH /api/me`: the logged-in person's profile. Send the Supabase login token as `Authorization: Bearer <token>`. They can change `full_name`, `avatar_url` (only a photo from their own folder in the `avatars` storage bucket), `city`, `handle` (unique, lowercase), `bio`, `instagram`, `youtube`, `x_handle`, `badge` (`vibes`, `sponty` or `newbie`) and `birthday`. `role` and the host badges `pro` and `exclusive` can't be changed here.
+- `GET /api/people/{handle}`: anyone's public profile, no login needed. Never includes email, birthday or role.
 
 The backend connects to the database as its owner, so Supabase's row level security doesn't protect it: every route must check who is asking (`LoggedIn` in `app/auth.py`). Database changes live in `../supabase/migrations/` (see `../supabase/README.md`).
 
