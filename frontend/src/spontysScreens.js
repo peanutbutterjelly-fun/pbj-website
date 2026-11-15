@@ -5,6 +5,9 @@ import { EVENTS } from "./eventsData.js";
 import { upcoming, priceNum, lookUp, searchPicks, words, stepOutside, STEPS } from "./assistant.js";
 import { PEOPLE, BADGES, BADGE_ORDER, POSTS, PAST, personBy, hostedOf, attendedOf, byRef, isPast } from "./people.js";
 import { initEvents } from "./spontysEvents.js";
+import { initChats } from "./spontysChats.js";
+import { initConsole } from "./chatConsole.js";
+import { planState, planStates, requestPlan, chatIdForPlan, onChats as onChatChange } from "./chats.js";
 
 const LIKES = "pbj-sponty-likes", FOLLOW = "pbj-sponty-follow", JOINED = "pbj-sponty-in";
 const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
@@ -84,9 +87,12 @@ export function initScreens(k) {
   /** One row for any event: the live ones can be saved with the heart, the past ones show how many went. */
   const evRow = (e) => (isPast(e) ? pastRow(e) : `<div class="fd-ev pe-ev"><span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${e.paper === "jam" || e.paper === "brown" ? "var(--cream)" : "var(--brown)"}">${KINDS[e.kind] || "✨"}</span>
     <span class="fd-ev-t"><b>${esc(e.title)}</b><em>${esc(e.category)} · coming up</em><small>${esc(e.area)} · ${esc(e.price)} · ${when(e)} · ${esc(e.time)}</small></span>${rxBtn(e)}</div>`);
-  const planCard = (po) => { const on = joined().includes(po.id), left = Math.max(0, po.plan.spots - (on ? 1 : 0));
+  // "I'm in" is a request: the planner accepts, and only then are you in the plan's group chat
+  const planBtn = (po) => { const st = planState(po.id);
+    return `<button type="button" class="btn small ${st === "none" ? "" : "ghost"}" data-in="${po.id}" data-st="${st}" aria-pressed="${st !== "none"}">${st === "accepted" ? "You're in ✓ Open chat" : st === "requested" ? "Requested · waiting" : "I'm in"}</button>`; };
+  const planCard = (po) => { const acc = planState(po.id) === "accepted", left = Math.max(0, po.plan.spots - (acc ? 1 : 0));
     return `<div class="th-plan"><span class="th-plan-t"><b>${esc(po.plan.title)}</b><small>${esc(po.plan.when)} · ${esc(po.plan.area)}</small><small>Free · <span data-left="${po.id}">${left}</span> spot${left === 1 ? "" : "s"} left</small></span>
-      <button type="button" class="btn small ${on ? "ghost" : ""}" data-in="${po.id}" aria-pressed="${on}">${on ? "You're in ✓" : "I'm in"}</button></div>`; };
+      ${planBtn(po)}</div>`; };
   const person = (po) => personBy(po.by);
   /** One post in the thread: who, their badge, what they said, and the event or plan it points at. */
   const threadPost = (po) => {
@@ -136,6 +142,18 @@ export function initScreens(k) {
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeTray(); });
   window.addEventListener("scroll", closeTray, { passive: true });
 
+  /** Re-draws every "I'm in" button and the spots left (also when a planner accepts you a moment later). */
+  const paintPlans = () => POSTS.filter((po) => po.plan).forEach((po) => {
+    document.querySelectorAll(`[data-in="${po.id}"]`).forEach((b) => b.replaceWith(Object.assign(document.createElement("div"), { innerHTML: planBtn(po) }).firstElementChild));
+    document.querySelectorAll(`[data-left="${po.id}"]`).forEach((n) => { n.textContent = Math.max(0, po.plan.spots - (planState(po.id) === "accepted" ? 1 : 0)); });
+  });
+  let lastPlans = planStates();
+  onChatChange(() => {
+    const now = planStates();
+    Object.keys(now).forEach((id) => { if (now[id] === "accepted" && lastPlans[id] !== "accepted") { const po = POSTS.find((x) => x.id === id); toast(`${personBy(po?.by)?.name || "The planner"} accepted you. You're in the group chat`); } });
+    lastPlans = now; paintPlans();
+  });
+
   // Clicks shared by every screen: reactions, "soon" toasts, invite
   const wire = (root) => {
     root.addEventListener("click", (ev) => {
@@ -147,10 +165,10 @@ export function initScreens(k) {
         document.querySelectorAll(`[data-fc="${CSS.escape(h)}"]`).forEach((n) => { n.textContent = (personBy(h)?.followers || 0) + (on ? 1 : 0); });
         toast(on ? `Following ${personBy(h)?.name || h}` : "Unfollowed"); return; }
       const jb = ev.target.closest("[data-in]");
-      if (jb) { const id = jb.dataset.in, po = POSTS.find((x) => x.id === id), set = new Set(joined()); set.has(id) ? set.delete(id) : set.add(id); write(JOINED, [...set]); const on = set.has(id);
-        document.querySelectorAll(`[data-in="${id}"]`).forEach((b) => { b.classList.toggle("ghost", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "You're in ✓" : "I'm in"; });
-        document.querySelectorAll(`[data-left="${id}"]`).forEach((n) => { n.textContent = Math.max(0, po.plan.spots - (on ? 1 : 0)); });
-        toast(on ? `You're in! ${po.plan.title}, ${po.plan.when}` : "Removed you from the plan"); return; }
+      if (jb) { const id = jb.dataset.in, po = POSTS.find((x) => x.id === id), st = planState(id);
+        if (st === "accepted") { location.hash = "#/chat/" + chatIdForPlan(id); return; }
+        const now = requestPlan(id); paintPlans();
+        toast(now === "requested" ? `Request sent. ${personBy(po.by)?.name || "The planner"} will accept you, then you're added to the group chat` : "Request withdrawn"); return; }
       const so = ev.target.closest("[data-soon]"); if (so) { toast(so.dataset.soon); return; }
       if (ev.target.closest("[data-invite]")) invite();
     });
@@ -233,7 +251,7 @@ export function initScreens(k) {
     const fol = follows();
     const head = `<header class="fd-top"><button type="button" class="fd-city" data-cities aria-haspopup="dialog">Mum${ic("chev", "1em")}</button>
       <div class="fd-tabs" role="tablist"><button type="button" role="tab" class="${tab === "foryou" ? "on" : ""}" data-tab="foryou" aria-selected="${tab === "foryou"}">for you</button><button type="button" role="tab" class="${tab === "friends" ? "on" : ""}" data-tab="friends" aria-selected="${tab === "friends"}">friends</button></div>
-      <button type="button" class="sp-ico" data-soon="No notifications yet" aria-label="Notifications">${ic("bell", "1.3em")}</button></header>`;
+      ${ch.bell()}</header>`;
     const posts = POSTS.filter((po) => !chip || (chip === "trending" ? po.kind === "announce" || po.kind === "plan" : chip === "exclusive" ? person(po)?.badge === "exclusive" : chip === "sponty" ? person(po)?.badge === "sponty" : true));
     if (tab === "friends") {
       // PB&J is every new joiner's first friend, until they follow people of their own
@@ -244,6 +262,7 @@ export function initScreens(k) {
     } else app.innerHTML = head + `
       <div class="fd-chips">${CHIPS.map(([n, c]) => `<button type="button" class="fd-chip ${chip === n ? "on" : ""}" data-chip="${n}" aria-pressed="${chip === n}"><i style="background:${c}"></i>${n}</button>`).join("")}</div>
       <div class="fd-cols"><div class="fd-main">
+      ${chip ? "" : ch.updatesCard()}
       <h2 class="fd-h cut fd-new">${chip ? esc(chip) + " for you" : "New for you"}</h2>
       <div class="fd-feed a">${thread(posts.slice(0, 3)) || `<p class="sp-sub">Nothing matches that yet. Try another tag.</p>`}</div>
       <div class="fd-feed b">${thread(posts.slice(3))}</div>
@@ -266,6 +285,7 @@ export function initScreens(k) {
       </aside></div>
       <p class="sp-sub fd-note">Sample people and events for now. The real ones arrive with PB&J's hosts.</p>`;
     app.querySelector("[data-cities]")?.addEventListener("click", openCities);
+    app.querySelector("[data-bell]")?.addEventListener("click", () => { location.hash = "#/messages"; });
     app.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { tab = b.dataset.tab; renderFeed(); }));
     app.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { chip = chip === b.dataset.chip ? null : b.dataset.chip; renderFeed(); }));
     const top = app.querySelector(".fd-missed.top");
@@ -468,15 +488,7 @@ export function initScreens(k) {
   }
 
   /* ---------- Messages ---------- */
-  function renderMessages() {
-    document.title = "Messages — PeanutButterJelly.vip";
-    const name = (k.profile().name || "you").toLowerCase();
-    app.innerHTML = `<header class="fd-top msg"><span></span><h1 class="cut">${esc(name)}</h1><button type="button" class="sp-ico" data-people aria-label="Find people">${ic("userplus", "1.3em")}</button></header>
-      <button type="button" class="msg-banner" data-soon="Group chats are coming soon"><span class="msg-bub">we're planning a fun dinner, where should we go?</span><b>text PB&amp;J in group chats &amp; make plans together</b></button>
-      <h2 class="fd-h cut">Messages</h2>
-      <section class="sp-card msg-empty">${ic("chat", "3.4em")}<h2>No conversations yet</h2><p class="sp-sub">Start a chat with your friends</p><button type="button" class="btn" data-people>Start a conversation</button></section>`;
-    app.querySelectorAll("[data-people]").forEach((b) => b.addEventListener("click", openPeople));
-  }
+
 
   /* ---------- "+" menu ---------- */
   function openPlus(done) {
@@ -496,6 +508,8 @@ export function initScreens(k) {
   }
 
   wire(app);
-  const ev = initEvents({ ...k, ic, when, PAPER, KINDS, bdg, fBtn, places, writePlaces });
-  return { renderFeed, renderSearch, renderPerson, renderMessages, openPlus, ic, ev };
+  const ch = initChats({ ...k, ic, KINDS, PAPER, openPeople });
+  const mg = initConsole({ ...k, ic, KINDS, PAPER });
+  const ev = initEvents({ ...k, ic, when, PAPER, KINDS, bdg, fBtn, places, writePlaces, ch });
+  return { renderFeed, renderSearch, renderPerson, renderMessages: ch.renderMessages, renderChat: ch.renderChat, renderManageList: mg.renderList, renderManage: mg.renderManage, openPlus, ic, ev, ch };
 }
