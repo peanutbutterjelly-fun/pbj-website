@@ -14,7 +14,7 @@ Build the skeleton of the full PeanutButterJelly.vip site (not a single page) so
 - Partner program: venues (free repeating listings, "PBJ Partner" badge, we fill their quiet weekday slots) and brands (sponsor "PBJ Originals" nights, priced per event)
 
 ## The Site, Tab by Tab
-Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Secret.**
+Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Know More.**
 - Computers: tabs along the right edge; hovering shows the full label.
 - Phones: tabs stacked close together at the top with part of each label showing. Tap to peek (the tab slides out to show its full label), tap again to open. Switching tabs feels like shuffling through folders.
 
@@ -42,7 +42,7 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 
 **Meet Our Hosts:** an endless, draggable grid of 3D magazine covers, one per host. Tapping a cover grows it to the middle while the others drift away, then the magazine opens wide and people tap to flip its pages (cover, host profile, past events, current events, then teasers of future events; each host's page count varies). Built (blank) in `src/hosts.js` and `src/magazine.js`; the details and design come later. The partner-program pitch ("Be Our Partner") moves elsewhere for now.
 
-**Our Secret:** "What PBJ does differently: it's a secret we can share if you reach out." Helps hosts see why to choose us over other platforms, and sparks curiosity in guests. Ends with a "reach out" button.
+**Know More (was Our Secret):** three cards stacked at the centre (For Hosts, For Brands, For Spontys). A small [next] button shuffles the card behind to the top; tapping a card widens it into a full page laid out like offlyn.life (hero, perks strip, numbered feature cards, how it works, FAQ, closing call to action). Built in `src/knowMore.js` and `src/knowMore.css`; the copy is placeholder (no fees or numbers promised). Buttons on the pages jump to List Your Event on the matching role.
 
 ## Must-Haves (all needed for launch)
 - All six tabs working, with the folder effect on computers and phones
