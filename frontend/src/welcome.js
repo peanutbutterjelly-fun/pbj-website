@@ -1,6 +1,6 @@
 // The door to the host dashboard: sign in with an email link, then (the first time only) tell us who you are.
 // welcomeGate() resolves with { session, me } once both are done. The profile page (#/profile) reuses the same form.
-import { shrinkImage, uploadImage } from "./images.js";
+import { shrinkImage, uploadImage, imageMessage } from "./images.js";
 import { authReady, client, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe } from "./auth.js";
 
 // The kinds of hosts from PLAN.md (free listings are for everyday people with a spare ticket or a group plan)
@@ -132,7 +132,7 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
         avatar = await uploadImage(session, await shrinkImage(file, 400), "profile");
         face.textContent = ""; face.style.backgroundImage = `url('${avatar}')`;
         msg.textContent = "";
-      } catch { msg.textContent = "Couldn't upload that photo. Try another one."; msg.dataset.tone = "bad"; }
+      } catch (err) { msg.textContent = imageMessage(err); msg.dataset.tone = "bad"; }
       uploading = false;
     });
     form.querySelector("[data-out]")?.addEventListener("click", async () => { try { await signOut(); } finally { location.reload(); } });

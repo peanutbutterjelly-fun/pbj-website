@@ -1,7 +1,7 @@
 import { createCutLetter } from "./cutword.js";
 import { welcomeGate, profileForm } from "./welcome.js";
 import { signOut } from "./auth.js";
-import { shrinkImage, uploadImage, blobToDataUrl } from "./images.js";
+import { shrinkImage, uploadImage, blobToDataUrl, imageMessage } from "./images.js";
 
 // Host dashboard: "Your Events" list and the Create an Event steps.
 // Steps 0 (Event Type) and 1 (Basic Info) are built. The rest of the steps show in the bar and open a "coming next" page.
@@ -400,7 +400,7 @@ function readImage(file, done, maxWidth = 1200, kind = "events") {
   shrinkImage(file, maxWidth)
     .then((blob) => (account.session ? uploadImage(account.session, blob, kind) : blobToDataUrl(blob)))
     .then(done)
-    .catch(() => toast("Couldn't add that image. Check your connection and try again."));
+    .catch((err) => toast(imageMessage(err)));
 }
 
 function editor({ html, placeholder, tall }) {
@@ -416,7 +416,7 @@ function editor({ html, placeholder, tall }) {
   wrap.innerHTML = `<div class="rte-bar" role="toolbar">${TOOLS.map(tool).join("")}</div>
     <div class="rte-body ${tall ? "tall" : ""}" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="${placeholder}"></div>
     <textarea class="rte-src box ${tall ? "tall" : ""}" hidden spellcheck="false" aria-label="HTML"></textarea>
-    <input type="file" accept="image/*" hidden />`;
+    <input type="file" accept="image/png,image/jpeg,image/webp" hidden />`;
   const body = wrap.querySelector(".rte-body"), src = wrap.querySelector(".rte-src"), file = wrap.querySelector("input[type=file]");
   body.innerHTML = html;
   const changed = () => body.dispatchEvent(new Event("input"));
