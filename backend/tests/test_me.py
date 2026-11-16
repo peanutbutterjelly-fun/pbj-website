@@ -23,12 +23,15 @@ class FakeJwks:
 class FakeDb:
     def __init__(self):
         self.profile = {"id": USER_ID, "full_name": None, "avatar_url": None, "city": "Mumbai", "role": "guest",
-                        "created_at": None, "updated_at": None}
+                        "phone": None, "host_kind": None, "link": None, "about": None, "wants_call": False,
+                        "onboarded_at": None, "created_at": None, "updated_at": None}
         self.last = None
+        self.updates = []
 
     def execute(self, sql, params=None):
         self.last = (sql, params)
         if sql.startswith("update"):
+            self.updates.append((sql, params))
             self.profile.update({k: v for k, v in params.items() if k != "id"})
         return self
 
@@ -76,3 +79,22 @@ def test_me_update_only_allowed_fields(client):
     assert r.status_code == 200
     assert r.json()["full_name"] == "Asha"
     assert r.json()["role"] == "guest"  # role can't be changed by the person themselves
+
+
+def test_me_finishes_welcome_steps(client):
+    c, db = client
+    body = {"full_name": "Asha", "phone": "+91 98200 00000", "host_kind": "Venue or studio",
+            "link": "instagram.com/asha", "wants_call": True, "onboarded": True}
+    r = c.patch("/api/me", json=body, headers={"Authorization": f"Bearer {token()}"})
+    assert r.status_code == 200
+    sql, params = db.updates[-1]
+    assert "onboarded_at = coalesce(onboarded_at, now())" in sql
+    assert params["host_kind"] == "Venue or studio" and params["wants_call"] is True
+    assert "onboarded" not in params
+
+
+def test_me_ignores_empty_wants_call(client):
+    c, db = client
+    r = c.patch("/api/me", json={"wants_call": None}, headers={"Authorization": f"Bearer {token()}"})
+    assert r.status_code == 200
+    assert db.updates == []

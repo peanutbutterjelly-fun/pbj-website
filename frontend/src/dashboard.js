@@ -1,8 +1,11 @@
 import { createCutLetter } from "./cutword.js";
+import { welcomeGate, profileForm } from "./welcome.js";
+import { signOut } from "./auth.js";
 
 // Host dashboard: "Your Events" list and the Create an Event steps.
 // Steps 0 (Event Type) and 1 (Basic Info) are built. The rest of the steps show in the bar and open a "coming next" page.
-// Nothing is sent anywhere yet: events are kept in this browser (localStorage) until accounts and a database exist.
+// You need to be signed in (and have told us who you are) to get in: see src/welcome.js.
+// Events are still kept in this browser (localStorage) until they move to the database.
 
 const STEPS = [
   { name: "Event type", sub: "Select your event type" },
@@ -1870,9 +1873,18 @@ async function drawMap(host) {
 function route() {
   cutLetters.forEach((l) => l.dispose());
   cutLetters = [];
+  if (location.hash === "#/profile" && account.session) {
+    draft = null;
+    document.querySelector('[data-nav="list"]').classList.remove("on");
+    document.querySelector('[data-nav="profile"]').classList.add("on");
+    profileForm(app, cutHeadings, account.session, account.me).then((me) => { account.me = me; toast("Profile saved"); location.hash = "#/"; });
+    window.scrollTo({ top: 0 });
+    return;
+  }
   const m = location.hash.match(/^#\/create\/(\d)$/);
   const ev = location.hash.match(/^#\/event\/([^/]+)\/(coupons|sales)$/);
   document.querySelector('[data-nav="list"]').classList.toggle("on", !m);
+  document.querySelector('[data-nav="profile"]').classList.remove("on");
   if (ev) {
     draft = null;
     if (ev[2] === "coupons") renderCoupons(ev[1]); else renderSales(ev[1]);
@@ -1887,5 +1899,18 @@ function route() {
     renderList();
   }
 }
-window.addEventListener("hashchange", route);
-route();
+// Sign in and the welcome steps come first. Someone who just finished them and has no events yet goes straight to making one.
+const account = { session: null, me: null };
+welcomeGate(app, cutHeadings).then(({ session, me }) => {
+  Object.assign(account, { session, me });
+  const nav = document.querySelector(".dash-nav");
+  if (session) {
+    nav.querySelector('[data-nav="profile"]').hidden = false;
+    const out = nav.querySelector("[data-signout]");
+    out.hidden = false;
+    out.addEventListener("click", async () => { try { await signOut(); } finally { location.replace("/dashboard.html"); } });
+  }
+  if (me?.justOnboarded && !load().length) history.replaceState(null, "", "#/create/0");
+  window.addEventListener("hashchange", route);
+  route();
+});

@@ -4,6 +4,7 @@ import { Observer } from "gsap/Observer";
 import { Flip } from "gsap/Flip";
 import { createCutLetter } from "./cutword.js";
 import { saveLead } from "./leads.js";
+import { currentSession, fetchMe } from "./auth.js";
 import { EVENTS } from "./eventsData.js";
 
 gsap.registerPlugin(Flip, ScrollTrigger, Observer);
@@ -518,6 +519,15 @@ function setupWindows(stage, sections, LOOP) {
         </form>`;
       formEl.hidden = false;
       const f = formEl.querySelector("form"), err = formEl.querySelector(".err"), go = formEl.querySelector(".go");
+      // Signed in? Fill in what we already know and link what they send to their account
+      let session = null;
+      currentSession().then(async (s) => {
+        session = s;
+        if (!s || !f.isConnected) return;
+        const fill = (name, v) => { if (v && !f.elements[name].value) f.elements[name].value = v; };
+        fill("email", s.user.email);
+        try { const me = await fetchMe(s); if (f.isConnected) { fill("name", me.full_name); fill("phone", me.phone); } } catch { /* fine: they can type it */ }
+      }).catch(() => {});
       formEl.querySelector(".ev-win-fx").addEventListener("click", closeForm);
       formEl.querySelector(".ev-win-fmin").addEventListener("click", () => formEl.classList.toggle("fmin")); // shrinks to its title bar along the bottom
       formEl.querySelector(".ev-win-fmax").addEventListener("click", () => { // opens the whole window out to full size, and puts it back the way it was
@@ -573,7 +583,7 @@ function setupWindows(stage, sections, LOOP) {
         const answers = {};
         let link = (d.link || "").trim() || null;
         qs.forEach((x, i) => { let v = (d["q" + i] || "").trim(); if (x.type === "place" && d["q" + i + "n"]) { const r = d["q" + i + "s"] || "region not chosen"; v = "Not in Mumbai (" + r + ")" + (v ? ": " + v : ""); } if (!v) return; if (x.type === "pick" && (isOther(v) || (x.more && x.more[v]))) { const more = (d["q" + i + "o"] || "").trim(); if (more) v += ": " + more; } answers[x.q] = v; if (x.type === "link" && !link) link = v; });
-        const r = await saveLead({ kind, role: def.win.title, name, email, phone: (d.phone || "").trim() || null, link, message: (d.message || "").trim() || null, answers: Object.keys(answers).length ? answers : null, page: location.pathname });
+        const r = await saveLead({ kind, role: def.win.title, name, email, phone: (d.phone || "").trim() || null, link, message: (d.message || "").trim() || null, answers: Object.keys(answers).length ? answers : null, page: location.pathname }, session);
         if (r.ok) {
           f.innerHTML = `<p class="thanks">Thank you, ${esc(name.split(" ")[0])}! You are on the list.</p><div class="row"><button type="button" class="go">Done</button></div>`;
           f.querySelector(".go").addEventListener("click", closeForm);
