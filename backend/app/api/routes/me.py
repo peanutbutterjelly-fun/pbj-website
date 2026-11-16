@@ -7,6 +7,7 @@ from psycopg import Connection
 from pydantic import BaseModel, Field
 
 from app.auth import LoggedIn
+from app.config import get_settings
 from app.db import get_db
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -38,12 +39,29 @@ def read_me(user: LoggedIn, db: Db) -> dict:
     return {**row, "email": user.email}
 
 
+def _own_photo(url: str, user_id) -> bool:
+    """A profile photo must be one this person uploaded to their own folder in our storage."""
+    base = get_settings().supabase_url.rstrip("/")
+    prefix = f"{base}/storage/v1/object/public/images/{user_id}/"
+    rest = url[len(prefix):]
+    return bool(base) and url.startswith(prefix) and rest != "" and ".." not in rest and not any(c in rest for c in "\"'<>() \\")
+
+
 @router.patch("")
 def update_me(body: ProfileUpdate, user: LoggedIn, db: Db) -> dict:
     changes = body.model_dump(exclude_unset=True)
     onboarded = changes.pop("onboarded", None)
     if changes.get("wants_call", False) is None:
         del changes["wants_call"]  # it's always yes or no in the database
+    if changes.get("avatar_url") and not _own_photo(changes["avatar_url"], user.id):
+        raise HTTPException(422, "Profile photo must be uploaded through the site")
+    if onboarded:
+        # The welcome step counts as done only with a name and "who are you" (from this request or already saved)
+        current = read_me(user, db)
+        name = changes["full_name"] if "full_name" in changes else current.get("full_name")
+        kind = changes["host_kind"] if "host_kind" in changes else current.get("host_kind")
+        if not (name or "").strip() or not (kind or "").strip():
+            raise HTTPException(422, "Add your name and who you are first")
     sets = [f"{name} = %({name})s" for name in changes]  # names come from the model, not the user
     if onboarded:
         sets.append("onboarded_at = coalesce(onboarded_at, now())")

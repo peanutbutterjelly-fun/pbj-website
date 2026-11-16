@@ -1,6 +1,6 @@
 // The door to the host dashboard: sign in with an email link, then (the first time only) tell us who you are.
 // welcomeGate() resolves with { session, me } once both are done. The profile page (#/profile) reuses the same form.
-import { shrinkImage, uploadImage, imageMessage } from "./images.js";
+import { shrinkImage, uploadImage, imageMessage, removeImages } from "./images.js";
 import { authReady, client, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe } from "./auth.js";
 
 // The kinds of hosts from PLAN.md (free listings are for everyday people with a spare ticket or a group plan)
@@ -102,7 +102,8 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
         <p class="welcome-who">Signed in as <b>${esc(session.user.email)}</b></p>
         <div class="field w-photo"><span class="lab">Your photo <span class="opt">Optional</span></span>
           <div class="w-photo-row"><span class="w-avatar" ${safeImg(me.avatar_url) ? `style="background-image:url('${esc(safeImg(me.avatar_url))}')"` : ""}>${safeImg(me.avatar_url) ? "" : esc((me.full_name || session.user.email || "?").trim().slice(0, 1).toUpperCase())}</span>
-            <label class="btn ghost small">${me.avatar_url ? "Change photo" : "Add photo"}<input type="file" accept="image/jpeg,image/png,image/webp" hidden /></label></div></div>
+            <label class="btn ghost small w-pick">${me.avatar_url ? "Change photo" : "Add photo"}<input type="file" accept="image/jpeg,image/png,image/webp" hidden /></label>
+            <button type="button" class="btn ghost small w-unpick" ${me.avatar_url ? "" : "hidden"}>Remove photo</button></div></div>
         <div class="field" id="w-f-name"><label for="w-name">Your name <span class="req">*</span></label>
           <input id="w-name" class="box" type="text" autocomplete="name" maxlength="120" value="${esc(me.full_name)}" placeholder="e.g. Asha Kulkarni" />
           <p class="err">Please add your name.</p></div>
@@ -122,18 +123,37 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
     after();
     const form = app.querySelector("form"), msg = form.querySelector(".welcome-msg"), go = form.querySelector("[type=submit]");
     const $ = (id) => form.querySelector("#" + id);
-    let avatar = me.avatar_url || null, uploading = false;
+    // The photo: uploading locks the picker (so two uploads can't race), and photos that end up unused are deleted
+    const original = me.avatar_url || null;
+    let avatar = original, uploading = false;
     const pic = form.querySelector(".w-photo input"), face = form.querySelector(".w-avatar");
+    const pick = form.querySelector(".w-pick"), unpick = form.querySelector(".w-unpick");
+    const initial = () => esc((name0() || session.user.email || "?").trim().slice(0, 1).toUpperCase());
+    const name0 = () => form.querySelector("#w-name")?.value || me.full_name;
+    const paintFace = () => {
+      face.style.backgroundImage = avatar ? `url('${avatar}')` : "";
+      face.innerHTML = avatar ? "" : initial();
+      pick.firstChild.textContent = avatar ? "Change photo" : "Add photo";
+      unpick.hidden = !avatar;
+    };
+    const lock = (on) => { uploading = on; pic.disabled = on; pick.classList.toggle("is-busy", on); unpick.disabled = on; };
     pic.addEventListener("change", async () => {
       const file = pic.files[0]; pic.value = "";
-      if (!file) return;
-      uploading = true; msg.textContent = "Uploading photo…"; msg.dataset.tone = "";
+      if (!file || uploading) return;
+      lock(true); msg.textContent = "Uploading photo…"; msg.dataset.tone = "";
       try {
-        avatar = await uploadImage(session, await shrinkImage(file, 400), "profile");
-        face.textContent = ""; face.style.backgroundImage = `url('${avatar}')`;
+        const url = await uploadImage(session, await shrinkImage(file, 400), "profile");
+        if (avatar !== original) removeImages(session, [avatar]); // an earlier pick that was never saved
+        avatar = url;
+        paintFace();
         msg.textContent = "";
       } catch (err) { msg.textContent = imageMessage(err); msg.dataset.tone = "bad"; }
-      uploading = false;
+      lock(false);
+    });
+    unpick.addEventListener("click", () => {
+      if (avatar !== original) removeImages(session, [avatar]);
+      avatar = null;
+      paintFace();
     });
     form.querySelector("[data-out]")?.addEventListener("click", async () => { try { await signOut(); } finally { location.reload(); } });
     form.addEventListener("submit", async (e) => {
@@ -151,6 +171,7 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
           full_name: name, host_kind: kind, avatar_url: avatar, phone: blank($("w-phone").value), link: blank($("w-link").value),
           about: blank($("w-about").value), wants_call: $("w-call").checked, onboarded: true,
         });
+        if (original && original !== avatar) removeImages(session, [original]); // the replaced photo stops being reachable
         resolve(saved);
       } catch {
         go.disabled = false;

@@ -8,6 +8,8 @@ Project: `xpzrsslqfnhzqcxxkkjo`, Singapore region. Dashboard: https://supabase.c
   - `…_leads.sql`: sign-ups and filled forms from the List Your Event page. The website can only add rows; read them in the dashboard's Table Editor.
   - `…_profiles.sql`: one profile per login (name, photo, city, role), made automatically on sign-up. People can read and edit only their own; only the team changes roles.
   - `…_profile_onboarding.sql`: the welcome steps' answers on each profile (phone, who they are, Instagram or website, about, wants a call, when they finished), and links sign-ups sent while signed in to that account (`leads.user_id`).
+  - `…_images_bucket.sql`: the public `images` storage folder for photos (JPEG, PNG or WebP, 5 MB each). People can only add, find or delete files in their own folder (`images/<account id>/…`).
+  - `…_events.sql`: events from the host dashboard, split in two. `events` is what guests see (anyone can read it once it isn't a draft). `event_private` holds organizers' bank, PAN, GST, email and phone, and coupons: only the host can read it. Only the host can change or delete their events.
 - `config.toml`: settings for the Supabase CLI and a local copy of Supabase (`supabase start`, needs Docker).
 
 ## One-time setup on your computer

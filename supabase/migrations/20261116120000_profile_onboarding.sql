@@ -9,8 +9,9 @@ alter table public.profiles
   add column wants_call   boolean not null default false,
   add column onboarded_at timestamptz;
 
--- People can fill these in themselves (role still can't be changed)
-grant update (phone, host_kind, link, about, wants_call, onboarded_at) on public.profiles to authenticated;
+-- People can fill these in themselves (role and onboarded_at still can't be changed directly: the server sets
+-- onboarded_at, and only once a name and "who are you" are filled in)
+grant update (phone, host_kind, link, about, wants_call) on public.profiles to authenticated;
 
 -- Sign-ups and forms sent while signed in are linked to that person's account
 alter table public.leads

@@ -1657,3 +1657,6 @@ select.box { appearance: none; -webkit-appearance: none; background-image: url("
 .w-photo-row { display: flex; align-items: center; gap: 1.2em; }
 .w-avatar { width: 72px; height: 72px; flex: none; border-radius: 50%; background: var(--bread) center / cover no-repeat; border: 2px solid var(--ink); display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 28px; }
 .w-photo label.btn { cursor: pointer; }
+.w-photo-row .btn.small { min-height: 44px; }
+.w-pick.is-busy { opacity: 0.5; pointer-events: none; }
+.w-unpick[hidden] { display: none; }

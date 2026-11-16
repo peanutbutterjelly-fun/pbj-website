@@ -98,3 +98,23 @@ def test_me_ignores_empty_wants_call(client):
     r = c.patch("/api/me", json={"wants_call": None}, headers={"Authorization": f"Bearer {token()}"})
     assert r.status_code == 200
     assert db.updates == []
+
+
+def test_me_onboarding_needs_name_and_kind(client):
+    c, db = client
+    r = c.patch("/api/me", json={"full_name": "Asha", "onboarded": True}, headers={"Authorization": f"Bearer {token()}"})
+    assert r.status_code == 422
+    assert db.updates == []
+
+
+def test_me_photo_must_be_own_upload(client):
+    c, db = client
+    own = f"https://test.supabase.co/storage/v1/object/public/images/{USER_ID}/profile/a.jpg"
+    for bad in ["https://evil.example/a.jpg", "javascript:alert(1)",
+                f"https://test.supabase.co/storage/v1/object/public/images/{uuid.uuid4()}/profile/a.jpg",
+                own.replace("a.jpg", "a'.jpg")]:
+        assert c.patch("/api/me", json={"avatar_url": bad}, headers={"Authorization": f"Bearer {token()}"}).status_code == 422
+    r = c.patch("/api/me", json={"avatar_url": own}, headers={"Authorization": f"Bearer {token()}"})
+    assert r.status_code == 200 and r.json()["avatar_url"] == own
+    r = c.patch("/api/me", json={"avatar_url": None}, headers={"Authorization": f"Bearer {token()}"})
+    assert r.status_code == 200

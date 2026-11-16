@@ -13,3 +13,8 @@ create policy "people add images to their own folder" on storage.objects
 create policy "people remove images from their own folder" on storage.objects
   for delete to authenticated
   using (bucket_id = 'images' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Deleting needs to find the file first, so people can also look up files in their own folder (and only there)
+create policy "people see their own images" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'images' and (storage.foldername(name))[1] = (select auth.uid())::text);
