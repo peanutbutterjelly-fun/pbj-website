@@ -152,7 +152,7 @@ function similar(e, all = []) {
   if (!rest.length) return "";
   const card = (x) => {
     const [y, m, d] = x.dateFrom.split("-").map(Number);
-    return `<a class="ep-card" href="/event.html?id=${encodeURIComponent(x.id)}"><div class="ep-card-img" style="background-image:url('${safeImg(x.images.filter(Boolean)[0])}')"></div><b>${esc(x.title || "Untitled event")}</b><small>${d} ${MONTHS[m - 1]} ${y}${x.category ? ` · ${esc(x.category)}` : ""}</small></a>`;
+    return `<a class="ep-card" href="/event.html?id=${encodeURIComponent(x.id)}"><div class="ep-card-img" style="background-image:url('${esc(safeImg(x.images.filter(Boolean)[0]))}')"></div><b>${esc(x.title || "Untitled event")}</b><small>${d} ${MONTHS[m - 1]} ${y}${x.category ? ` · ${esc(x.category)}` : ""}</small></a>`;
   };
   return `<section class="ep-sec"><h2>More like this</h2><div class="ep-more">${rest.slice(0, 4).map(card).join("")}</div></section>`;
 }

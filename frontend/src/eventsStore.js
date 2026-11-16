@@ -31,12 +31,13 @@ export function splitEvent(e) {
 
 // Photo links come from other people now, so only plain https addresses are kept (nothing that could break out of the page's HTML)
 // (our own storage address is allowed too, which is plain http on a local copy of Supabase)
-export const safeImg = (u) => (typeof u === "string" && /^[^\s'"()<>\\]+$/.test(u) && (u.startsWith("https://") || (SB_URL && u.startsWith(`${SB_URL}/storage/v1/object/public/`))) ? u : "");
+export const safeImg = (u) => (typeof u === "string" && /^[^\s'"()<>\\&;#]+$/.test(u) && (u.startsWith("https://") || (SB_URL && u.startsWith(`${SB_URL}/storage/v1/object/public/`))) ? u : "");
 const list = (v) => (Array.isArray(v) ? v : []);
 
 // ...and back again
 function joinEvent(row, priv) {
   const e = { ...(row.data && typeof row.data === "object" ? row.data : {}), id: row.id, status: row.status };
+  delete e.mine; // only fetchEvent decides that, from who's signed in
   e.images = list(e.images).map(safeImg);
   for (const k of ["artists", "partners"]) e[k] = list(e[k]).map((p) => ({ ...p, logo: safeImg(p?.logo) }));
   if (priv) {

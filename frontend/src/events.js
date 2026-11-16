@@ -1374,7 +1374,7 @@ function card(ev) { return ev.real ? `<a class="ev-card-b real" href="${eventUrl
 // A real event: its cover on the poster, then category, title, date and price (the belt shows the poster with the title on it)
 const eventUrl = (ev) => `/event.html?id=${encodeURIComponent(ev.id)}`;
 function coverCard(ev, onBelt = false) {
-  const poster = `<div class="ev-poster ev-cover" style="background-image:url('${ev.cover}')"${onBelt ? ` role="img" aria-label="${esc(ev.title)}"` : ""}></div>`;
+  const poster = `<div class="ev-poster ev-cover" style="background-image:url('${esc(safeImg(ev.cover))}')"${onBelt ? ` role="img" aria-label="${esc(ev.title)}"` : ""}></div>`;
   if (onBelt) return poster;
   return `${poster}<p class="ev-cat">${esc(ev.category || "Event")}</p><h3>${esc(ev.title)}</h3>
     <p class="ev-line">${longDate(ev)}${ev.time ? ` · ${esc(ev.time)}` : ""}</p><p class="ev-line">${esc(ev.area)} · <span class="ev-price">${esc(ev.price)}</span></p>`;
