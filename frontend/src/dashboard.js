@@ -1,6 +1,7 @@
 import { createCutLetter } from "./cutword.js";
 import { welcomeGate, profileForm } from "./welcome.js";
 import { signOut } from "./auth.js";
+import { shrinkImage, uploadImage, blobToDataUrl } from "./images.js";
 
 // Host dashboard: "Your Events" list and the Create an Event steps.
 // Steps 0 (Event Type) and 1 (Basic Info) are built. The rest of the steps show in the bar and open a "coming next" page.
@@ -392,19 +393,14 @@ function youtubeEmbed(url) {
 }
 
 // Photos are shrunk before they go in, so a draft stays small
-function readImage(file, done, maxWidth = 1200) {
-  const img = new Image();
-  const url = URL.createObjectURL(file);
-  img.onload = () => {
-    const k = Math.min(1, maxWidth / img.width);
-    const c = document.createElement("canvas");
-    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    URL.revokeObjectURL(url);
-    done(c.toDataURL("image/jpeg", 0.82));
-  };
-  img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that image"); };
-  img.src = url;
+// Shrinks a picked photo and uploads it to Supabase Storage, then hands back its web link (src/images.js).
+// Without sign-in set up (a local copy), the photo is kept inline instead, as before.
+function readImage(file, done, maxWidth = 1200, kind = "events") {
+  toast("Adding image…");
+  shrinkImage(file, maxWidth)
+    .then((blob) => (account.session ? uploadImage(account.session, blob, kind) : blobToDataUrl(blob)))
+    .then(done)
+    .catch(() => toast("Couldn't add that image. Check your connection and try again."));
 }
 
 function editor({ html, placeholder, tall }) {
@@ -1282,7 +1278,7 @@ function openPersonModal(kind, prefill, onAdd) {
   $("#pm-desc").addEventListener("input", (e) => { P.desc = e.target.value; refresh(); });
   const drop = $("#logo-drop"), file = $("#logo-file");
   const paintLogo = () => { drop.classList.toggle("has", !!P.logo); drop.style.backgroundImage = P.logo ? `url(${P.logo})` : ""; };
-  file.addEventListener("change", () => { const f = file.files[0]; if (f) readImage(f, (d) => { P.logo = d; paintLogo(); }, 256); file.value = ""; });
+  file.addEventListener("change", () => { const f = file.files[0]; if (f) readImage(f, (d) => { P.logo = d; paintLogo(); }, 256, "logos"); file.value = ""; });
   drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); } });
   const close = () => { back.remove(); document.body.style.overflow = ""; document.removeEventListener("keydown", onKey); };
   const onKey = (e) => { if (e.key === "Escape") close(); };

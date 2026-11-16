@@ -1654,3 +1654,6 @@ select.box { appearance: none; -webkit-appearance: none; background-image: url("
 .field.bad .kind span { border-color: var(--jam); }
 @media (max-width: 767px) { .welcome-card { padding: 1.4em; } .kinds { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .kind span { transition: none; } .kind:hover span { transform: none; } }
+.w-photo-row { display: flex; align-items: center; gap: 1.2em; }
+.w-avatar { width: 72px; height: 72px; flex: none; border-radius: 50%; background: var(--bread) center / cover no-repeat; border: 2px solid var(--ink); display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 28px; }
+.w-photo label.btn { cursor: pointer; }

@@ -1,5 +1,6 @@
 // The door to the host dashboard: sign in with an email link, then (the first time only) tell us who you are.
 // welcomeGate() resolves with { session, me } once both are done. The profile page (#/profile) reuses the same form.
+import { shrinkImage, uploadImage } from "./images.js";
 import { authReady, client, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe } from "./auth.js";
 
 // The kinds of hosts from PLAN.md (free listings are for everyday people with a spare ticket or a group plan)
@@ -11,6 +12,8 @@ export const HOST_KINDS = [
   ["Just me", "A spare ticket or a group plan"],
 ];
 
+// Only show a photo from a normal web address (never javascript: or anything odd saved in the profile)
+const safeImg = (u) => (/^https:\/\/[^\s'"()<>]+$/.test(u || "") ? u : "");
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 export async function welcomeGate(app, after) {
@@ -97,6 +100,9 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
         <p>${first ? "A few quick things about you, then you can list your first event." : "This is how we know you. Guests don't see it."}</p></div>
       <form class="card welcome-card" novalidate>
         <p class="welcome-who">Signed in as <b>${esc(session.user.email)}</b></p>
+        <div class="field w-photo"><span class="lab">Your photo <span class="opt">Optional</span></span>
+          <div class="w-photo-row"><span class="w-avatar" ${safeImg(me.avatar_url) ? `style="background-image:url('${esc(safeImg(me.avatar_url))}')"` : ""}>${safeImg(me.avatar_url) ? "" : esc((me.full_name || session.user.email || "?").trim().slice(0, 1).toUpperCase())}</span>
+            <label class="btn ghost small">${me.avatar_url ? "Change photo" : "Add photo"}<input type="file" accept="image/jpeg,image/png,image/webp" hidden /></label></div></div>
         <div class="field" id="w-f-name"><label for="w-name">Your name <span class="req">*</span></label>
           <input id="w-name" class="box" type="text" autocomplete="name" maxlength="120" value="${esc(me.full_name)}" placeholder="e.g. Asha Kulkarni" />
           <p class="err">Please add your name.</p></div>
@@ -116,6 +122,19 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
     after();
     const form = app.querySelector("form"), msg = form.querySelector(".welcome-msg"), go = form.querySelector("[type=submit]");
     const $ = (id) => form.querySelector("#" + id);
+    let avatar = me.avatar_url || null, uploading = false;
+    const pic = form.querySelector(".w-photo input"), face = form.querySelector(".w-avatar");
+    pic.addEventListener("change", async () => {
+      const file = pic.files[0]; pic.value = "";
+      if (!file) return;
+      uploading = true; msg.textContent = "Uploading photo…"; msg.dataset.tone = "";
+      try {
+        avatar = await uploadImage(session, await shrinkImage(file, 400), "profile");
+        face.textContent = ""; face.style.backgroundImage = `url('${avatar}')`;
+        msg.textContent = "";
+      } catch { msg.textContent = "Couldn't upload that photo. Try another one."; msg.dataset.tone = "bad"; }
+      uploading = false;
+    });
     form.querySelector("[data-out]")?.addEventListener("click", async () => { try { await signOut(); } finally { location.reload(); } });
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -124,11 +143,12 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
       $("w-f-kind").classList.toggle("bad", !kind);
       if (!name) { $("w-name").focus(); return; }
       if (!kind) { form.querySelector("[name=kind]").focus(); return; }
+      if (uploading) { msg.textContent = "Wait a moment, your photo is still uploading."; return; }
       go.disabled = true; msg.textContent = "Saving…"; msg.dataset.tone = "";
       const blank = (v) => v.trim() || null;
       try {
         const saved = await saveMe(session, {
-          full_name: name, host_kind: kind, phone: blank($("w-phone").value), link: blank($("w-link").value),
+          full_name: name, host_kind: kind, avatar_url: avatar, phone: blank($("w-phone").value), link: blank($("w-link").value),
           about: blank($("w-about").value), wants_call: $("w-call").checked, onboarded: true,
         });
         resolve(saved);
