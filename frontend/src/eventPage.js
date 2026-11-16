@@ -1,8 +1,12 @@
 // One event's own page (/event.html?id=...). Reads the event from the database (src/eventsStore.js): anyone can open a listed event,
 // and the host can also preview their own drafts. Everything the host typed is escaped or cleaned before it goes on the page.
-import { fetchEvent, fetchListedEvents, safeImg } from "./eventsStore.js";
+import { fetchEvent, fetchListedEvents, safeImg as remoteImg, LISTED } from "./eventsStore.js";
 import { currentSession, authReady } from "./auth.js";
 const app = document.getElementById("app");
+// Photos: plain web links only. A local copy with no database keeps the host's own photos inline (data:), so those are allowed there.
+const NO_DB = !authReady();
+const safeImg = (u) => (NO_DB && typeof u === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(u) ? u : remoteImg(u));
+const localListed = () => { try { return (JSON.parse(localStorage.getItem("pbj-host-events")) || []).filter((e) => LISTED.includes(e.status)); } catch { return []; } };
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -147,7 +151,7 @@ function mapSection(e) {
 // ---- More like this: other published events, same category first ----
 function similar(e, all = []) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const rest = all.filter((x) => x.id !== e.id && x.status === "published" && x.dateFrom && (x.images || []).some(Boolean) && new Date(...(x.dateTo || x.dateFrom).split("-").map((n, i) => (i === 1 ? n - 1 : n))) >= today);
+  const rest = all.filter((x) => x.id !== e.id && LISTED.includes(x.status) && x.dateFrom && (x.images || []).some(Boolean) && new Date(...(x.dateTo || x.dateFrom).split("-").map((n, i) => (i === 1 ? n - 1 : n))) >= today);
   rest.sort((a, b) => (b.category === e.category) - (a.category === e.category) || a.dateFrom.localeCompare(b.dateFrom));
   if (!rest.length) return "";
   const card = (x) => {
@@ -215,7 +219,7 @@ function show(e, others = []) {
     ${mapSection(e)}
     ${people(e.artists, "Artists")}${people(e.partners, "Partners")}${orgs}
     ${(e.terms || "").replace(/<[^>]*>/g, "").trim() ? `<section class="ep-sec ep-wide"><h2>Terms &amp; conditions</h2><div class="ep-rich ep-terms">${rich(e.terms)}</div></section>` : ""}
-    ${similar(e, others)}`;
+    <div id="ep-similar">${similar(e, others)}</div>`;
 
   // gallery
   const main = app.querySelector("#ep-main");
@@ -278,7 +282,13 @@ function show(e, others = []) {
   }
 }
 
+// The event shows as soon as it arrives; "More like this" fills in afterwards, whenever the other events come in
 app.innerHTML = `<section class="ep-miss"><p>Loading…</p></section>`;
-Promise.all([load(), fetchListedEvents().catch(() => [])])
-  .then(([ev, others]) => (ev ? show(ev, others) : missing()))
+const othersP = NO_DB ? Promise.resolve(localListed()) : fetchListedEvents().catch(() => []);
+load()
+  .then((ev) => {
+    if (!ev) return missing();
+    show(ev);
+    othersP.then((others) => { const box = app.querySelector("#ep-similar"); if (box) box.innerHTML = similar(ev, others); });
+  })
   .catch(() => missing("Couldn't load this event. Check your connection and try again."));

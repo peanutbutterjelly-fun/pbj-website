@@ -48,6 +48,7 @@ if (location.search.includes("inline")) document.documentElement.classList.add("
 // background a moment later (sync). Without sign-in set up (a local copy with no keys), events stay in this browser, as before.
 let online = null; // the working copy when signed in, else null
 const synced = new Map(); // id -> what the database last got, to send only what changed
+const tried = new Set(); // ids whose save was attempted: the public half may exist even if the save then failed
 let syncing = null, again = false, retry = null;
 const localLoad = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
 const load = () => (online ? JSON.parse(JSON.stringify(online)) : localLoad());
@@ -62,17 +63,18 @@ async function sync() {
   if (syncing) { again = true; return; }
   clearTimeout(retry);
   const changed = online.filter((e) => synced.get(e.id) !== JSON.stringify(e));
-  const gone = [...synced.keys()].filter((id) => !online.some((e) => e.id === id));
+  const gone = [...new Set([...synced.keys(), ...tried])].filter((id) => !online.some((e) => e.id === id));
   if (!changed.length && !gone.length) return;
   const sent = changed.map((e) => [e.id, JSON.stringify(e)]);
   // photos the database version had, so the ones no longer used anywhere can be deleted once this save goes through
   const before = [...changed.map((e) => e.id), ...gone].filter((id) => synced.has(id)).flatMap((id) => [...photoLinks(JSON.parse(synced.get(id)))]);
   syncing = (async () => {
     try {
+      changed.forEach((e) => tried.add(e.id));
       await saveEvents(changed);
+      sent.forEach(([id, json]) => synced.set(id, json)); // saved, even if the delete below then fails
       await deleteEvents(gone);
-      sent.forEach(([id, json]) => synced.set(id, json));
-      gone.forEach((id) => synced.delete(id));
+      gone.forEach((id) => { synced.delete(id); tried.delete(id); });
       const used = new Set([...photoLinks(online), ...photoLinks(draft)]);
       removeImages(account.session, before.filter((u) => !used.has(u)));
     } catch {
@@ -92,7 +94,8 @@ async function startOnline(session) {
   const mine = await loadMyEvents(session);
   mine.forEach((e) => synced.set(e.id, JSON.stringify(e)));
   online = mine;
-  const old = localLoad().filter((e) => !mine.some((m) => m.id === e.id));
+  // Not in the account yet, or in it without its private half (a save that stopped halfway): this browser's copy is still needed
+  const old = localLoad().filter((e) => !mine.some((m) => m.id === e.id) || mine.missingPrivate.has(e.id));
   // These were made before accounts, on this browser, by whoever used it. Ask before putting them in this account.
   if (old.length && !(await ask({
     title: "Move events from this browser?",
@@ -101,13 +104,18 @@ async function startOnline(session) {
   }).then((yes) => { if (yes === false) localStorage.removeItem(STORE); return yes; }))) return; // closed: ask again next time
   if (old.length) {
     toast(`Moving ${old.length} event${old.length > 1 ? "s" : ""} from this browser into your account…`);
+    const uploaded = []; // photos uploaded on the way, deleted again if the move fails
     try {
       const lifted = [];
-      for (const e of old) lifted.push(await liftInlineImages(session, e));
-      online = [...lifted, ...online];
+      for (const e of old) lifted.push(await liftInlineImages(session, e, uploaded));
+      online = [...lifted, ...online.filter((m) => !lifted.some((e) => e.id === m.id))];
       await sync();
       if (!unsaved()) { localStorage.removeItem(STORE); toast("Your events are now saved to your account."); }
-    } catch { online = mine; toast("Couldn't move your old events yet. We'll try again next time."); }
+    } catch {
+      removeImages(session, uploaded);
+      online = mine;
+      toast("Couldn't move your old events yet. We'll try again next time.");
+    }
   }
 }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

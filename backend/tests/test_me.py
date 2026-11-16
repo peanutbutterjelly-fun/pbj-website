@@ -112,7 +112,9 @@ def test_me_photo_must_be_own_upload(client):
     own = f"https://test.supabase.co/storage/v1/object/public/images/{USER_ID}/profile/a.jpg"
     for bad in ["https://evil.example/a.jpg", "javascript:alert(1)",
                 f"https://test.supabase.co/storage/v1/object/public/images/{uuid.uuid4()}/profile/a.jpg",
-                own.replace("a.jpg", "a'.jpg")]:
+                own.replace("a.jpg", "a'.jpg"),
+                own.replace("profile/a.jpg", f"%2e%2e/{uuid.uuid4()}/profile/a.jpg"),
+                own.replace("profile/a.jpg", "%2E%2E/x/a.jpg")]:
         assert c.patch("/api/me", json={"avatar_url": bad}, headers={"Authorization": f"Bearer {token()}"}).status_code == 422
     r = c.patch("/api/me", json={"avatar_url": own}, headers={"Authorization": f"Bearer {token()}"})
     assert r.status_code == 200 and r.json()["avatar_url"] == own

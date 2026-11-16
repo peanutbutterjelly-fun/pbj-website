@@ -44,7 +44,8 @@ def _own_photo(url: str, user_id) -> bool:
     base = get_settings().supabase_url.rstrip("/")
     prefix = f"{base}/storage/v1/object/public/images/{user_id}/"
     rest = url[len(prefix):]
-    return bool(base) and url.startswith(prefix) and rest != "" and ".." not in rest and not any(c in rest for c in "\"'<>() \\")
+    # no "..", and no %-escapes at all (so an encoded "%2e%2e" can't point into someone else's folder either)
+    return bool(base) and url.startswith(prefix) and rest != "" and ".." not in rest and not any(c in rest for c in "\"'<>()% \\?#")
 
 
 @router.patch("")

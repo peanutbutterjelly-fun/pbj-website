@@ -9,6 +9,7 @@ import { uploadImage } from "./images.js";
 const SB_URL = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const STATUSES = ["draft", "published", "coming", "soldout", "cancelled"];
+export const LISTED = ["published", "coming", "soldout"]; // shown on the Events page (cancelled ones stay reachable by link only)
 const day = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || "") ? v : null);
 export const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
@@ -58,7 +59,9 @@ export async function loadMyEvents(session) {
   if (ev.error) throw ev.error;
   if (pv.error) throw pv.error;
   const privs = new Map(pv.data.map((p) => [p.event_id, p.data]));
-  return ev.data.map((r) => joinEvent(r, privs.get(r.id)));
+  const events = ev.data.map((r) => joinEvent(r, privs.get(r.id)));
+  events.missingPrivate = new Set(ev.data.filter((r) => !privs.has(r.id)).map((r) => r.id)); // saves that stopped halfway
+  return events;
 }
 
 export async function saveEvents(list) {
@@ -79,8 +82,8 @@ export async function deleteEvents(ids) {
 }
 
 // Events made before accounts existed hold their photos inline. Upload those and swap in the web links.
-export async function liftInlineImages(session, value) {
-  const up = async (dataUrl) => uploadImage(session, await (await fetch(dataUrl)).blob(), "events");
+export async function liftInlineImages(session, value, uploaded = []) {
+  const up = async (dataUrl) => { const url = await uploadImage(session, await (await fetch(dataUrl)).blob(), "events"); uploaded.push(url); return url; };
   if (typeof value === "string") {
     if (value.startsWith("data:image/")) return up(value);
     if (!value.includes("data:image/")) return value;
@@ -88,8 +91,8 @@ export async function liftInlineImages(session, value) {
     for (const m of new Set(value.match(/data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+/g) || [])) out = out.split(m).join(await up(m));
     return out;
   }
-  if (Array.isArray(value)) { const out = []; for (const v of value) out.push(await liftInlineImages(session, v)); return out; }
-  if (value && typeof value === "object") { const out = {}; for (const [k, v] of Object.entries(value)) out[k] = await liftInlineImages(session, v); return out; }
+  if (Array.isArray(value)) { const out = []; for (const v of value) out.push(await liftInlineImages(session, v, uploaded)); return out; }
+  if (value && typeof value === "object") { const out = {}; for (const [k, v] of Object.entries(value)) out[k] = await liftInlineImages(session, v, uploaded); return out; }
   return value;
 }
 
@@ -104,7 +107,7 @@ async function rest(query) {
 // Published events whose last day hasn't passed, soonest first
 export async function fetchListedEvents() {
   if (!eventsOnline()) return [];
-  return rest(`select=id,status,data&status=eq.published&ends_on=gte.${isoToday()}&order=starts_on.asc&limit=200`);
+  return rest(`select=id,status,data&status=in.(${LISTED.join(",")})&ends_on=gte.${isoToday()}&order=starts_on.asc&limit=200`);
 }
 
 // One event by its id: anyone sees it once it's listed. The host also sees their own draft (when `session` is given).

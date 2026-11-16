@@ -5,7 +5,7 @@ import { Flip } from "gsap/Flip";
 import { createCutLetter } from "./cutword.js";
 import { saveLead } from "./leads.js";
 import { currentSession, fetchMe } from "./auth.js";
-import { fetchListedEvents, safeImg } from "./eventsStore.js";
+import { fetchListedEvents, safeImg, LISTED } from "./eventsStore.js";
 import { EVENTS } from "./eventsData.js";
 
 gsap.registerPlugin(Flip, ScrollTrigger, Observer);
@@ -1383,7 +1383,7 @@ function coverCard(ev, onBelt = false) {
 // Events hosts have published in the dashboard, from the database (src/eventsStore.js), as cards
 function publishedEvents(today, saved) {
   const hm = (t) => { const h = Number(t?.h), m = String(t?.m ?? "00").padStart(2, "0"); return Number.isFinite(h) ? `${h % 12 || 12}:${m} ${h >= 12 ? "PM" : "AM"}` : ""; };
-  return saved.filter((e) => e.status === "published" && /^\d{4}-\d{2}-\d{2}$/.test(e.dateFrom || "") && (e.images || []).some(safeImg)).map((e) => {
+  return saved.filter((e) => LISTED.includes(e.status) && /^\d{4}-\d{2}-\d{2}$/.test(e.dateFrom || "") && (e.images || []).some(safeImg)).map((e) => {
     const [y, mo, d] = (e.dateTo || e.dateFrom).split("-").map(Number);
     if (new Date(y, mo - 1, d) < today) return null; // an event hides itself once its last day has passed
     const prices = (e.tickets || []).filter((t) => t.enabled !== false).map((t) => (t.paid ? Number(t.price) || 0 : 0));

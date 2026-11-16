@@ -7,7 +7,8 @@ const BUCKET = "images";
 const SB_URL = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
 const PUBLIC = `${SB_URL}/storage/v1/object/public/${BUCKET}/`;
 const TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_MB = 20; // before shrinking; after shrinking every photo is far under the bucket's 5 MB
+const MAX_MB = 20; // before shrinking
+const STORED_MAX = 4.5 * 1024 * 1024; // after shrinking: safely under the storage folder's 5 MB limit
 
 // A problem with a photo, with a short code the page turns into a plain message (see imageMessage)
 class ImageProblem extends Error { constructor(code) { super(code); this.code = code; } }
@@ -43,19 +44,28 @@ export function shrinkImage(file, maxWidth = 1200) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const k = Math.min(1, maxWidth / img.width);
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-      const g = c.getContext("2d");
-      g.drawImage(img, 0, 0, c.width, c.height);
+    img.onload = async () => {
       URL.revokeObjectURL(url);
-      let clear = false;
-      if (file.type !== "image/jpeg") {
-        const px = g.getImageData(0, 0, c.width, c.height).data;
-        for (let i = 3; i < px.length; i += 4) if (px[i] < 255) { clear = true; break; }
+      let width = Math.min(img.width, maxWidth), clear = null;
+      // draw, and if the result is still over the storage limit (a big see-through PNG can be), try again smaller
+      for (let tries = 0; tries < 6; tries++) {
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(width)); c.height = Math.max(1, Math.round(img.height * (width / img.width)));
+        const g = c.getContext("2d");
+        g.drawImage(img, 0, 0, c.width, c.height);
+        if (clear === null) {
+          clear = false;
+          if (file.type !== "image/jpeg") {
+            const px = g.getImageData(0, 0, c.width, c.height).data;
+            for (let i = 3; i < px.length; i += 4) if (px[i] < 255) { clear = true; break; }
+          }
+        }
+        const blob = await new Promise((r) => c.toBlob(r, clear ? "image/png" : "image/jpeg", 0.82));
+        if (!blob) return reject(new ImageProblem("type"));
+        if (blob.size <= STORED_MAX) return resolve(blob);
+        width *= 0.7;
       }
-      c.toBlob((blob) => (blob ? resolve(blob) : reject(new ImageProblem("type"))), clear ? "image/png" : "image/jpeg", 0.82);
+      reject(new ImageProblem("big"));
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new ImageProblem("type")); };
     img.src = url;
@@ -95,7 +105,8 @@ export async function removeImages(session, urls) {
   if (!session) return;
   const own = `${session.user.id}/`;
   const paths = [...new Set(urls)].filter((u) => typeof u === "string" && u.startsWith(PUBLIC))
-    .map((u) => decodeURIComponent(u.slice(PUBLIC.length).split("?")[0])).filter((p) => p.startsWith(own) && !p.includes(".."));
+    .map((u) => { try { return decodeURIComponent(u.slice(PUBLIC.length).split("?")[0]); } catch { return ""; } }) // one odd link doesn't stop the rest
+    .filter((p) => p.startsWith(own) && !p.includes(".."));
   if (!paths.length) return;
   try { const sb = await client(); await sb.storage.from(BUCKET).remove(paths); } catch { /* left behind; harmless */ }
 }
