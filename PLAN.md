@@ -88,4 +88,7 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 - **The planner decides who joins**, even for a free spot. By default they approve each person (safety). They can switch on **auto-approval** (first come, first served) when they only care that someone comes. The requests and guest list live in the My Events dashboard on each Sponty event (a Requests page with Accept and Decline, and spots left).
 - **Browsing is open.** People can search and browse events without an account. An account is recommended (and needed for Sponty plans) so payments and bookings are easy to find. Paid events can be bought as a guest.
 - **Group chats:** only the host or planner posts (updates, quick questions); members can send private doubts. "Personalised messages" means the host's or planner's own typed updates to the group chat; there are no one-to-one messages.
-- **Credits (later):** people pay a one-time fee for a bundle of 3, 6 or 10 credits to join Sponty plans. If a planner cancels the plan, the person's credit is returned. Still to settle: the 24-hour cancellation rule, when a credit is taken, and the prices.
+- **Credits (later):** people pay a one-time fee for a bundle of 3, 6 or 10 credits to join Sponty plans, shown as a number. A credit is spent when the planner accepts the person. Declined or withdrawn before acceptance: nothing is spent.
+  - Planner cancels the plan, no-shows or backs out last minute, at any time and for any reason: every accepted person gets the credit back.
+  - Person cancels more than 24 hours before the event: credit returns. Within 24 hours: credit is lost.
+  - Still to settle: bundle prices, and whether credits expire.
