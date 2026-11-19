@@ -19,7 +19,7 @@ Then open http://localhost:8000/api/health (should say `{"status":"ok"}`) or htt
 
 - `GET /api/health`: the server is up.
 - `GET /api/health/db`: the server can reach the database.
-- `GET /api/me` and `PATCH /api/me`: the logged-in person's profile. Send the Supabase login token as `Authorization: Bearer <token>`. Only `full_name`, `avatar_url` and `city` can be changed.
+- `GET /api/me` and `PATCH /api/me`: the logged-in person's profile. Send the Supabase login token as `Authorization: Bearer <token>`. Only `full_name`, `avatar_url`, `city`, `phone`, `host_kind`, `link`, `about` and `wants_call` can be changed. Sending `"onboarded": true` marks the welcome steps as done (the dashboard asks for them until then).
 
 The backend connects to the database as its owner, so Supabase's row level security doesn't protect it: every route must check who is asking (`LoggedIn` in `app/auth.py`). Database changes live in `../supabase/migrations/` (see `../supabase/README.md`).
 
