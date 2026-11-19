@@ -8,6 +8,7 @@ import { playIntro } from "./intro.js";
 import { playHeroOpen } from "./heroOpen.js";
 import { setupHosts } from "./hosts.js";
 import { setupEvents, setupLoop } from "./events.js";
+import { setupKnowMore } from "./knowMore.js";
 import { setupTopbar } from "./topbar.js";
 import { setupAccount } from "./account.js";
 import { createCutLetter } from "./cutword.js";
@@ -38,11 +39,12 @@ playIntro({ lenis, onDone: () => heroOpen.start(introDone) });
 
 setupEvents(document.querySelector('[data-panel="events"]')); // the paper-cut headline (the old ticket lineup is parked in events.js, unused for now)
 setupLoop(document.querySelector('[data-panel="list"]'), lenis); // the looping sections at the top of List Your Event
+setupKnowMore(document.querySelector('[data-panel="secret"]')); // Know More: three stacked cards that open into pages
 const hosts = setupHosts(document.querySelector('[data-panel="hosts"]'));
 
 setupTopbar();
 setupAccount();
-setupTabs({
+const folders = setupTabs({
   onSwitch(name) {
     document.documentElement.dataset.page = name; // (the phone's top bar lets List Your Event's colours show through)
     if (name === "hosts") hosts.show();
@@ -52,6 +54,18 @@ setupTabs({
     if (name === "home") mascot.resize();
   },
 });
+
+// Choosing a role in the top bar takes people to that role's section on List Your Event
+{
+  const SLIDE = { Host: 1, "PBJ Exclusive Host": 2, "Spontaneous Planner": 3, Venue: 4, Brand: 5, Sponsor: 6 }; // order of the sections in events.js (LIST_LOOP)
+  const listRoot = document.querySelector('[data-panel="list"]');
+  document.addEventListener("pbj-role", (e) => {
+    const i = SLIDE[e.detail];
+    if (i === undefined) return;
+    if (folders.current() === "list") listRoot.dispatchEvent(new CustomEvent("pbj-goto", { detail: i }));
+    else { listRoot.dataset.startAt = i; folders.open("list"); }
+  });
+}
 
 // "Join the list" jumps smoothly to the signup
 document.querySelectorAll('a[href^="#"]').forEach((link) =>
