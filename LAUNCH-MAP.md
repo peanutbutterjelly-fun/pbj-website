@@ -72,10 +72,10 @@ Every thing has **one page with a stable address**, and every other screen links
 ### The website
 | Feature | What users do | Status | To make it real |
 |---|---|---|---|
-| Home (loading screen, 3D sandwich, intro, sign-up) | Look, scroll, join the list | BUILT | Email sign-up needs the Supabase keys switched on |
-| Events tab | Browse hand-picked events, filter, "Go to event", "Get notified" | DEMO (sample events typed into `eventsData.js`) | Read published events from the database instead |
+| Home (loading screen, 3D sandwich, intro, sign-up) | Look, scroll, join the list | BUILT, except the "Join the list" email box: it says thanks but saves nothing yet | Save the email to the sign-ups table (guest list) |
+| Events tab | Browse hand-picked events, filter, "Go to event", "Get notified" | Hosts' published events: BUILT (from the database, since #25). The hand-picked lineup: DEMO (sample events typed into `eventsData.js`) | Put the hand-picked lineup in the database too |
 | About | Read the story | BUILT | Final text and founder details |
-| List Your Event (slides, "Know more" windows) | Learn, sign up, fill a form | BUILT (saves to Supabase once keys are set) | Switch the keys on; connect "Sign up" to real login |
+| List Your Event (slides, "Know more" windows) | Learn, sign up, fill a form | BUILT (forms save to the database; signed-in people's forms are linked to their account, since #25) | The "Sign me up" tear-off still only says "Coming soon" |
 | Meet Our Hosts (3D magazines) | Browse host covers | NOT BUILT (blank covers) | Needs real host profiles |
 | Know More (hosts / brands / spontys) | Read three pitch pages | BUILT (placeholder copy) | Final copy, no numbers promised |
 | Top bar (Who are you, Choose your city) | Pick a role and city | DEMO (remembers in the browser) | Tie to the account and city list |
@@ -83,11 +83,12 @@ Every thing has **one page with a stable address**, and every other screen links
 ### The host dashboard
 | Feature | Status | To make it real |
 |---|---|---|
-| My events list (statuses, tickets, search, duplicate, delete) | DEMO (kept in the browser) | Store in the database, per host |
-| Create event, 8 steps (type, basic info, details, schedule, tickets, partners, organizer, review) | DEMO | Same; plus image upload to storage |
+| Host sign-in and welcome step (email link, then name, who you are, phone, Instagram, photo, "book a call") | BUILT (since #25) | Nothing for launch |
+| My events list (statuses, tickets, search, duplicate, delete) | BUILT (saved to the database per host, since #25; needs sign-in) | Nothing for launch |
+| Create event, 8 steps (type, basic info, details, schedule, tickets, partners, organizer, review) | BUILT (saved to the database; photos in storage; organizer bank details and coupons kept private; since #25) | Nothing for launch |
 | Event types (Sponty, Exclusive, Non-exclusive) and rules (Sponty = free tickets only) | BUILT | Commission and payout terms still "to be set" |
 | Coupons, sales, graphs, visitor map | DEMO (empty or made-up numbers) | Real orders and visits |
-| Public event page | DEMO | Real page per event with a shareable address |
+| Public event page | BUILT (anyone can open a published event, since #25) | A nicer shareable address (`/e/<name>`) |
 | Run a chat (updates, doubts, quick questions) | DEMO, **not yet inside the dashboard** | Put it in the dashboard; real chats |
 
 ### The Spontys app
