@@ -67,6 +67,9 @@ const folders = setupTabs({
   });
 }
 
+// Know More's "See events" opens a tab by name
+document.addEventListener("pbj-tab", (e) => folders.open(e.detail));
+
 // "Join the list" jumps smoothly to the signup
 document.querySelectorAll('a[href^="#"]').forEach((link) =>
   link.addEventListener("click", (e) => {
