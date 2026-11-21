@@ -1,8 +1,13 @@
 import { createCutLetter } from "./cutword.js";
+import { welcomeGate, profileForm } from "./welcome.js";
+import { signOut } from "./auth.js";
+import { shrinkImage, uploadImage, blobToDataUrl, imageMessage, photoLinks, removeImages } from "./images.js";
+import { loadMyEvents, saveEvents, deleteEvents, liftInlineImages } from "./eventsStore.js";
 
 // Host dashboard: "Your Events" list and the Create an Event steps.
 // Steps 0 (Event Type) and 1 (Basic Info) are built. The rest of the steps show in the bar and open a "coming next" page.
-// Nothing is sent anywhere yet: events are kept in this browser (localStorage) until accounts and a database exist.
+// You need to be signed in (and have told us who you are) to get in: see src/welcome.js.
+// Events are saved to the database (src/eventsStore.js); without sign-in set up they stay in this browser.
 
 const STEPS = [
   { name: "Event type", sub: "Select your event type" },
@@ -39,9 +44,80 @@ const app = document.getElementById("app");
 // Inside the website's List Your Event tab the page hides its own top bar
 if (location.search.includes("inline")) document.documentElement.classList.add("inline");
 
-const load = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
-const save = (list) => { try { localStorage.setItem(STORE, JSON.stringify(list)); } catch { toast("Couldn't save: too many or too large images. Remove a few."); } };
-const newId = () => "e" + Date.now().toString(36);
+// Signed in: events live in the database. The page keeps a working copy (online), and every change is sent up in the
+// background a moment later (sync). Without sign-in set up (a local copy with no keys), events stay in this browser, as before.
+let online = null; // the working copy when signed in, else null
+const synced = new Map(); // id -> what the database last got, to send only what changed
+const tried = new Set(); // ids whose save was attempted: the public half may exist even if the save then failed
+let syncing = null, again = false, retry = null;
+const localLoad = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
+const load = () => (online ? JSON.parse(JSON.stringify(online)) : localLoad());
+const save = (list) => {
+  if (online) { online = JSON.parse(JSON.stringify(list)); sync(); return; }
+  try { localStorage.setItem(STORE, JSON.stringify(list)); } catch { toast("Couldn't save: too many or too large images. Remove a few."); }
+};
+const newId = () => "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const unsaved = () => !!online && (online.some((e) => synced.get(e.id) !== JSON.stringify(e)) || [...synced.keys()].some((id) => !online.some((e) => e.id === id)));
+
+async function sync() {
+  if (syncing) { again = true; return; }
+  clearTimeout(retry);
+  const changed = online.filter((e) => synced.get(e.id) !== JSON.stringify(e));
+  const gone = [...new Set([...synced.keys(), ...tried])].filter((id) => !online.some((e) => e.id === id));
+  if (!changed.length && !gone.length) return;
+  const sent = changed.map((e) => [e.id, JSON.stringify(e)]);
+  // photos the database version had, so the ones no longer used anywhere can be deleted once this save goes through
+  const before = [...changed.map((e) => e.id), ...gone].filter((id) => synced.has(id)).flatMap((id) => [...photoLinks(JSON.parse(synced.get(id)))]);
+  syncing = (async () => {
+    try {
+      changed.forEach((e) => tried.add(e.id));
+      await saveEvents(changed);
+      sent.forEach(([id, json]) => synced.set(id, json)); // saved, even if the delete below then fails
+      await deleteEvents(gone);
+      gone.forEach((id) => { synced.delete(id); tried.delete(id); });
+      const used = new Set([...photoLinks(online), ...photoLinks(draft)]);
+      removeImages(account.session, before.filter((u) => !used.has(u)));
+    } catch {
+      toast("Couldn't save to your account. Check your connection; we'll keep trying.");
+      retry = setTimeout(sync, 8000);
+    }
+  })();
+  await syncing;
+  syncing = null;
+  if (again) { again = false; sync(); }
+}
+// Leaving the page before a change has reached the database asks first
+window.addEventListener("beforeunload", (e) => { if (unsaved()) { e.preventDefault(); e.returnValue = ""; } });
+
+// Signed in: fetch your events. Events made in this browser before accounts existed are moved into your account once.
+async function startOnline(session) {
+  const mine = await loadMyEvents(session);
+  mine.forEach((e) => synced.set(e.id, JSON.stringify(e)));
+  online = mine;
+  // Not in the account yet, or in it without its private half (a save that stopped halfway): this browser's copy is still needed
+  const old = localLoad().filter((e) => !mine.some((m) => m.id === e.id) || mine.missingPrivate.has(e.id));
+  // These were made before accounts, on this browser, by whoever used it. Ask before putting them in this account.
+  if (old.length && !(await ask({
+    title: "Move events from this browser?",
+    message: `This browser has ${old.length} event${old.length > 1 ? "s" : ""} made before sign-in existed (${old.slice(0, 3).map((e) => e.title || "Untitled event").join(", ")}${old.length > 3 ? "…" : ""}). Move ${old.length > 1 ? "them" : "it"} into your account? If ${old.length > 1 ? "they aren't" : "it isn't"} yours, choose Delete.`,
+    ok: "Move to my account", cancel: "Delete from this browser",
+  }).then((yes) => { if (yes === false) localStorage.removeItem(STORE); return yes; }))) return; // closed: ask again next time
+  if (old.length) {
+    toast(`Moving ${old.length} event${old.length > 1 ? "s" : ""} from this browser into your account…`);
+    const uploaded = []; // photos uploaded on the way, deleted again if the move fails
+    try {
+      const lifted = [];
+      for (const e of old) lifted.push(await liftInlineImages(session, e, uploaded));
+      online = [...lifted, ...online.filter((m) => !lifted.some((e) => e.id === m.id))];
+      await sync();
+      if (!unsaved()) { localStorage.removeItem(STORE); toast("Your events are now saved to your account."); }
+    } catch {
+      removeImages(session, uploaded);
+      online = mine;
+      toast("Couldn't move your old events yet. We'll try again next time.");
+    }
+  }
+}
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const textLen = (html) => { const d = document.createElement("div"); d.innerHTML = html; return d.textContent.trim().length; };
 
@@ -59,14 +135,15 @@ function toast(msg) {
 
 // In-page replacement for confirm() and prompt() (browsers and the preview pane can block those pop-ups)
 // ask({ title, message, input?: { placeholder }, ok }) -> resolves to true / the typed text, or null when cancelled
-function ask({ title, message = "", input, ok = "OK" }) {
+// With `cancel`, that button resolves false (a real "no"), while closing the window still resolves null
+function ask({ title, message = "", input, ok = "OK", cancel }) {
   return new Promise((resolve) => {
     const back = document.createElement("div");
     back.className = "modal-back";
     back.innerHTML = `<div class="modal small" role="dialog" aria-modal="true" aria-label="${esc(title)}">
       <div class="modal-head"><div><h3>${esc(title)}</h3></div><button type="button" class="modal-x" data-no aria-label="Close">×</button></div>
       <div class="modal-body">${message ? `<p class="ask-msg">${esc(message)}</p>` : ""}${input ? `<input class="box" id="ask-in" type="text" placeholder="${esc(input.placeholder || "")}" />` : ""}</div>
-      <div class="modal-foot"><button type="button" class="btn ghost" data-no>Cancel</button><button type="button" class="btn ask-ok" data-yes>${esc(ok)}</button></div></div>`;
+      <div class="modal-foot"><button type="button" class="btn ghost" ${cancel ? "data-alt" : "data-no"}>${esc(cancel || "Cancel")}</button><button type="button" class="btn ask-ok" data-yes>${esc(ok)}</button></div></div>`;
     document.body.append(back);
     const field = back.querySelector("#ask-in");
     const done = (v) => { document.removeEventListener("keydown", onKey); back.remove(); resolve(v); };
@@ -75,6 +152,7 @@ function ask({ title, message = "", input, ok = "OK" }) {
     document.addEventListener("keydown", onKey);
     back.querySelectorAll("[data-no]").forEach((b) => b.addEventListener("click", () => done(null)));
     back.querySelector("[data-yes]").addEventListener("click", yes);
+    back.querySelector("[data-alt]")?.addEventListener("click", () => done(false));
     (field || back.querySelector("[data-yes]")).focus();
   });
 }
@@ -389,19 +467,14 @@ function youtubeEmbed(url) {
 }
 
 // Photos are shrunk before they go in, so a draft stays small
-function readImage(file, done, maxWidth = 1200) {
-  const img = new Image();
-  const url = URL.createObjectURL(file);
-  img.onload = () => {
-    const k = Math.min(1, maxWidth / img.width);
-    const c = document.createElement("canvas");
-    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    URL.revokeObjectURL(url);
-    done(c.toDataURL("image/jpeg", 0.82));
-  };
-  img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that image"); };
-  img.src = url;
+// Shrinks a picked photo and uploads it to Supabase Storage, then hands back its web link (src/images.js).
+// Without sign-in set up (a local copy), the photo is kept inline instead, as before.
+function readImage(file, done, maxWidth = 1200, kind = "events") {
+  toast("Adding image…");
+  shrinkImage(file, maxWidth)
+    .then((blob) => (account.session ? uploadImage(account.session, blob, kind) : blobToDataUrl(blob)))
+    .then(done)
+    .catch((err) => toast(imageMessage(err)));
 }
 
 function editor({ html, placeholder, tall }) {
@@ -417,7 +490,7 @@ function editor({ html, placeholder, tall }) {
   wrap.innerHTML = `<div class="rte-bar" role="toolbar">${TOOLS.map(tool).join("")}</div>
     <div class="rte-body ${tall ? "tall" : ""}" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="${placeholder}"></div>
     <textarea class="rte-src box ${tall ? "tall" : ""}" hidden spellcheck="false" aria-label="HTML"></textarea>
-    <input type="file" accept="image/*" hidden />`;
+    <input type="file" accept="image/png,image/jpeg,image/webp" hidden />`;
   const body = wrap.querySelector(".rte-body"), src = wrap.querySelector(".rte-src"), file = wrap.querySelector("input[type=file]");
   body.innerHTML = html;
   const changed = () => body.dispatchEvent(new Event("input"));
@@ -820,7 +893,11 @@ function stepDetails(host) {
       if (draft.images.length >= MAX_IMAGES) { toast(`Up to ${MAX_IMAGES} images`); return; }
       draft.images.push(null); // keeps the order while it loads
       const slot = draft.images.length - 1;
-      readImage(f, (data) => { draft.images[slot] = data; paintThumbs(); $("#f-media").classList.remove("bad"); });
+      const target = draft; // a slow upload finishing after you've moved on mustn't land on another event
+      readImage(f, (data) => {
+        if (draft !== target || !host.isConnected) { removeImages(account.session, [data]); return; }
+        draft.images[slot] = data; paintThumbs(); $("#f-media").classList.remove("bad");
+      });
     });
   };
   files.addEventListener("change", () => { add(files.files); files.value = ""; });
@@ -1279,13 +1356,16 @@ function openPersonModal(kind, prefill, onAdd) {
   $("#pm-desc").addEventListener("input", (e) => { P.desc = e.target.value; refresh(); });
   const drop = $("#logo-drop"), file = $("#logo-file");
   const paintLogo = () => { drop.classList.toggle("has", !!P.logo); drop.style.backgroundImage = P.logo ? `url(${P.logo})` : ""; };
-  file.addEventListener("change", () => { const f = file.files[0]; if (f) readImage(f, (d) => { P.logo = d; paintLogo(); }, 256); file.value = ""; });
+  const first = P.logo; // the logo it opened with; other uploads made here are deleted if they don't end up used
+  const discard = (u) => { if (u && u !== first) removeImages(account.session, [u]); };
+  let added = false;
+  file.addEventListener("change", () => { const f = file.files[0]; if (f) readImage(f, (d) => { if (!back.isConnected) { discard(d); return; } discard(P.logo); P.logo = d; paintLogo(); }, 256, "logos"); file.value = ""; });
   drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); } });
-  const close = () => { back.remove(); document.body.style.overflow = ""; document.removeEventListener("keydown", onKey); };
+  const close = () => { if (!added) discard(P.logo); back.remove(); document.body.style.overflow = ""; document.removeEventListener("keydown", onKey); };
   const onKey = (e) => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
   back.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", close));
-  $("#pm-add").addEventListener("click", () => { if ($("#pm-add").disabled) return; onAdd({ name: P.name.trim().replace(/\s+/g, " "), desc: P.desc.trim(), logo: P.logo }); close(); });
+  $("#pm-add").addEventListener("click", () => { if ($("#pm-add").disabled) return; added = true; onAdd({ name: P.name.trim().replace(/\s+/g, " "), desc: P.desc.trim(), logo: P.logo }); close(); });
   refresh();
   $("#pm-name").focus();
 }
@@ -1382,7 +1462,7 @@ function stepOrganizer(host) {
     </div>
     <div class="add-row"><button type="button" class="btn small" id="o-add">Add organizer</button></div>
     <div id="o-list"></div>
-    <p class="notice info"><b>Secure information:</b> for now, these details are kept only in this browser and are not sent anywhere.</p>
+    <p class="notice info"><b>Private:</b> bank, PAN, GST, email and phone details are saved privately to your account. Only you and the PB&amp;J team can see them; guests only see the organizer name.</p>
     <div class="nav three"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button><button class="btn" type="button" id="save">Save draft</button></div>`;
   const $ = (q) => host.querySelector(q);
   const list = $("#o-list"), next = $("#next");
@@ -1490,7 +1570,7 @@ function stepReview(host) {
 function stepComing(host, step) {
   const s = STEPS[step];
   host.innerHTML = `<div class="coming"><h2 class="cut">${s.name}</h2>
-    <p>This step is coming next. Your event so far is saved as a draft in this browser.</p>
+    <p>This step is coming next. Your event so far is saved as a draft.</p>
     <div class="nav"><button class="btn dark prev" type="button" id="prev">Previous</button><a class="btn" href="#/" id="done">Save and exit</a></div></div>`;
   host.querySelector("#prev").addEventListener("click", () => { location.hash = `#/create/${step - 1}`; });
   host.querySelector("#done").addEventListener("click", () => { toast("Draft saved"); draft = null; });
@@ -1870,9 +1950,18 @@ async function drawMap(host) {
 function route() {
   cutLetters.forEach((l) => l.dispose());
   cutLetters = [];
+  if (location.hash === "#/profile" && account.session) {
+    draft = null;
+    document.querySelector('[data-nav="list"]').classList.remove("on");
+    document.querySelector('[data-nav="profile"]').classList.add("on");
+    profileForm(app, cutHeadings, account.session, account.me).then((me) => { account.me = me; toast("Profile saved"); location.hash = "#/"; });
+    window.scrollTo({ top: 0 });
+    return;
+  }
   const m = location.hash.match(/^#\/create\/(\d)$/);
   const ev = location.hash.match(/^#\/event\/([^/]+)\/(coupons|sales)$/);
   document.querySelector('[data-nav="list"]').classList.toggle("on", !m);
+  document.querySelector('[data-nav="profile"]').classList.remove("on");
   if (ev) {
     draft = null;
     if (ev[2] === "coupons") renderCoupons(ev[1]); else renderSales(ev[1]);
@@ -1887,5 +1976,32 @@ function route() {
     renderList();
   }
 }
-window.addEventListener("hashchange", route);
-route();
+// Sign in and the welcome steps come first. Someone who just finished them and has no events yet goes straight to making one.
+const account = { session: null, me: null };
+async function loadEventsOrRetry(session) {
+  for (;;) {
+    try { return await startOnline(session); }
+    catch {
+      await new Promise((resolve) => {
+        app.innerHTML = `<div class="welcome"><div class="card welcome-card"><p class="welcome-msg" data-tone="bad">Couldn't load your events. Check your connection and try again.</p>
+          <div class="nav single"><button class="btn" type="button">Try again</button></div></div></div>`;
+        app.querySelector("button").addEventListener("click", resolve, { once: true });
+      });
+    }
+  }
+}
+
+welcomeGate(app, cutHeadings).then(async ({ session, me }) => {
+  Object.assign(account, { session, me });
+  if (session) await loadEventsOrRetry(session);
+  const nav = document.querySelector(".dash-nav");
+  if (session) {
+    nav.querySelector('[data-nav="profile"]').hidden = false;
+    const out = nav.querySelector("[data-signout]");
+    out.hidden = false;
+    out.addEventListener("click", async () => { try { await signOut(); } finally { location.replace("/dashboard.html"); } });
+  }
+  if (me?.justOnboarded && !load().length) history.replaceState(null, "", "#/create/0");
+  window.addEventListener("hashchange", route);
+  route();
+});

@@ -19,8 +19,8 @@ Then open http://localhost:8000/api/health (should say `{"status":"ok"}`) or htt
 
 - `GET /api/health`: the server is up.
 - `GET /api/health/db`: the server can reach the database.
-- `GET /api/me` and `PATCH /api/me`: the logged-in person's profile. Send the Supabase login token as `Authorization: Bearer <token>`. They can change `full_name`, `avatar_url` (only a photo from their own folder in the `avatars` storage bucket), `city`, `handle` (unique, lowercase), `bio`, `instagram`, `youtube`, `x_handle`, `badge` (`vibes`, `sponty` or `newbie`) and `birthday`. `role` and the host badges `pro` and `exclusive` can't be changed here.
-- `GET /api/people/{handle}`: anyone's public profile, no login needed. Never includes email, birthday or role.
+- `GET /api/me` and `PATCH /api/me`: the logged-in person's profile. Send the Supabase login token as `Authorization: Bearer <token>`. They can change `full_name`, `avatar_url` (only a photo they uploaded to their own `images/<account id>/profile/` folder), `city`, `phone`, `host_kind`, `link`, `about`, `wants_call`, `handle` (unique, saved in lowercase), `instagram`, `youtube`, `x_handle`, `badge` (`vibes`, `sponty` or `newbie`) and `birthday`. Sending `"onboarded": true` marks the welcome steps as done (the dashboard asks for them until then). `role` and the team-given badges `pro` and `exclusive` can't be changed here.
+- `GET /api/people/{handle}`: anyone's public profile, no login needed: handle, name, photo, city, badge, about, Instagram, YouTube, X and when they joined. Never their email, phone, birthday, role or welcome answers.
 
 The backend connects to the database as its owner, so Supabase's row level security doesn't protect it: every route must check who is asking (`LoggedIn` in `app/auth.py`). Database changes live in `../supabase/migrations/` (see `../supabase/README.md`).
 
@@ -52,6 +52,7 @@ backend/
       routes/
         health.py    # GET /api/health, /api/health/db
         me.py        # GET/PATCH /api/me
+        people.py    # GET /api/people/{handle}
   tests/             # pytest tests
   railway.json           # Railway settings (region, health check)
   railpack.json          # how Railway starts the server

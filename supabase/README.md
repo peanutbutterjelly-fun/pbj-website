@@ -6,8 +6,11 @@ Project: `xpzrsslqfnhzqcxxkkjo`, Singapore region. Dashboard: https://supabase.c
 
 - `migrations/`: every change to the database, as numbered SQL files, applied in order. Never edit one that has been applied; add a new file instead.
   - `…_leads.sql`: sign-ups and filled forms from the List Your Event page. The website can only add rows; read them in the dashboard's Table Editor.
-  - `…_profile_fields.sql`: handle, bio, social links, badge and private birthday on each profile, and the public `avatars` bucket for profile photos (each person can only add files in their own folder).
   - `…_profiles.sql`: one profile per login (name, photo, city, role), made automatically on sign-up. People can read and edit only their own; only the team changes roles.
+  - `…_profile_onboarding.sql`: the welcome steps' answers on each profile (phone, who they are, Instagram or website, about, wants a call, when they finished), and links sign-ups sent while signed in to that account (`leads.user_id`).
+  - `…_images_bucket.sql`: the public `images` storage folder for photos (JPEG, PNG or WebP, 5 MB each). People can only add, find or delete files in their own folder (`images/<account id>/…`).
+  - `…_events.sql`: events from the host dashboard, split in two. `events` is what guests see (anyone can read it once it isn't a draft). `event_private` holds organizers' bank, PAN, GST, email and phone, and coupons: only the host can read it. Only the host can change or delete their events.
+  - `…_profile_fields.sql`: a handle, social links (Instagram, YouTube, X), a badge and a private birthday on each profile (the short bio is the existing `about`). It also locks down profile photos: the website can no longer write `avatar_url` itself, sign-up no longer copies a photo link from the login provider, and the database only accepts a photo link inside the person's own `images/<account id>/profile/` folder.
 - `config.toml`: settings for the Supabase CLI and a local copy of Supabase (`supabase start`, needs Docker).
 
 ## One-time setup on your computer
