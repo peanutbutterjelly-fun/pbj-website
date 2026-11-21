@@ -3,6 +3,7 @@
 import { initScreens, ICONS } from "./spontysScreens.js";
 import { BADGES, BADGE_ORDER, badgeOf } from "./people.js";
 import { createCutLetter } from "./cutword.js";
+import { unreadCount } from "./chats.js";
 import { PREFIX, read, write as store, clearAll, esc, safeImg } from "./spontysStore.js";
 const app = document.getElementById("app");
 const PROFILE = PREFIX + "profile", PLACES = PREFIX + "places", PREFS = PREFIX + "prefs";
@@ -341,7 +342,8 @@ const refreshDock = () => {
   markDock();
 };
 const markDock = () => {
-  const h = location.hash, cur = h.startsWith("#/messages") ? "messages" : h.startsWith("#/search") ? "search" : h.startsWith("#/profile") || h.startsWith("#/edit") || h.startsWith("#/settings") ? "profile" : "feed";
+  dock.querySelector("[data-r='messages']")?.classList.toggle("has", unreadCount() > 0);
+  const h = location.hash, cur = h.startsWith("#/messages") || h.startsWith("#/chat/") || h.startsWith("#/manage") ? "messages" : h.startsWith("#/search") ? "search" : h.startsWith("#/profile") || h.startsWith("#/edit") || h.startsWith("#/settings") ? "profile" : "feed";
   dock.querySelectorAll("[data-r]").forEach((a) => { a.classList.toggle("on", a.dataset.r === cur); a.toggleAttribute("aria-current", a.dataset.r === cur); });
 };
 document.body.append(dock);
@@ -353,11 +355,14 @@ function route() {
   app.classList.toggle("col", col);
   app.classList.toggle("wide", h.startsWith("#/search"));
   app.classList.toggle("pwide", h.startsWith("#/u/"));
-  app.classList.toggle("feedwide", !/^#\/(profile|edit|settings|messages|search|u\/|e\/|recap)/.test(h));
+  app.classList.toggle("feedwide", !/^#\/(profile|edit|settings|messages|chat\/|manage|search|u\/|e\/|recap)/.test(h));
   if (h.startsWith("#/edit")) renderEdit();
   else if (h.startsWith("#/settings")) renderSettings();
   else if (h.startsWith("#/profile")) renderProfile();
   else if (h.startsWith("#/messages")) screens.renderMessages();
+  else if (h.startsWith("#/chat/")) screens.renderChat(decode(h.slice(7).split("?")[0]));
+  else if (h.startsWith("#/manage/")) screens.renderManage(decode(h.slice(9).split("?")[0]));
+  else if (h === "#/manage") screens.renderManageList();
   else if (h.startsWith("#/e/")) screens.ev.renderEvent(decode(h.slice(4).split("?")[0]));
   else if (h.startsWith("#/recap")) screens.ev.renderRecapForm();
   else if (h.startsWith("#/u/")) screens.renderPerson(decode(h.slice(4).split("?")[0]));
