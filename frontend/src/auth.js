@@ -51,8 +51,24 @@ export async function signOut(scope = "global") {
 export async function fetchMe(session) {
   if (!API) throw new Error("no-api");
   const res = await fetch(`${API}/api/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-  if (!res.ok) throw new Error(`me-${res.status}`);
+  if (!res.ok) throw await problem(res);
   return res.json();
+}
+
+// A failed /api/me answer as an error that also carries the status (409: handle taken, 422: a field the server refused) and its detail.
+// The message stays "me-<status>", as before.
+async function problem(res) {
+  const err = new Error(`me-${res.status}`);
+  err.status = res.status;
+  try { err.detail = (await res.json()).detail; } catch { /* no readable body */ }
+  return err;
+}
+
+// Calls fn(event, session) on every sign-in change; the first call (INITIAL_SESSION) says who is signed in now. Resolves to a stop function.
+export async function onAuthChange(fn) {
+  const sb = await client();
+  const { data } = sb.auth.onAuthStateChange(fn);
+  return () => data.subscription.unsubscribe();
 }
 
 export async function saveMe(session, changes) {
@@ -62,6 +78,6 @@ export async function saveMe(session, changes) {
     headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
     body: JSON.stringify(changes),
   });
-  if (!res.ok) throw new Error(`me-${res.status}`);
+  if (!res.ok) throw await problem(res);
   return res.json();
 }

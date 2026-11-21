@@ -4,6 +4,7 @@ import { initScreens, ICONS } from "./spontysScreens.js";
 import { BADGES, BADGE_ORDER, badgeOf } from "./people.js";
 import { createCutLetter } from "./cutword.js";
 import { unreadCount } from "./chats.js";
+import { initAccount } from "./spontysAccount.js";
 import { PREFIX, read, write as store, clearAll, esc, safeImg } from "./spontysStore.js";
 const app = document.getElementById("app");
 const PROFILE = PREFIX + "profile", PLACES = PREFIX + "places", PREFS = PREFIX + "prefs";
@@ -180,9 +181,9 @@ function renderProfile() {
   const p = profile(), list = places();
   const count = (k) => (k === "all" ? list.length : list.filter((x) => x.list === k).length);
   const shown = tile === "all" ? list : list.filter((x) => x.list === tile);
-  const handle = (p.handle || p.name || "you").toLowerCase().replace(/[^a-z0-9_]/g, "");
+  const handle = (p.handle || p.name || "you").toLowerCase().replace(/[^a-z0-9_.]/g, "");
   const complete = p.name && p.bio && safeImg(p.photo);
-  app.innerHTML = `
+  app.innerHTML = `${account.nudge()}
     <section class="sp-card sp-head">
       ${safeImg(p.photo) ? `<button type="button" class="sp-zoom" id="sp-zoom" aria-label="View photo larger">${bread(p)}</button>` : `<a class="sp-zoom" href="#/edit" aria-label="Add a photo">${bread(p)}</a>`}
       <div>
@@ -210,6 +211,7 @@ function renderProfile() {
   if (pview !== "saved") screens.ev.bindOwn(app, renderProfile);
   app.querySelectorAll("[data-pv]").forEach((b) => b.addEventListener("click", () => { pview = b.dataset.pv; renderProfile(); }));
   app.querySelector("#sp-zoom")?.addEventListener("click", () => lightbox(p.photo, p.name));
+  app.querySelector("[data-signin]")?.addEventListener("click", () => account.openSheet());
   app.querySelectorAll("[data-tile]").forEach((b) => b.addEventListener("click", () => { tile = b.dataset.tile; renderProfile(); }));
   app.querySelector("#sp-add").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -235,8 +237,9 @@ function renderEdit() {
       ${field("name", "Name", "Your name")}${field("handle", "@", "handle")}${field("cities", "Areas", "Mumbai, Bandra…")}
       <label>Bio<textarea name="bio" maxlength="200" placeholder="A line about you">${esc(p.bio)}</textarea></label><p class="sp-count" id="sp-cnt">${p.bio.length}/200</p>
       <fieldset class="bd-pick"><legend>Your badge</legend><p class="sp-sub">Pick the one that fits you. It shows next to your name everywhere.</p>
-        ${BADGE_ORDER.map((k) => `<label class="bd-opt ${p.badge === k ? "on" : ""}"><input type="radio" name="badge" value="${k}" ${p.badge === k ? "checked" : ""} /><span class="bd bd-${k}">${esc(BADGES[k].label)}</span><small>${esc(BADGES[k].blurb)}</small></label>`).join("")}</fieldset>
+        ${(account.configured() ? BADGE_ORDER.filter((k) => ["vibes", "sponty", "newbie"].includes(k) || p.badge === k) : BADGE_ORDER).map((k) => `<label class="bd-opt ${p.badge === k ? "on" : ""}"><input type="radio" name="badge" value="${k}" ${p.badge === k ? "checked" : ""} /><span class="bd bd-${k}">${esc(BADGES[k].label)}</span><small>${esc(BADGES[k].blurb)}</small></label>`).join("")}</fieldset>
       ${field("instagram", "Instagram", "@")}${field("youtube", "YouTube", "@")}${field("x", "X", "@")}
+      <p class="rf-err sp-err" id="sp-err" role="alert" hidden></p>
       <div class="sp-save"><button class="btn dark" type="submit">Save</button></div></form>`;
   app.querySelectorAll(".bd-opt input").forEach((r) => r.addEventListener("change", () => app.querySelectorAll(".bd-opt").forEach((l) => l.classList.toggle("on", l.contains(r) && r.checked))));
   const bioEl = app.querySelector("textarea");
@@ -256,11 +259,17 @@ function renderEdit() {
     img.onerror = () => { URL.revokeObjectURL(url); toast("That file couldn't be opened as a picture"); };
     img.src = url;
   });
-  app.querySelector("#sp-edit").addEventListener("submit", (e) => {
+  app.querySelector("#sp-edit").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.target));
-    f.handle = String(f.handle).toLowerCase().replace(/[^a-z0-9_]/g, "");
-    if (!write(PROFILE, { ...profile(), ...f, badge: badgeOf(f.badge) || profile().badge, photo })) return; // the photo stays picked, so they can try a smaller one
+    const f = Object.fromEntries(new FormData(e.target)), err = app.querySelector("#sp-err"), btn = e.target.querySelector("[type=submit]");
+    f.handle = String(f.handle).toLowerCase().replace(/[^a-z0-9_.]/g, "");
+    const next = { ...profile(), ...f, badge: badgeOf(f.badge) || profile().badge, photo };
+    if (!write(PROFILE, next)) return; // always kept on this device first (the photo stays picked, so they can try a smaller one)
+    // then on the account when signed in (it waits for a sign-in still being restored, and retries a photo that hasn't made it yet)
+    btn.disabled = true; err.hidden = true;
+    const r = await account.save(next);
+    btn.disabled = false;
+    if (!r.ok) { err.textContent = r.message; err.hidden = false; err.scrollIntoView({ block: "center" }); return; }
     toast("Saved"); location.hash = "#/profile";
   });
 }
@@ -283,15 +292,25 @@ function renderSettings() {
     <button class="sp-link" id="sp-legal" type="button">Legal</button>
     <button class="sp-link" id="sp-out" type="button">Sign out</button>
     <button class="sp-link danger" id="sp-del" type="button">Delete account</button></div>`;
-  app.querySelector("#sp-bday").addEventListener("change", (e) => { if (write(PROFILE, { ...profile(), birthday: e.target.value })) toast("Saved"); });
+  app.querySelector("#sp-bday").addEventListener("change", async (e) => {
+    const next = { ...profile(), birthday: e.target.value }; if (!write(PROFILE, next)) return;
+    const r = await account.save(next); toast(r.ok ? "Saved" : r.message);
+  });
   app.querySelectorAll("[data-pref]").forEach((b) => b.addEventListener("click", () => {
     const on = b.getAttribute("aria-checked") !== "true";
     if (write(PREFS, { ...prefs(), [b.dataset.pref]: on })) b.setAttribute("aria-checked", String(on));
   }));
   app.querySelector("#sp-legal").addEventListener("click", () => toast("Legal pages are coming soon"));
-  app.querySelector("#sp-out").addEventListener("click", () => toast("Sign in comes with accounts, soon"));
+  app.querySelector("#sp-out").addEventListener("click", () => account.openSheet());
+  app.querySelector("#sp-out").textContent = account.isSignedIn() ? "Account and sign out" : account.configured() ? "Sign in" : "Sign in (not connected yet)";
   const del = app.querySelector("#sp-del");
   del.addEventListener("click", () => {
+    // Signed in: the account lives on our server, which can't delete it by itself yet, so this sends us a request by email
+    if (account.isSignedIn()) {
+      if (!del.dataset.sure) { del.dataset.sure = "1"; del.textContent = "Tap again to email us a deletion request"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete account"; }, 4000); return; }
+      location.href = "mailto:hello@peanutbutterjelly.vip?subject=Delete%20my%20PB%26J%20account&body=Please%20delete%20my%20account%20(" + encodeURIComponent(account.email()) + ").";
+      toast("We've opened an email asking us to delete your account. It's a request: we delete it and reply within a few days"); return;
+    }
     if (del.dataset.sure) { clearAll(); toast("Everything cleared"); location.hash = "#/profile"; route(); }
     else { del.dataset.sure = "1"; del.textContent = "Tap again to delete everything"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete account"; }, 4000); }
   });
@@ -324,6 +343,7 @@ function cutHeadings(root = app) {
 // Whenever a screen replaces the page's content, the old letters are let go and the new headings are cut
 new MutationObserver(() => { cutLetters.forEach((l) => l.dispose()); cutLetters = []; cutHeadings(app); }).observe(app, { childList: true });
 
+const account = initAccount({ esc, toast, onProfile: () => { refreshDock(); if (/^#\/(profile|settings)/.test(location.hash)) route(); } });
 const screens = initScreens({ cut: cutHeadings, app, esc, svg, toast, bread, places, writePlaces: (v) => write(PLACES, v), newId, enhanceSelects, profile, firstPage });
 
 /* ---------- Bottom bar (For you, Map, Messages, Search, Profile) and the round "+" button ---------- */
