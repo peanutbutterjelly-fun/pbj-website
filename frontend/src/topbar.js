@@ -61,13 +61,25 @@ export function setupTopbar() {
     });
     // choosing an option highlights it (the choice is remembered, nothing else changes yet)
     const key = "pbj-" + it.dataset.menu;
-    try { const saved = localStorage.getItem(key); if (saved) pop.querySelectorAll("button[data-value]").forEach((b) => b.classList.toggle("on", b.dataset.value === saved)); } catch (e) {}
+    try { const saved = localStorage.getItem(key); if (saved) { pop.querySelectorAll("button[data-value]").forEach((b) => b.classList.toggle("on", b.dataset.value === saved)); if (it.dataset.menu === "who") document.documentElement.dataset.role = saved; } } catch (e) {}
+    // a role chosen elsewhere (Know More's buttons) is remembered here too, as if picked from this menu
+    if (it.dataset.menu === "who") document.addEventListener("pbj-role", (e) => {
+      const b = [...pop.querySelectorAll("button[data-value]")].find((x) => x.dataset.value === e.detail);
+      if (!b) return;
+      pop.querySelectorAll("button[data-value]").forEach((x) => x.classList.toggle("on", x === b));
+      try { localStorage.setItem(key, b.dataset.value); } catch (err) {}
+      document.documentElement.dataset.role = b.dataset.value;
+    });
     pop.addEventListener("click", (e) => {
       e.stopPropagation();
       const b = e.target.closest("button[data-value]");
       if (!b || b.disabled) return;
       pop.querySelectorAll("button[data-value]").forEach((x) => x.classList.toggle("on", x === b));
       try { localStorage.setItem(key, b.dataset.value); } catch (err) {}
+      if (it.dataset.menu === "who") {
+        document.documentElement.dataset.role = b.dataset.value;
+        document.dispatchEvent(new CustomEvent("pbj-role", { detail: b.dataset.value })); // the site reacts (see main.js)
+      }
       closeCards();
     });
   });

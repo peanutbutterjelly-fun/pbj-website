@@ -58,7 +58,7 @@ const piece = (ch, opts) => {
   }));
   return box;
 };
-const cutText = (el, fill = "#fff", shadow = "var(--crust)", live) => { // live: a function; the letters shake (like the headlines) while it returns true
+export const cutText = (el, fill = "#fff", shadow = "var(--crust)", live) => { // live: a function; the letters shake (like the headlines) while it returns true
   const text = el.textContent.replace(/\s+/g, " ").trim();
   el.setAttribute("aria-label", text);
   el.textContent = "";
