@@ -142,8 +142,8 @@ export function initScreens(k) {
 
   /** Re-draws every "I'm in" button and the spots left (also when a planner accepts you a moment later). */
   const paintPlans = () => POSTS.filter((po) => po.plan).forEach((po) => {
-    document.querySelectorAll(`[data-in="${po.id}"]`).forEach((b) => b.replaceWith(Object.assign(document.createElement("div"), { innerHTML: planBtn(po) }).firstElementChild));
-    document.querySelectorAll(`[data-left="${po.id}"]`).forEach((n) => { n.textContent = Math.max(0, po.plan.spots - (planState(po.id) === "accepted" ? 1 : 0)); });
+    document.querySelectorAll(`[data-in="${CSS.escape(po.id)}"]`).forEach((b) => b.replaceWith(Object.assign(document.createElement("div"), { innerHTML: planBtn(po) }).firstElementChild));
+    document.querySelectorAll(`[data-left="${CSS.escape(po.id)}"]`).forEach((n) => { n.textContent = Math.max(0, po.plan.spots - (planState(po.id) === "accepted" ? 1 : 0)); });
   });
   let lastPlans = planStates();
   onChatChange(() => {
@@ -171,8 +171,6 @@ export function initScreens(k) {
       if (ev.target.closest("[data-invite]")) invite();
     });
   };
-
-
 
   /* ---------- Find people (the person+ button on Messages) ---------- */
   function openPeople() {
@@ -495,9 +493,6 @@ export function initScreens(k) {
         : (att.length ? `<div class="fd-results">${att.map(evRow).join("")}</div>` : `<div class="empty"><h2>Nothing attended yet</h2><p>Events ${esc(pe.name)} goes to will show up here.</p></div>`)}</div></div></div>`;
     app.querySelectorAll("[data-pt]").forEach((b) => b.addEventListener("click", () => { ptab[h] = b.dataset.pt; renderPerson(slug); }));
   }
-
-  /* ---------- Messages ---------- */
-
 
   /* ---------- "+" menu ---------- */
   function openPlus(done) {
