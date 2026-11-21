@@ -5,7 +5,9 @@
 // connection to an AI service (set VITE_ASSISTANT_URL, see .env.example); until then it says it is not connected and sends nothing.
 import { EVENTS } from "./eventsData.js";
 
-export const today = () => new Date().toISOString().slice(0, 10);
+const pad = (n) => String(n).padStart(2, "0");
+/** Today's date on the visitor's own clock (not UTC, which is still yesterday in Mumbai before 5:30am), as YYYY-MM-DD. */
+export const today = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const upcoming = () => EVENTS.filter((e) => e.date >= today()).sort((a, b) => a.date.localeCompare(b.date));
 export const priceNum = (e) => (/free/i.test(e.price) ? 0 : +String(e.price).replace(/[^\d]/g, "") || 0);
 
@@ -55,6 +57,9 @@ export async function stepOutside(query) {
     const res = await fetch(URL_, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, city: "Mumbai" }) });
     if (!res.ok) return { ok: false, reason: "failed" };
     const data = await res.json(); // expected: { answer: "text", items: [{ title, note, url }] }
-    return { ok: true, answer: String(data.answer || ""), items: Array.isArray(data.items) ? data.items.slice(0, 6) : [] };
+    // only plain web links (http or https) are kept; anything else (javascript:, data: …) is dropped before it reaches the page
+    const web = (u) => { try { const x = new URL(String(u)); return x.protocol === "http:" || x.protocol === "https:" ? x.href : ""; } catch { return ""; } };
+    const items = Array.isArray(data.items) ? data.items.slice(0, 6).map((it) => ({ title: String(it?.title || ""), note: String(it?.note || ""), url: web(it?.url) })) : [];
+    return { ok: true, answer: String(data.answer || ""), items };
   } catch { return { ok: false, reason: "failed" }; }
 }
