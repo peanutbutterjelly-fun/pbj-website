@@ -14,7 +14,7 @@ Written for the owner (plain language). It lists every feature we have built so 
 | Room | Who it is for | Where it lives today | What it is for |
 |---|---|---|---|
 | **The website** | Anyone | `frontend/index.html` (six folder tabs) | Tell people what PB&J is, show events, recruit hosts and brands, collect sign-ups |
-| **The Spontys app** ("For you", Messages, Search, Profile) | People who go to things (members) and sponty planners | `frontend/spontys.html` | Discover events and plans, react, get tickets, join group chats, build a profile |
+| **The Spontys app** ("For you", Messages, Search, Profile) | People who go to things (members) and sponty planners | `frontend/spontys.html` (added by PR #20, not on main yet; until it merges, every Spontys row below describes that PR) | Discover events and plans, react, get tickets, join group chats, build a profile |
 | **The host dashboard** | People who run events | `frontend/dashboard.html` (+ `frontend/event.html`, the public page of an event) | List an event, manage it, run its chat, see sales |
 
 **"For you" is not a dashboard.** It is the home feed of the Spontys app: a stream of posts from hosts and planners, PB&J highlights, lists and people to follow. The **host dashboard** is a separate workspace for people who create events. The two meet in the middle: what a host publishes in the dashboard is what members see in For you, Events and Search.
@@ -125,7 +125,7 @@ Ordered by how much of the rest depends on it.
 
 ### 2. A real database instead of "this browser only"
 Today almost everything is kept in the browser. At launch these live in the database (Supabase), each with the right person's name on it: profiles, events, ticket types, orders and tickets, plans and plan requests, follows, reactions and saved lists, attended and hosted recaps, group chats and members, messages, questions and answers, doubts, notifications, the email/text outbox, leads.
-- **How:** write the tables as migrations (the org repo has a migrations folder and a check for them), add server routes for each, and replace the browser storage in the front end one feature at a time. Row-level rules so nobody reads another person's private doubt or notes.
+- **How:** write the tables as migrations (the org repo has a migrations folder and a check for them), add server routes for each, and replace the browser storage in the front end one feature at a time. Row-level rules so nobody reads another person's private doubt or notes. The server connects to the database as its owner, so those row-level rules do **not** protect server routes: every server route must also check who is asking and that they own (or are a member of) what they read or change, especially private doubts, notes and tickets.
 
 ### 3. Tickets, then payments
 - **Phase 1 (recommended first): free RSVP and guest-list tickets.** Fast, no money risk; proves chats and updates.
