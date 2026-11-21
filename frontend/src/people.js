@@ -15,6 +15,8 @@ export const BADGES = {
   vibes: { label: "Here For The Vibes", blurb: "Here to browse, join and soak it all in." },
 };
 export const BADGE_ORDER = ["exclusive", "pro", "newbie", "sponty", "vibes"];
+/** A badge name that is safe to use as a class: one of the five, or "" when it is anything else. */
+export const badgeOf = (b) => (BADGE_ORDER.includes(b) ? b : "");
 
 // Which of the Events lineup each account hosts (the lineup is in eventsData.js)
 const HOST_OF = {
