@@ -5,10 +5,10 @@
 import { EVENTS } from "./eventsData.js";
 import { PAST, PEOPLE, BADGES, personBy, isPast, hostOfEvent } from "./people.js";
 import { hasTicket, chatIdForEvent } from "./chats.js";
+import { today } from "./assistant.js";
+import { PREFIX, read, write as save, evId, safeImg } from "./spontysStore.js";
 
-const ATT = "pbj-sponty-attended", REC = "pbj-sponty-recaps";
-const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+const ATT = PREFIX + "attended", REC = PREFIX + "recaps";
 const MOODS = [["love", "🤩", "Loved it"], ["like", "🙂", "Liked it"], ["meh", "😐", "It was okay"]];
 const CATS = [["music", "Music"], ["workshop", "Workshop"], ["comedy", "Comedy"], ["food", "Food"], ["art", "Art"], ["film", "Film"], ["games", "Games"], ["outdoors", "Outdoors"], ["market", "Market"], ["other", "Other"]];
 const MAX_PHOTOS = 6;
@@ -31,9 +31,9 @@ const shrink = (file) => new Promise((done) => {
 });
 
 export function initEvents(k) {
-  const { app, esc, toast, bread, ic, when, PAPER, KINDS, bdg, fBtn, places, writePlaces, profile, enhanceSelects, ch } = k;
+  const { app, esc, toast, bread, ic, when, PAPER, KINDS, bdg, fBtn, places, writePlaces, profile, enhanceSelects, ch, firstPage } = k;
   const attended = () => read(ATT, []), recaps = () => read(REC, []);
-  const evId = (e) => e.id || "u" + EVENTS.findIndex((x) => x.title === e.title);
+  const cover = (e) => safeImg(e.photos?.[0]); // the first photo, if it is a safe picture link
   const emoji = (e) => KINDS[e.kind] || "✨";
   const ink = (e) => (e.paper === "jam" || e.paper === "brown" ? "var(--cream)" : "var(--brown)");
 
@@ -43,7 +43,7 @@ export function initEvents(k) {
     if (id.startsWith("u")) { const e = EVENTS[+id.slice(1)]; return e && { ...e, id, host: hostOfEvent(e) }; }
     return PAST.find((e) => e.id === id);
   }
-  const thumb = (e) => (e.photos?.length ? `<span class="fd-thumb ph" style="background-image:url(${e.photos[0]})"></span>` : `<span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${ink(e)}">${emoji(e)}</span>`);
+  const thumb = (e) => (cover(e) ? `<span class="fd-thumb ph" style="background-image:url('${esc(cover(e))}')"></span>` : `<span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${ink(e)}">${emoji(e)}</span>`);
   const row = (e, tag = "", sub = "") => `<a class="fd-ev pe-ev" href="#/e/${esc(evId(e))}">${thumb(e)}<span class="fd-ev-t"><b>${esc(e.title)}</b><em>${esc(e.category || "Event")}</em><small>${esc(e.area || "")}${e.price ? " · " + esc(e.price) : ""} · ${when(e)}${sub}</small></span>${tag ? `<span class="pe-tag">${tag}</span>` : "<span></span>"}</a>`;
   const how = (kind, open) => `<details class="hw" ${open ? "open" : ""}><summary>How things get here</summary><ol>${STEPS[kind].map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join("")}</ol></details>`;
 
@@ -62,10 +62,10 @@ export function initEvents(k) {
     document.addEventListener("keydown", onKey);
     back.addEventListener("click", (ev) => { if (ev.target === back || ev.target.closest("[data-cancel]")) close(); });
     back.querySelectorAll(".wd-mood input").forEach((r) => r.addEventListener("change", () => back.querySelectorAll(".wd-mood").forEach((l) => l.classList.toggle("on", l.contains(r) && r.checked))));
-    back.querySelector("[data-remove]")?.addEventListener("click", () => { save(ATT, attended().filter((a) => a.ref !== id)); toast("Removed from attended"); close(); after?.(); });
+    back.querySelector("[data-remove]")?.addEventListener("click", () => { if (!save(ATT, attended().filter((a) => a.ref !== id))) return toast("Couldn't save. Try again."); toast("Removed from attended"); close(); after?.(); });
     back.querySelector("form").addEventListener("submit", (ev) => {
       ev.preventDefault(); const f = new FormData(ev.target);
-      save(ATT, [{ ref: id, mood: f.get("mood"), note: String(f.get("note") || "").trim(), at: Date.now() }, ...attended().filter((a) => a.ref !== id)]);
+      if (!save(ATT, [{ ref: id, mood: f.get("mood"), note: String(f.get("note") || "").trim(), at: Date.now() }, ...attended().filter((a) => a.ref !== id)])) return toast("Couldn't save. Try again.");
       toast(cur ? "Saved" : "Added to your attended events"); close(); after?.();
     });
     requestAnimationFrame(() => { back.classList.add("show"); back.querySelector("textarea").focus({ preventScroll: true }); });
@@ -73,7 +73,7 @@ export function initEvents(k) {
 
   const viewPhoto = (src) => {
     const back = document.createElement("div"); back.className = "sp-lb";
-    back.innerHTML = `<button type="button" class="sp-lb-x" aria-label="Close">×</button><img src="${src}" alt="Event photo" />`;
+    back.innerHTML = `<button type="button" class="sp-lb-x" aria-label="Close">×</button><img src="${esc(safeImg(src))}" alt="Event photo" />`;
     const done = () => { document.removeEventListener("keydown", onKey); back.classList.remove("show"); setTimeout(() => back.remove(), 250); };
     const onKey = (ev) => { if (ev.key === "Escape") done(); };
     document.addEventListener("keydown", onKey); back.addEventListener("click", done);
@@ -89,25 +89,26 @@ export function initEvents(k) {
     const me = profile(), who = PEOPLE.filter((p) => p.attended.includes(id) || p.attended.includes(e.title));
     const recap = e.mine ? e : e.recap ? { summary: e.recap, best: e.best, photos: [] } : null;
     const went = (e.going || e.came || who.length) + (mine ? 1 : 0);
-    const back = history.length > 1 ? "← Back" : "← Back to the thread";
+    const inApp = !firstPage(); // only step back when the last page was inside the app, never off the site
+    const back = inApp ? "← Back" : "← Back to the thread";
     app.innerHTML = `<a class="back" href="#/" data-back>${back}</a>
-      <section class="ep-hero" style="${e.photos?.length ? `background-image:url(${e.photos[0]})` : `background:${PAPER[e.paper] || "var(--bread)"};color:${ink(e)}`}"><span class="ep-emoji">${e.photos?.length ? "" : emoji(e)}</span><span class="ep-st">${past ? "Past event" : "Coming up"}</span></section>
+      <section class="ep-hero" style="${cover(e) ? `background-image:url('${esc(cover(e))}')` : `background:${PAPER[e.paper] || "var(--bread)"};color:${ink(e)}`}"><span class="ep-emoji">${cover(e) ? "" : emoji(e)}</span><span class="ep-st">${past ? "Past event" : "Coming up"}</span></section>
       <header class="ep-head"><h1 class="cut">${esc(e.title)}</h1><p class="ep-meta">${when(e)}${e.time ? " · " + esc(e.time) : ""} · ${esc(e.area || "Mumbai")} · ${esc(e.price || "Free")}</p>
         <div class="ep-host">${e.mine ? `<a class="ep-hav" href="#/profile">${bread(me)}</a><span><b>${esc(me.name || "You")}</b><small>Hosted by you</small></span>` : host ? `<a class="ep-hav" href="#/u/${esc(host.handle.slice(1))}">${bread({ name: host.name })}</a><span><a class="th-name" href="#/u/${esc(host.handle.slice(1))}">${esc(host.name)}</a><small>${esc(host.handle)}</small>${bdg(host.badge)}</span>${fBtn(host.handle)}` : ""}</div></header>
       <div class="ep-acts">${past && e.mine ? "" : past ? `<button type="button" class="btn ${mine ? "ghost" : ""}" data-went="${esc(id)}">${mine ? "✓ You went" : "I went"}</button>` : `${EVENTS.some((x) => x.title === e.title) ? (hasTicket(e.title) ? `<a class="btn" href="#/chat/${esc(chatIdForEvent(e.title))}">✓ You have a ticket · open chat</a>` : `<button type="button" class="btn" data-ticket="${esc(e.title)}">${/free/i.test(e.price || "") ? "Reserve a spot" : "Get ticket"}</button>`) : ""}<button type="button" class="fd-rx big" data-rx-open="${esc(e.title)}" aria-haspopup="menu" aria-label="Love, like or be curious about this">${ic("heart", "1.5em")}</button>`}${e.mine ? '<a class="btn ghost" href="#/profile">Your profile</a><button type="button" class="btn ghost danger" data-del>Delete recap</button>' : ""}</div>
       ${mine ? `<section class="sp-card ep-mine"><b>${MOODS.find((m) => m[0] === mine.mood)?.[1] || ""} ${MOODS.find((m) => m[0] === mine.mood)?.[2] || ""}</b>${mine.note ? `<p>${esc(mine.note)}</p>` : ""}<button type="button" class="fd-link" data-went="${esc(id)}">edit your note</button></section>` : ""}
       ${e.blurb || e.details ? `<h2 class="ep-h">About</h2><p class="ep-text">${esc(e.details || e.blurb)}</p>` : ""}
-      ${past ? `<h2 class="ep-h">How it went</h2>${recap ? `<p class="ep-text">${esc(recap.summary)}</p>${recap.best ? `<p class="ep-best">⭐ Best moment: ${esc(recap.best)}</p>` : ""}${recap.photos?.length ? `<div class="ep-gal">${recap.photos.map((p, i) => `<button type="button" data-ph="${i}" aria-label="Open photo"><img src="${p}" alt="" loading="lazy" /></button>`).join("")}</div>` : e.mine ? "" : `<p class="sp-sub">No photos from the host yet.</p>`}` : `<p class="sp-sub">The host hasn't written this one up yet.</p>`}` : ""}
+      ${past ? `<h2 class="ep-h">How it went</h2>${recap ? `<p class="ep-text">${esc(recap.summary)}</p>${recap.best ? `<p class="ep-best">⭐ Best moment: ${esc(recap.best)}</p>` : ""}${recap.photos?.length ? `<div class="ep-gal">${recap.photos.map((p, i) => `<button type="button" data-ph="${i}" aria-label="Open photo"><img src="${esc(safeImg(p))}" alt="" loading="lazy" /></button>`).join("")}</div>` : e.mine ? "" : `<p class="sp-sub">No photos from the host yet.</p>`}` : `<p class="sp-sub">The host hasn't written this one up yet.</p>`}` : ""}
       <h2 class="ep-h">${past ? "Who went" : "Who's interested"}</h2>
       <p class="ep-text">${went ? `${went} ${past ? "went" : "interested"}` : "Nobody yet. Be the first!"}</p>
       ${who.length ? `<div class="ep-who">${who.map((p) => `<a href="#/u/${esc(p.handle.slice(1))}" title="${esc(p.name)}">${bread({ name: p.name })}</a>`).join("")}</div>` : ""}`;
     app.querySelectorAll("[data-went]").forEach((b) => b.addEventListener("click", () => openWent(id, () => renderEvent(id))));
     app.querySelector("[data-ticket]")?.addEventListener("click", (ev2) => ch.openTicket(ev2.currentTarget.dataset.ticket, () => renderEvent(id)));
-    app.querySelector("[data-back]")?.addEventListener("click", (ev) => { if (history.length > 1) { ev.preventDefault(); history.back(); } });
+    app.querySelector("[data-back]")?.addEventListener("click", (ev) => { if (inApp) { ev.preventDefault(); history.back(); } });
     app.querySelectorAll("[data-ph]").forEach((b) => b.addEventListener("click", () => viewPhoto(recap.photos[+b.dataset.ph])));
     const del = app.querySelector("[data-del]");
     del?.addEventListener("click", () => {
-      if (del.dataset.sure) { save(REC, recaps().filter((r) => r.id !== id)); toast("Recap deleted"); location.hash = "#/profile"; }
+      if (del.dataset.sure) { if (!save(REC, recaps().filter((r) => r.id !== id))) return toast("Couldn't delete it. Try again."); toast("Recap deleted"); location.hash = "#/profile"; }
       else { del.dataset.sure = "1"; del.textContent = "Tap again to delete"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete recap"; }, 4000); }
     });
   }
@@ -120,7 +121,7 @@ export function initEvents(k) {
       <p class="sp-sub rf-intro">Tell people what you hosted and how it went. It gets its own page on your profile.</p>
       <form class="sp-card sp-form" id="rf" novalidate>
         <label>Name<input name="title" placeholder="What was it called?" autocomplete="off" /></label>
-        <label>Date<input name="date" type="date" max="${new Date().toISOString().slice(0, 10)}" /></label>
+        <label>Date<input name="date" type="date" max="${today()}" /></label>
         <label>Where<input name="area" placeholder="Neighbourhood, e.g. Bandra West" autocomplete="off" /></label>
         <label>Price<input name="price" placeholder="Free, or ₹500" autocomplete="off" /></label>
         <label>Kind<select class="sp-in" name="category" aria-label="Kind of event">${CATS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
@@ -134,7 +135,7 @@ export function initEvents(k) {
         <div class="sp-save"><button class="btn dark" type="submit">Publish to my profile</button></div></form>`;
     enhanceSelects(app);
     const grid = app.querySelector("#rf-grid"), err = app.querySelector("#rf-err");
-    const paint = () => { grid.innerHTML = photos.map((p, i) => `<div class="rf-ph"><img src="${p}" alt="" /><button type="button" data-rm="${i}" aria-label="Remove photo">×</button></div>`).join(""); app.querySelector(".rf-add").hidden = photos.length >= MAX_PHOTOS; };
+    const paint = () => { grid.innerHTML = photos.map((p, i) => `<div class="rf-ph"><img src="${esc(safeImg(p))}" alt="" /><button type="button" data-rm="${i}" aria-label="Remove photo">×</button></div>`).join(""); app.querySelector(".rf-add").hidden = photos.length >= MAX_PHOTOS; };
     grid.addEventListener("click", (ev) => { const b = ev.target.closest("[data-rm]"); if (b) { photos.splice(+b.dataset.rm, 1); paint(); } });
     app.querySelector("#rf-file").addEventListener("change", async (ev) => {
       const files = [...ev.target.files].slice(0, MAX_PHOTOS - photos.length); ev.target.value = "";
@@ -169,7 +170,7 @@ export function initEvents(k) {
   }
   function bindOwn(root, again) {
     root.querySelectorAll("[data-went]").forEach((b) => b.addEventListener("click", () => openWent(b.dataset.went, again)));
-    root.querySelectorAll("[data-nogo]").forEach((b) => b.addEventListener("click", () => { writePlaces(places().filter((x) => !(x.list === "going" && x.src === b.dataset.nogo))); toast("Okay, removed from Going"); again(); }));
+    root.querySelectorAll("[data-nogo]").forEach((b) => b.addEventListener("click", () => { if (writePlaces(places().filter((x) => !(x.list === "going" && x.src === b.dataset.nogo)))) { toast("Okay, removed from Going"); again(); } }));
   }
   /** Counts for the tabs on your own profile. */
   const counts = () => ({ attended: attended().length, hosted: recaps().length });

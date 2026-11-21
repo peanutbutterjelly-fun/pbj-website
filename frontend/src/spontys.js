@@ -1,15 +1,19 @@
 // Spontys dashboard (first slice): profile, six list tiles, edit profile and settings, in the style of Corner's profile (see INSPIRATION.md).
 // Nothing is sent anywhere yet: everything is kept in this browser (localStorage) until accounts and a database exist.
 import { initScreens, ICONS } from "./spontysScreens.js";
-import { BADGES, BADGE_ORDER } from "./people.js";
+import { BADGES, BADGE_ORDER, badgeOf } from "./people.js";
 import { createCutLetter } from "./cutword.js";
 import { unreadCount } from "./chats.js";
 import { initAccount } from "./spontysAccount.js";
+import { PREFIX, read, write as store, clearAll, esc, safeImg } from "./spontysStore.js";
 const app = document.getElementById("app");
-const PROFILE = "pbj-sponty-profile", PLACES = "pbj-sponty-places", PREFS = "pbj-sponty-prefs";
-const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { toast("Couldn't save. Try a smaller photo."); } };
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const PROFILE = PREFIX + "profile", PLACES = PREFIX + "places", PREFS = PREFIX + "prefs";
+/** Saves to this browser and says so when it couldn't. Returns true when it worked. */
+const write = (k, v) => store(k, v) || (toast("Couldn't save. Try a smaller photo."), false);
+// Did this visit start on this page? (Back buttons go back only when there is somewhere inside the app to go back to.)
+if (!history.state?.pbjFirst) history.replaceState({ ...(history.state || {}), pbjFirst: true }, "");
+const firstPage = () => Boolean(history.state?.pbjFirst);
+const decode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
 const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const I = {
   all: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
@@ -33,7 +37,7 @@ const AREAS = ["Bandra West", "Bandra East", "Khar", "Juhu", "Andheri", "Colaba"
 
 // Profile photo in the outline of a bread slice (the photo is clipped to the slice; no photo shows the initial on a bread-coloured slice)
 const BREAD = "M50 0C28 0 10 6 4 16C-1 24-1 32 3 37C5.5 40 6.5 42 5.5 44C3.5 47 3.5 55 3.6 70L3.6 91C3.6 97 6 99.6 12 99.6L88 99.6C94 99.6 96.4 97 96.4 91L96.4 70C96.5 55 96.5 47 94.5 44C93.5 42 94.5 40 97 37C101 32 101 24 96 16C90 6 72 0 50 0Z";
-const bread = (p, id = "") => `<div class="sp-avatar" ${id ? `id="${id}"` : ""} role="img" aria-label="Profile photo"><svg viewBox="-3 -3 106 106" preserveAspectRatio="none"><defs><clipPath id="breadclip"><path d="${BREAD}"/></clipPath></defs><path class="crumb" d="${BREAD}"/>${p.photo ? `<image href="${p.photo}" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice" clip-path="url(#breadclip)"/>` : `<text x="50" y="62">${esc((p.name || "?").slice(0, 1))}</text>`}<path class="edge" d="${BREAD}"/></svg></div>`;
+const bread = (p, id = "") => `<div class="sp-avatar" ${id ? `id="${id}"` : ""} role="img" aria-label="Profile photo"><svg viewBox="-3 -3 106 106" preserveAspectRatio="none"><defs><clipPath id="breadclip"><path d="${BREAD}"/></clipPath></defs><path class="crumb" d="${BREAD}"/>${safeImg(p.photo) ? `<image href="${esc(safeImg(p.photo))}" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice" clip-path="url(#breadclip)"/>` : `<text x="50" y="62">${esc((p.name || "?").slice(0, 1))}</text>`}<path class="edge" d="${BREAD}"/></svg></div>`;
 
 const profile = () => ({ badge: "vibes", name: "", handle: "", cities: "Mumbai", bio: "", instagram: "", youtube: "", x: "", birthday: "", photo: "", ...read(PROFILE, {}) });
 const places = () => read(PLACES, []);
@@ -50,6 +54,9 @@ function toast(msg) {
 
 
 /* ---------- Drop-down menus in the website's own style (same card, bounce-in and peanut highlight as the top bar's [ WHO ARE YOU ] menu) ---------- */
+// One listener for the whole page closes any open menu (each menu keeps its own close function on its wrapper)
+const closeMenus = (except) => document.querySelectorAll(".dd.open").forEach((w) => { if (w !== except) w._close?.(); });
+document.addEventListener("click", () => closeMenus());
 function enhanceSelects(root) {
   root.querySelectorAll("select").forEach((sel) => {
     const wrap = document.createElement("div");
@@ -65,7 +72,7 @@ function enhanceSelects(root) {
     };
     const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); wrap.classList.remove("open"); };
     const open = () => {
-      document.dispatchEvent(new CustomEvent("sp-dd-close"));
+      closeMenus(wrap);
       menu.hidden = false; btn.setAttribute("aria-expanded", "true"); wrap.classList.add("open");
       const r = menu.getBoundingClientRect(); // flip upwards when there is no room below
       wrap.classList.toggle("up", r.bottom > innerHeight - 8 && btn.getBoundingClientRect().top > r.height + 16);
@@ -86,8 +93,7 @@ function enhanceSelects(root) {
         items[Math.max(0, Math.min(items.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))].focus();
       }
     });
-    document.addEventListener("click", close);
-    document.addEventListener("sp-dd-close", close);
+    wrap._close = close;
     sel.hidden = true; sel.before(wrap); wrap.append(btn, menu, sel); paint();
   });
 }
@@ -159,7 +165,7 @@ function cropper(img) {
 function lightbox(src, name) {
   const back = document.createElement("div");
   back.className = "sp-lb";
-  back.innerHTML = `<button type="button" class="sp-lb-x" aria-label="Close">×</button><img src="${src}" alt="${esc(name || "Profile photo")}" />`;
+  back.innerHTML = `<button type="button" class="sp-lb-x" aria-label="Close">×</button><img src="${esc(safeImg(src))}" alt="${esc(name || "Profile photo")}" />`;
   const done = () => { document.removeEventListener("keydown", onKey); back.classList.remove("show"); setTimeout(() => back.remove(), 250); };
   const onKey = (e) => { if (e.key === "Escape") done(); };
   document.addEventListener("keydown", onKey);
@@ -176,15 +182,15 @@ function renderProfile() {
   const count = (k) => (k === "all" ? list.length : list.filter((x) => x.list === k).length);
   const shown = tile === "all" ? list : list.filter((x) => x.list === tile);
   const handle = (p.handle || p.name || "you").toLowerCase().replace(/[^a-z0-9_]/g, "");
-  const complete = p.name && p.bio && p.photo;
+  const complete = p.name && p.bio && safeImg(p.photo);
   app.innerHTML = `${account.nudge()}
     <section class="sp-card sp-head">
-      ${p.photo ? `<button type="button" class="sp-zoom" id="sp-zoom" aria-label="View photo larger">${bread(p)}</button>` : `<a class="sp-zoom" href="#/edit" aria-label="Add a photo">${bread(p)}</a>`}
+      ${safeImg(p.photo) ? `<button type="button" class="sp-zoom" id="sp-zoom" aria-label="View photo larger">${bread(p)}</button>` : `<a class="sp-zoom" href="#/edit" aria-label="Add a photo">${bread(p)}</a>`}
       <div>
         <div class="sp-name"><h1 class="cut">${esc(p.name || "Your name")}</h1>
-          <div class="sp-icons"><button class="sp-ico" id="sp-share" aria-label="Share profile">${svg(I.share)}</button><a class="sp-ico" href="#/edit" aria-label="Edit profile">${svg(I.pen)}</a><a class="sp-ico" href="#/settings" aria-label="Settings">${svg(I.dots)}</a></div></div>
-        <div class="sp-idrow"><p class="sp-handle">@${esc(handle)}</p><span class="bd bd-${p.badge}">${esc((BADGES[p.badge] || BADGES.vibes).label)}</span></div>
-        <div class="sp-counts"><div><b>${list.length}</b><span>events</span></div><div><b>${read("pbj-sponty-follow", []).length || 1}</b><span>following</span></div><div><b>0</b><span>followers</span></div></div>
+          <div class="sp-icons"><a class="sp-ico" href="#/edit" aria-label="Edit profile">${svg(I.pen)}</a><a class="sp-ico" href="#/settings" aria-label="Settings">${svg(I.dots)}</a></div></div>
+        <div class="sp-idrow"><p class="sp-handle">@${esc(handle)}</p><span class="bd bd-${badgeOf(p.badge) || "vibes"}">${esc(BADGES[badgeOf(p.badge) || "vibes"].label)}</span></div>
+        <div class="sp-counts"><div><b>${list.length}</b><span>events</span></div><div><b>${read(PREFIX + "follow", []).length || 1}</b><span>following</span></div><div><b>0</b><span>followers</span></div></div>
         ${p.bio ? `<p class="sp-bio">${esc(p.bio)}</p>` : ""}<p class="sp-meta">${esc(p.cities)}</p>
         ${complete ? "" : `<div class="sp-nudge"><a class="btn" href="#/edit">Complete your profile</a></div>`}
       </div>
@@ -196,7 +202,7 @@ function renderProfile() {
     <div class="sp-bar"><h2 class="cut">${tile === "all" ? "Your events &amp; gems" : esc(TILES.find((t) => t[0] === tile)[1])}</h2></div>
     <form class="sp-add" id="sp-add" novalidate><input class="sp-in" name="title" placeholder="Event or hidden gem" aria-label="Event or hidden gem" autocomplete="off" />
       <select class="sp-in" name="area" aria-label="Area">${AREAS.map((a) => `<option>${a}</option>`).join("")}</select><button class="btn small" type="submit">+ Add</button></form>
-    <div class="sp-posts">${shown.length ? shown.map((x) => `<article class="sp-post" data-id="${x.id}"><div class="pic">${esc(x.title.slice(0, 1).toUpperCase())}</div>
+    <div class="sp-posts">${shown.length ? shown.map((x) => `<article class="sp-post" data-id="${esc(x.id)}"><div class="pic">${esc(x.title.slice(0, 1).toUpperCase())}</div>
       <div><h3>${esc(x.title)}</h3><p>${esc(x.area)}</p></div>
       <div class="side"><select aria-label="List">${TILES.filter((t) => t[0] !== "all").map(([k, l]) => `<option value="${k}" ${x.list === k ? "selected" : ""}>${l}</option>`).join("")}</select><button class="x" aria-label="Remove">×</button></div></article>`).join("")
       : `<div class="empty"><h2>Nothing here yet</h2><p>${tile === "all" ? "Add the events and hidden gems you want to try, then sort them into your lists." : "Nothing in this list yet. Move something here from another list."}</p></div>`}</div>`;
@@ -211,16 +217,12 @@ function renderProfile() {
     e.preventDefault();
     const f = new FormData(e.target), title = String(f.get("title")).trim();
     if (!title) { const fm = e.target; fm.classList.remove("bad"); void fm.offsetWidth; fm.classList.add("bad"); fm.title.focus(); return; }
-    write(PLACES, [{ id: newId(), title, area: f.get("area"), list: tile === "all" ? "want" : tile }, ...places()]);
-    renderProfile();
+    if (write(PLACES, [{ id: newId(), title, area: f.get("area"), list: tile === "all" ? "want" : tile }, ...places()])) renderProfile();
   });
   app.querySelectorAll(".sp-post").forEach((row) => {
+    // (a Love / Like / Curious pick is read from these lists, so moving or removing an event here changes or clears the pick too)
     row.querySelector("select").addEventListener("change", (e) => { write(PLACES, places().map((x) => (x.id === row.dataset.id ? { ...x, list: e.target.value } : x))); renderProfile(); });
     row.querySelector(".x").addEventListener("click", () => { write(PLACES, places().filter((x) => x.id !== row.dataset.id)); renderProfile(); });
-  });
-  app.querySelector("#sp-share").addEventListener("click", async () => {
-    const url = location.origin + location.pathname + "#/u/" + handle;
-    try { if (navigator.share) await navigator.share({ title: "My PB&J profile", url }); else { await navigator.clipboard.writeText(url); toast("Link copied"); } } catch {}
   });
 }
 
@@ -261,8 +263,8 @@ function renderEdit() {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target)), err = app.querySelector("#sp-err"), btn = e.target.querySelector("[type=submit]");
     f.handle = String(f.handle).toLowerCase().replace(/[^a-z0-9_.]/g, "");
-    const next = { ...profile(), ...f, photo };
-    write(PROFILE, next); // always kept on this device first
+    const next = { ...profile(), ...f, badge: badgeOf(f.badge) || profile().badge, photo };
+    if (!write(PROFILE, next)) return; // always kept on this device first (the photo stays picked, so they can try a smaller one)
     if (account.isSignedIn()) {
       btn.disabled = true; err.hidden = true;
       const r = await account.save(next, { photoChanged: photo !== p.photo });
@@ -292,12 +294,12 @@ function renderSettings() {
     <button class="sp-link" id="sp-out" type="button">Sign out</button>
     <button class="sp-link danger" id="sp-del" type="button">Delete account</button></div>`;
   app.querySelector("#sp-bday").addEventListener("change", async (e) => {
-    const next = { ...profile(), birthday: e.target.value }; write(PROFILE, next);
+    const next = { ...profile(), birthday: e.target.value }; if (!write(PROFILE, next)) return;
     if (account.isSignedIn()) { const r = await account.save(next); toast(r.ok ? "Saved" : r.message); } else toast("Saved");
   });
   app.querySelectorAll("[data-pref]").forEach((b) => b.addEventListener("click", () => {
-    const on = b.getAttribute("aria-checked") !== "true"; b.setAttribute("aria-checked", String(on));
-    write(PREFS, { ...prefs(), [b.dataset.pref]: on });
+    const on = b.getAttribute("aria-checked") !== "true";
+    if (write(PREFS, { ...prefs(), [b.dataset.pref]: on })) b.setAttribute("aria-checked", String(on));
   }));
   app.querySelector("#sp-legal").addEventListener("click", () => toast("Legal pages are coming soon"));
   app.querySelector("#sp-out").addEventListener("click", () => account.openSheet());
@@ -305,7 +307,7 @@ function renderSettings() {
   const del = app.querySelector("#sp-del");
   del.addEventListener("click", () => {
     if (account.isSignedIn()) { location.href = "mailto:hello@peanutbutterjelly.vip?subject=Delete%20my%20PB%26J%20account&body=Please%20delete%20my%20account%20(" + encodeURIComponent(account.email()) + ")."; return; } // until the server can do it itself
-    if (del.dataset.sure) { [PROFILE, PLACES, PREFS].forEach((k) => { try { localStorage.removeItem(k); } catch {} }); toast("Everything cleared"); location.hash = "#/profile"; route(); }
+    if (del.dataset.sure) { clearAll(); toast("Everything cleared"); location.hash = "#/profile"; route(); }
     else { del.dataset.sure = "1"; del.textContent = "Tap again to delete everything"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete account"; }, 4000); }
   });
 }
@@ -338,7 +340,7 @@ function cutHeadings(root = app) {
 new MutationObserver(() => { cutLetters.forEach((l) => l.dispose()); cutLetters = []; cutHeadings(app); }).observe(app, { childList: true });
 
 const account = initAccount({ esc, toast, onProfile: () => { refreshDock(); if (/^#\/(profile|settings)/.test(location.hash)) route(); } });
-const screens = initScreens({ cut: cutHeadings, app, esc, svg, toast, bread, places, writePlaces: (v) => write(PLACES, v), newId, enhanceSelects, profile });
+const screens = initScreens({ cut: cutHeadings, app, esc, svg, toast, bread, places, writePlaces: (v) => write(PLACES, v), newId, enhanceSelects, profile, firstPage });
 
 /* ---------- Bottom bar (For you, Map, Messages, Search, Profile) and the round "+" button ---------- */
 const dock = document.createElement("nav");
@@ -374,13 +376,13 @@ function route() {
   else if (h.startsWith("#/settings")) renderSettings();
   else if (h.startsWith("#/profile")) renderProfile();
   else if (h.startsWith("#/messages")) screens.renderMessages();
-  else if (h.startsWith("#/chat/")) screens.renderChat(decodeURIComponent(h.slice(7).split("?")[0]));
-  else if (h.startsWith("#/manage/")) screens.renderManage(decodeURIComponent(h.slice(9).split("?")[0]));
+  else if (h.startsWith("#/chat/")) screens.renderChat(decode(h.slice(7).split("?")[0]));
+  else if (h.startsWith("#/manage/")) screens.renderManage(decode(h.slice(9).split("?")[0]));
   else if (h === "#/manage") screens.renderManageList();
-  else if (h.startsWith("#/e/")) screens.ev.renderEvent(decodeURIComponent(h.slice(4).split("?")[0]));
+  else if (h.startsWith("#/e/")) screens.ev.renderEvent(decode(h.slice(4).split("?")[0]));
   else if (h.startsWith("#/recap")) screens.ev.renderRecapForm();
-  else if (h.startsWith("#/u/")) screens.renderPerson(decodeURIComponent(h.slice(4).split("?")[0]));
-  else if (h.startsWith("#/search")) screens.renderSearch(decodeURIComponent((h.split("?q=")[1] || "")));
+  else if (h.startsWith("#/u/")) screens.renderPerson(decode(h.slice(4).split("?")[0]));
+  else if (h.startsWith("#/search")) screens.renderSearch(decode(h.split("?q=")[1] || ""));
   else screens.renderFeed();
   refreshDock();
   window.scrollTo({ top: 0 });

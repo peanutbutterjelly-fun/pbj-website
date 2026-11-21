@@ -2,12 +2,14 @@
 // The rules (who can post, who gets updates, how "I'm in" works) are written at the top of chats.js.
 import { EVENTS } from "./eventsData.js";
 import { personBy } from "./people.js";
-import { seenAt, waitingDoubts, chatList, chatById, markRead, unreadCount, unreadUpdates, unreadIn, postUpdate, buyTicket, hasTicket, chatIdForEvent, onChats, DEMO_UPDATES, askQuestion, closeQuestion, answerQuestion, openQuestion, questionById, tally, DEMO_QUESTIONS, DEMO_EVENT_QUESTIONS, DEMO_DOUBT_UPDATE, DOUBT_MAX, DOUBT_LIMIT, myDoubts, doubtsLeft, pendingDoubts, sendDoubt } from "./chats.js";
+import { seenAt, waitingDoubts, chatList, chatById, markRead, unreadCount, unreadUpdates, unreadIn, postUpdate, buyTicket, hasTicket, chatIdForEvent, onChats, DEMO_UPDATES, askQuestion, closeQuestion, answerQuestion, openQuestion, questionById, tally, DEMO_QUESTIONS, DEMO_EVENT_QUESTIONS, DEMO_DOUBT_UPDATE, DOUBT_MAX, DOUBT_LIMIT, myDoubts, doubtsLeft, pendingDoubts, sendDoubt, canRun, DEMO_HOST_VIEW } from "./chats.js";
 
 const ago = (t) => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? "now" : s < 3600 ? Math.floor(s / 60) + "m" : s < 86400 ? Math.floor(s / 3600) + "h" : Math.floor(s / 86400) + "d"; };
 
 const dayLabel = (t) => { const d = new Date(t), n = new Date(), y = new Date(n); y.setDate(n.getDate() - 1); const same = (a, b) => a.toDateString() === b.toDateString(); return same(d, n) ? "Today" : same(d, y) ? "Yesterday" : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }); };
 const full = (t) => new Date(t).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const iso = (t) => { const d = new Date(t); return Number.isNaN(d.getTime()) ? "" : d.toISOString(); }; // a bad time shows nothing instead of breaking the chat
+const DOUBT_CLASS = { sent: "sent", answered: "answered", dismissed: "dismissed" };
 
 export function initChats(k) {
   const { app, esc, toast, bread, ic, KINDS, PAPER } = k;
@@ -16,11 +18,13 @@ export function initChats(k) {
     return e ? `<span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${e.paper === "jam" || e.paper === "brown" ? "var(--cream)" : "var(--brown)"}">${KINDS[e.kind] || "✨"}</span>` : `<span class="fd-thumb" style="background:var(--bread);color:var(--brown)">${ic("people", "1.2em")}</span>`; };
   const who = (c, h) => (h === "me" ? "You" : c.members.find((m) => m.handle === h)?.name || personBy(h)?.name || h);
   const tag = (c) => (c.kind === "plan" ? "Planner update" : "Host update");
-const asker = (c) => (c.kind === "plan" ? "planner" : "host");
-const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}` : tag(c));
+  const asker = (c) => (c.kind === "plan" ? "planner" : "host");
+  const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}` : tag(c));
+  const me = () => k.profile().handle || "";
+  const bellLabel = (n) => (n ? n + " unread update" + (n === 1 ? "" : "s") : "Messages and updates");
 
   /** The bell on For you: shows how many unread updates you have and opens Messages. */
-  const bell = () => { const n = unreadCount(); return `<button type="button" class="sp-ico bell" data-bell aria-label="${n ? n + " unread updates" : "Messages and updates"}">${ic("bell", "1.3em")}${n ? `<i class="bl-dot">${n > 9 ? "9+" : n}</i>` : ""}</button>`; };
+  const bell = () => { const n = unreadCount(); return `<button type="button" class="sp-ico bell" data-bell aria-label="${bellLabel(n)}">${ic("bell", "1.3em")}${n ? `<i class="bl-dot">${n > 9 ? "9+" : n}</i>` : ""}</button>`; };
 
   /** "Updates for you" on For you: the newest official updates you haven't read yet, from hosts of events you have tickets for. */
   const updatesCard = () => { const list = unreadUpdates(2); if (!list.length) return "";
@@ -33,7 +37,7 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
     const name = (k.profile().name || "you").toLowerCase(), list = chatList();
     app.innerHTML = `<header class="fd-top msg"><span></span><h1 class="cut">${esc(name)}</h1><button type="button" class="sp-ico" data-people aria-label="Find people">${ic("userplus", "1.3em")}</button></header>
       <section class="ch-how"><b>Updates from your hosts</b><p>Buy a ticket and the event's group chat opens here. Only the host posts, and updates arrive the moment they are sent. Joined a sponty plan? You're added once the planner accepts you. Last-minute doubt? Send it privately and they'll answer everyone in an update.</p></section>
-      <a class="mg-entry" href="#/manage"><b>Run a chat</b><span>Host or sponty planner? Send updates and answer last-minute doubts</span>${waitingDoubts() ? `<i class="bl-dot">${waitingDoubts()}</i>` : ""}</a>
+      ${list.some((c) => canRun(c, me())) ? `<a class="mg-entry" href="#/manage"><b>Run a chat${DEMO_HOST_VIEW ? " (demo)" : ""}</b><span>Host or sponty planner? Send updates and answer last-minute doubts</span>${waitingDoubts() ? `<i class="bl-dot">${waitingDoubts()}</i>` : ""}</a>` : ""}
       <h2 class="fd-h cut">Group chats</h2>
       ${list.length ? `<div class="ch-list">${list.map((c) => { const m = c.messages.at(-1), n = unreadIn(c);
         return `<a class="ch-row ${n ? "unread" : ""}" href="#/chat/${esc(c.id)}">${tile(c)}<span class="ch-mid"><b>${esc(c.title)}</b><small class="ch-last">${m?.role === "update" ? `<span class="ch-tag">Update</span> ` : m?.role === "question" ? `<span class="ch-tag">Question</span> ` : ""}${esc(m ? (m.from === "me" ? "You: " : m.role === "member" ? who(c, m.from) + ": " : "") + m.text : "")}</small><small class="ch-kind">${c.kind === "plan" ? "Sponty plan" : "Event"} · ${c.members.length} going</small></span><span class="ch-end"><small>${m ? ago(m.at) : ""}</small>${n ? `<i class="bl-dot">${n}</i>` : ""}</span></a>`; }).join("")}</div>`
@@ -46,7 +50,7 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
     const q = questionById(c, m.qid); if (!q) return "";
     const mine = q.answers.me, closed = q.status === "closed", show = Boolean(mine) || closed, t = tally(q), total = t.reduce((n, o) => n + o.n, 0) || 1, name = esc(who(c, m.from));
     return `<article class="ch-q ${closed ? "closed" : ""}" data-q="${esc(q.id)}" role="group" aria-labelledby="qt-${esc(q.id)}"><span class="ch-av">${bread({ name: who(c, m.from) })}</span><div class="ch-bub">
-      <header class="ch-h"><b>${name}</b><span class="ch-role">${asker(c).toUpperCase()}</span><time title="${esc(full(m.at))}" datetime="${new Date(m.at).toISOString()}">${ago(m.at)}</time></header>
+      <header class="ch-h"><b>${name}</b><span class="ch-role">${asker(c).toUpperCase()}</span><time title="${esc(full(m.at))}" datetime="${iso(m.at)}">${ago(m.at)}</time></header>
       <p class="ch-qk">${closed ? "Question · closed" : "Question · optional"}</p><p class="ch-qt" id="qt-${esc(q.id)}">${esc(q.text)}</p>
       <div class="ch-opts">${t.map((o) => `<button type="button" class="ch-opt ${mine?.option === o.id ? "on" : ""}" data-opt="${esc(o.id)}" aria-pressed="${mine?.option === o.id}" ${closed ? "disabled" : ""}><span class="ch-fill" style="width:${show ? Math.round((o.n / total) * 100) : 0}%"></span><span class="ch-ol">${mine?.option === o.id ? "✓ " : ""}${esc(o.label)}</span>${show ? `<b aria-label="${o.n} chose this">${o.n}</b>` : ""}</button>`).join("")}</div>
       ${q.allowNote && mine && !closed ? `<form class="ch-qnote"><input name="n" value="${esc(mine.note || "")}" maxlength="140" placeholder="Add a short note (optional)" aria-label="Add a short note" /><button type="submit" class="btn small ghost">Save</button></form>` : ""}
@@ -59,6 +63,7 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
     if (!c) { document.title = "Messages — PeanutButterJelly.vip"; app.innerHTML = `<a class="back" href="#/messages">← Messages</a><section class="sp-card msg-empty"><h2>We couldn't find that chat</h2><p class="sp-sub">It opens when you get a ticket or are accepted into a plan.</p><a class="btn" href="#/messages">Back to messages</a></section>`; return; }
     document.title = `${c.title} — PeanutButterJelly.vip`;
     const lastSeen = seenAt(id); // what you had read before opening, so the "New" line can show
+    window.__chatId = id; window.__chatPaint = null; // first let go of the last chat's painter, so marking this one read can't repaint (or mark read) the old one
     markRead(id);
     app.innerHTML = `<div class="ch-col"><a class="back" href="#/messages">← Messages</a>
       <header class="ch-head">${tile(c)}<div><h1 class="cut">${esc(c.title)}</h1><p class="sp-sub">${c.kind === "plan" ? "Sponty plan" : "Event"} · ${esc(c.area)} · ${asker(c) === "host" ? "Host" : "Planner"}: ${esc(c.host.name)}</p></div></header>
@@ -66,7 +71,7 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
       <p class="ch-ro">${ic("chat", "1.2em")}<span>Only ${esc(c.host.name)} posts here. Updates arrive the moment they are sent.</span></p>
       <div class="ch-msgs" id="ch-msgs" role="log" aria-live="polite" aria-label="Group chat messages"></div>
       <div id="ch-compose"></div>
-      <a class="fd-link mg-see" href="#/manage/${esc(c.id)}">Open the ${asker(c)} screen (demo)</a></div>`;
+      ${canRun(c, me()) ? `<a class="fd-link mg-see" href="#/manage/${esc(c.id)}">Open the ${asker(c)} screen${DEMO_HOST_VIEW ? " (demo)" : ""}</a>` : ""}</div>`;
     const box = app.querySelector("#ch-msgs");
     const paint = () => {
       const cur = chatById(id); if (!cur) return;
@@ -78,7 +83,7 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
         if (m.role === "system") { html += `<p class="ch-sys">${esc(m.text)}</p>`; prev = null; return; }
         if (m.role === "question") { html += qCard(cur, m); prev = null; return; }
         const cont = prev && prev.from === m.from && m.at - prev.at < 5 * 60 * 1000 && prev.role === "update" && !m.fromDoubts && !prev.fromDoubts, nm = who(cur, m.from);
-        html += `<article class="ch-upd ${cont ? "cont" : ""}" aria-label="${asker(cur)} update from ${esc(nm)}, ${ago(m.at)}"><span class="ch-av">${cont ? "" : bread({ name: nm })}</span><div class="ch-bub">${cont ? "" : `<header class="ch-h"><b>${esc(nm)}</b><span class="ch-role">${asker(cur).toUpperCase()}</span><time title="${esc(full(m.at))}" datetime="${new Date(m.at).toISOString()}">${ago(m.at)}</time></header>`}${m.fromDoubts ? `<p class="ch-re">${ic("chat", "1em")} Answering questions from the group</p>` : ""}<p class="ch-body">${esc(m.text)}</p></div></article>`;
+        html += `<article class="ch-upd ${cont ? "cont" : ""}" aria-label="${asker(cur)} update from ${esc(nm)}, ${ago(m.at)}"><span class="ch-av">${cont ? "" : bread({ name: nm })}</span><div class="ch-bub">${cont ? "" : `<header class="ch-h"><b>${esc(nm)}</b><span class="ch-role">${asker(cur).toUpperCase()}</span><time title="${esc(full(m.at))}" datetime="${iso(m.at)}">${ago(m.at)}</time></header>`}${m.fromDoubts ? `<p class="ch-re">${ic("chat", "1em")} Answering questions from the group</p>` : ""}<p class="ch-body">${esc(m.text)}</p></div></article>`;
         prev = m;
       });
       box.innerHTML = html;
@@ -93,7 +98,7 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
       const inp = compose.querySelector("input"), typing = inp?.value || "", focus = document.activeElement === inp, left = doubtsLeft(cur), mine = myDoubts(cur), who2 = esc(cur.host.name);
       compose.innerHTML = `<section class="ch-doubt" aria-labelledby="ch-dh"><h2 id="ch-dh">Last-minute doubt?</h2><p>Ask ${who2} privately. Only they see it. If it helps everyone, they'll post an update here.</p>
           ${left ? `<form id="ch-df" autocomplete="off"><div class="ch-dbox"><input name="d" maxlength="${DOUBT_MAX}" placeholder="Type your question" aria-label="Your question for ${who2}" /><button type="submit" class="btn small">Send</button></div><small class="ch-dcount"><span id="ch-dn">0</span>/${DOUBT_MAX} · ${left} of ${DOUBT_LIMIT} left</small></form>` : `<p class="ch-dcount">You've used all ${DOUBT_LIMIT} questions for this chat.</p>`}
-          ${mine.length ? `<ul class="ch-dlist">${mine.map((d) => `<li><span>${esc(d.text)}</span><i class="${d.status}">${d.status === "answered" ? "Answered in an update" : "Sent · only " + who2 + " sees it"}</i></li>`).join("")}</ul>` : ""}</section>`;
+          ${mine.length ? `<ul class="ch-dlist">${mine.map((d) => `<li><span>${esc(d.text)}</span><i class="${DOUBT_CLASS[d.status] || "sent"}">${d.status === "answered" ? "Answered in an update" : "Sent · only " + who2 + " sees it"}</i></li>`).join("")}</ul>` : ""}</section>`;
       const f = compose.querySelector("#ch-df");
       if (f) {
         const n = compose.querySelector("#ch-dn"); f.d.value = typing; n.textContent = typing.length; if (focus) f.d.focus();
@@ -104,8 +109,9 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
     paint(); paintCompose();
     box.addEventListener("click", (e) => { const b = e.target.closest("[data-opt]"); if (!b) return; const card = b.closest("[data-q]"); const f = card.querySelector(".ch-qnote input"); if (answerQuestion(id, card.dataset.q, b.dataset.opt, f?.value || "")) toast(`Thanks, the ${asker(chatById(id))} sees your answer`); });
     box.addEventListener("submit", (e) => { const f = e.target.closest(".ch-qnote"); if (!f) return; e.preventDefault(); const card = f.closest("[data-q]"), cur = chatById(id), q = questionById(cur, card.dataset.q); if (q?.answers.me && answerQuestion(id, q.id, q.answers.me.option, f.n.value)) toast("Note saved"); });
-    window.__chatPaint = () => { const cur = chatById(id); if (cur && unreadIn(cur) > 0) markRead(id); paint(); paintCompose(); }; // marks read only when something is unread: markRead itself announces a change, which would call this again forever // called when a message or a setting changes while this chat is open
-    window.__chatId = id;
+    // Called when a message or a setting changes while this chat is open. It marks read only when something is unread,
+    // because markRead itself announces a change, which would call this again forever.
+    window.__chatPaint = () => { if (window.__chatId !== id) return; const cur = chatById(id); if (cur && unreadIn(cur) > 0) markRead(id); paint(); paintCompose(); };
   }
 
   /* ---------- Get a ticket (this is where the event's chat opens) ---------- */
@@ -134,7 +140,7 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
     const h = location.hash;
     if (h.startsWith("#/chat/") && window.__chatId && window.__chatPaint) window.__chatPaint();
     else if (h.startsWith("#/messages")) renderMessages();
-    document.querySelectorAll("[data-bell]").forEach((b) => { const n = unreadCount(); b.querySelector(".bl-dot")?.remove(); if (n) b.insertAdjacentHTML("beforeend", `<i class="bl-dot">${n > 9 ? "9+" : n}</i>`); });
+    document.querySelectorAll("[data-bell]").forEach((b) => { const n = unreadCount(); b.querySelector(".bl-dot")?.remove(); if (n) b.insertAdjacentHTML("beforeend", `<i class="bl-dot">${n > 9 ? "9+" : n}</i>`); b.setAttribute("aria-label", bellLabel(n)); });
     document.querySelectorAll(".sp-dock [data-r='messages']").forEach((a) => a.classList.toggle("has", unreadCount() > 0));
   });
 
