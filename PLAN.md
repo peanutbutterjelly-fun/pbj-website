@@ -14,7 +14,7 @@ Build the skeleton of the full PeanutButterJelly.vip site (not a single page) so
 - Partner program: venues (free repeating listings, "PBJ Partner" badge, we fill their quiet weekday slots) and brands (sponsor "PBJ Originals" nights, priced per event)
 
 ## The Site, Tab by Tab
-Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Secret.**
+Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Know More.**
 - Computers: tabs along the right edge; hovering shows the full label.
 - Phones: tabs stacked close together at the top with part of each label showing. Tap to peek (the tab slides out to show its full label), tap again to open. Switching tabs feels like shuffling through folders.
 
@@ -42,7 +42,7 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 
 **Meet Our Hosts:** an endless, draggable grid of 3D magazine covers, one per host. Tapping a cover grows it to the middle while the others drift away, then the magazine opens wide and people tap to flip its pages (cover, host profile, past events, current events, then teasers of future events; each host's page count varies). Built (blank) in `src/hosts.js` and `src/magazine.js`; the details and design come later. The partner-program pitch ("Be Our Partner") moves elsewhere for now.
 
-**Our Secret:** "What PBJ does differently: it's a secret we can share if you reach out." Helps hosts see why to choose us over other platforms, and sparks curiosity in guests. Ends with a "reach out" button.
+**Know More (was Our Secret):** three cards stacked at the centre (For Hosts, For Brands, For Spontys). A small [next] button shuffles the card behind to the top; tapping a card widens it into a full page laid out like offlyn.life (hero, perks strip, numbered feature cards, how it works, FAQ, closing call to action). Built in `src/knowMore.js` and `src/knowMore.css`; the copy is placeholder (no fees or numbers promised). Buttons on the pages jump to List Your Event on the matching role.
 
 ## Must-Haves (all needed for launch)
 - All six tabs working, with the folder effect on computers and phones
@@ -80,3 +80,15 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 - Curator program (3rd wave)
 - Sections for hobby learners and parents (2nd and 3rd waves)
 - AI helper to catch events cancelled before their date
+
+## Rules decided by the owner (15 Nov 2026): who can do what
+- **Accounts.** Every host and every Sponty planner has their own account with us. Anyone with an account can list an event through the My Events dashboard. Only the **PBJ Exclusive** badge is decided by the PB&J team.
+- **Sponty plans are events** whose event type is "Sponty Event" in the My Events dashboard. Free tickets only; the ticket is the proof of RSVP.
+- **One-time identity check** by a third-party service is mandatory for planners who list a plan and for people who say "interested" or "I'm in" on a plan. Until a service is connected the team marks people verified by hand.
+- **The planner decides who joins**, even for a free spot. By default they approve each person (safety). They can switch on **auto-approval** (first come, first served) when they only care that someone comes. The requests and guest list live in the My Events dashboard on each Sponty event (a Requests page with Accept and Decline, and spots left).
+- **Browsing is open.** People can search and browse events without an account. An account is recommended (and needed for Sponty plans) so payments and bookings are easy to find. Paid events can be bought as a guest.
+- **Group chats:** only the host or planner posts (updates, quick questions); members can send private doubts. "Personalised messages" means the host's or planner's own typed updates to the group chat; there are no one-to-one messages.
+- **Credits (later):** people pay a one-time fee for a bundle of 3, 6 or 10 credits to join Sponty plans, shown as a number. A credit is spent when the planner accepts the person. Declined or withdrawn before acceptance: nothing is spent.
+  - Planner cancels the plan, no-shows or backs out last minute, at any time and for any reason: every accepted person gets the credit back.
+  - Person cancels more than 24 hours before the event: credit returns. Within 24 hours: credit is lost.
+  - Still to settle: bundle prices, and whether credits expire.

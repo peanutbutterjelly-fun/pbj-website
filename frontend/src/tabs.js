@@ -123,4 +123,6 @@ export function setupTabs({ onSwitch } = {}) {
     const saved = sessionStorage.getItem("pbj-tab");
     if (saved && saved !== "home" && tabs.some((t) => t.dataset.tab === saved)) open(saved, { instant: true });
   } catch (e) {}
+
+  return { open, current: () => current };
 }
