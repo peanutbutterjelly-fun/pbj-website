@@ -1,11 +1,12 @@
-"""Group chats: read one, mark it read, and (for the host only) post an update. Only members of a chat can see it."""
+"""Group chats: read one, mark it read, and (for the host only) post an update. Only members of a chat can see it.
+People are shown by name, handle and photo, never by their account id."""
 
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg import Connection
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.auth import CurrentUser, LoggedIn
 from app.db import get_db
@@ -16,6 +17,13 @@ Db = Annotated[Connection, Depends(get_db)]
 
 class UpdateIn(BaseModel):
     body: str = Field(min_length=1, max_length=600)
+
+    @field_validator("body")
+    @classmethod
+    def not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Write something first")
+        return value.strip()
 
 
 def membership(db: Connection, chat_id: UUID, user: CurrentUser) -> dict:
@@ -31,13 +39,13 @@ def read_chat(chat_id: UUID, user: LoggedIn, db: Db, after: int | None = None) -
     """The chat and its messages (the latest 100, oldest first). Send `after` (a message id) to get only newer ones."""
     me = membership(db, chat_id, user)
     chat = db.execute(
-        """select c.id, c.kind, c.title, c.host_id, e.slug as event_slug, hp.full_name as host_name, hp.handle as host_handle,
-                  (select count(*) from public.chat_members x where x.chat_id = c.id) as members
-           from public.chats c left join public.events e on e.id = c.event_id join public.profiles hp on hp.id = c.host_id
+        """select c.id, c.title, c.event_id, e.status as event_status, hp.full_name as host_name, hp.handle as host_handle,
+                  hp.avatar_url as host_avatar, (select count(*) from public.chat_members x where x.chat_id = c.id) as members
+           from public.chats c join public.events e on e.id = c.event_id join public.profiles hp on hp.id = c.host_id
            where c.id = %s""",
         (chat_id,),
     ).fetchone()
-    base = """select m.id, m.kind, m.body, m.created_at, m.sender_id, p.full_name as sender_name, p.handle as sender_handle, p.avatar_url as sender_avatar
+    base = """select m.id, m.kind, m.body, m.created_at, p.full_name as sender_name, p.handle as sender_handle, p.avatar_url as sender_avatar
               from public.messages m join public.profiles p on p.id = m.sender_id where m.chat_id = %s"""
     if after is None:
         rows = list(reversed(db.execute(base + " order by m.id desc limit 100", (chat_id,)).fetchall()))
@@ -61,5 +69,5 @@ def post_update(chat_id: UUID, body: UpdateIn, user: LoggedIn, db: Db) -> dict:
         raise HTTPException(403, "Only the host can post updates here")
     return db.execute(
         "insert into public.messages (chat_id, sender_id, kind, body) values (%s, %s, 'update', %s) returning id, kind, body, created_at",
-        (chat_id, user.id, body.body.strip()),
+        (chat_id, user.id, body.body),
     ).fetchone()
