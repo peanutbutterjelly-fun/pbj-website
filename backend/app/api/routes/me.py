@@ -1,5 +1,6 @@
 """The logged-in person's own profile."""
 
+import re
 from datetime import date
 from typing import Annotated, Literal
 
@@ -53,13 +54,17 @@ def read_me(user: LoggedIn, db: Db) -> dict:
     return {**row, "email": user.email}
 
 
+PHOTO_NAME = re.compile(r"[A-Za-z0-9._-]+")
+
+
 def _own_photo(url: str, user_id) -> bool:
-    """A profile photo must be one this person uploaded to their own folder in our storage."""
+    """A profile photo must be one this person uploaded to their own profile folder in our storage:
+    <supabase>/storage/v1/object/public/images/<their id>/profile/<file name>. The database checks the same shape."""
     base = get_settings().supabase_url.rstrip("/")
-    prefix = f"{base}/storage/v1/object/public/images/{user_id}/"
-    rest = url[len(prefix):]
-    # no "..", and no %-escapes at all (so an encoded "%2e%2e" can't point into someone else's folder either)
-    return bool(base) and url.startswith(prefix) and rest != "" and ".." not in rest and not any(c in rest for c in "\"'<>()% \\?#")
+    prefix = f"{base}/storage/v1/object/public/images/{user_id}/profile/"
+    name = url[len(prefix):]
+    # just a plain file name: no more slashes, no "..", no %-escapes (so an encoded "%2e%2e" can't point elsewhere), no quotes
+    return bool(base) and url.startswith(prefix) and PHOTO_NAME.fullmatch(name) is not None and ".." not in name
 
 
 @router.patch("")

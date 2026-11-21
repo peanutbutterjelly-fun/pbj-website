@@ -134,7 +134,11 @@ def test_me_photo_must_be_own_upload(client):
                 f"https://test.supabase.co/storage/v1/object/public/images/{uuid.uuid4()}/profile/a.jpg",
                 own.replace("a.jpg", "a'.jpg"),
                 own.replace("profile/a.jpg", f"%2e%2e/{uuid.uuid4()}/profile/a.jpg"),
-                own.replace("profile/a.jpg", "%2E%2E/x/a.jpg")]:
+                own.replace("profile/a.jpg", "%2E%2E/x/a.jpg"),
+                own.replace("profile/a.jpg", "events/a.jpg"),  # not their profile folder
+                own.replace("a.jpg", "sub/a.jpg"),  # no further folders
+                own.replace("a.jpg", "..%2Fx.jpg"), own.replace("a.jpg", ".."), own.replace("a.jpg", "a.jpg?x=1"),
+                own.replace("a.jpg", "a.jpg#\"><script>"), own + "/", own.replace("https://", "http://")]:
         assert c.patch("/api/me", json={"avatar_url": bad}, headers=auth_header()).status_code == 422
     r = c.patch("/api/me", json={"avatar_url": own}, headers=auth_header())
     assert r.status_code == 200 and r.json()["avatar_url"] == own
