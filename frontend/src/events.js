@@ -36,12 +36,12 @@ const ARTIST_TICKET = {
 
 // "Know more" windows for the slides in between. The wording below is a first draft written to match each slide: swap in your own text any time.
 const padWin = (title, body, color, ask) => ({ know: "Know more", title, close: "[\u00D7]", body, color, ask });
-const EXCLUSIVE_WINDOW = padWin("For exclusive hosts", "You are someone who hosts events every weekday or weekend, or you are just getting into hosting; you are either familiar with various ticketing platforms, or this may be your first time trying one. Regardless, there is one thing you have certainly not tried: the fun of exclusivity.\n\nPBJ EXCLUSIVE HOSTS become our stars before listing any event on this platform. You already know the perks of being a star: an absolute makeover, front-line exposure, exclusive promotions, a curated profile, and premium status.\n\nOf course, there will be a catch! A PBJ EXCLUSIVE HOST must highlight two qualities our audience is promised at Peanut Butter Jelly. A unique vibe and a fresh taste. Bring these in and consider yourself in!", undefined, {
+const EXCLUSIVE_WINDOW = padWin("For exclusive hosts", "You are someone who hosts events every weekday or weekend, or you are just getting into hosting. You are either familiar with various ticketing platforms, or this may be your first time trying one. Regardless, there is one thing you have certainly not tried: the fun of exclusivity.\n\nPBJ EXCLUSIVE HOSTS become our stars before they list any event on this platform. You already know the perks of being a star: an absolute makeover, front-line exposure, exclusive promotions, a curated profile, and premium status.\n\nOf course, there will be a catch! A PBJ EXCLUSIVE HOST must highlight two qualities our audience is promised at Peanut Butter Jelly: a unique vibe and a fresh taste. Bring these in and consider yourself in!", undefined, {
   q: "Think you could be in?",
   yes: ["Love the confidence!", "So, what\u2019s your signature move for making the cut?", "(NOTE: A PBJ EXCLUSIVE HOST WILL NOT HOLD BACK FROM CLICKING BOTH BUTTONS)"],
   cta: ["Sign up", "Fill us in"],
 });
-const QUICKWIT_WINDOW = padWin("For the quick-witted", "You are tired of all your friends repeating \u201CNEXT WEEKEND\u201D for a simple outing. And the thought of cloning your busy friends on a random Tuesday for a cafe outing or a Colaba Causeway shopping spree makes you wonder how nice it would be if only that were possible.\n\nIt is possible! Not cloning, but finding those who are \u201CGAME\u201D for your last-minute plans.\n\nHear about a plan at five and be in a cab by six. These are your people. The ones who skip the planning and chase the fun right from the get-go. PBJ Sponty is built for last-minute plans happening around Mumbai. List yours and let the spontaneous ones find you.", "var(--cream)", {
+const QUICKWIT_WINDOW = padWin("For the quick-witted", "You are tired of all your friends repeating \u201CNEXT WEEKEND\u201D for a simple outing. And the thought of cloning your busy friends on a random Tuesday, for a cafe outing or a Colaba Causeway shopping spree, makes you wonder how nice it would be if that were possible.\n\nIt is possible! Not cloning, but finding those who are \u201CGAME\u201D for your last-minute plans.\n\nHear about a plan at five and be in a cab by six. These are your people: the ones who skip the planning and chase the fun right from the get-go. PBJ Sponty is built for last-minute plans around Mumbai. List yours and let the spontaneous ones find you.", "var(--cream)", {
   q: "Are you a SPONTY?",
   yes: ["Goody goody! Time to vibe with your SPONTY gang.", "You can choose to do both / simply sign up to get notified when we launch.", "(NOTE: FILLING OUT THE FORM HELPS US GET TO KNOW YOU FIRST BEFORE OTHERS IN LINE)"],
 });
@@ -1102,8 +1102,17 @@ function setupObserverLoop(root, LOOP, layered = false) {
       onDown: () => { if (animating || used || current <= 0 || tickets.isOpen()) return; used = true; gotoSection(current - 1, -1); },
       onUp: () => { if (animating || used || current >= last || tickets.isOpen()) return; used = true; gotoSection(current + 1, 1); },
     });
-    gotoSection(0, 1);
+    // a role chosen in the top bar opens this page straight on that role's section
+    const at = Number(root.dataset.startAt);
+    delete root.dataset.startAt;
+    gotoSection(Number.isInteger(at) && at > 0 && at <= last ? at : 0, 1);
   };
+  // (already on this page and a role is chosen: glide to that section)
+  root.addEventListener("pbj-goto", (e) => {
+    const i = e.detail;
+    if (!observer || animating || tickets.isOpen() || !Number.isInteger(i) || i < 0 || i > last || i === current) return;
+    gotoSection(i, i > current ? 1 : -1);
+  });
   const stop = () => {
     if (!observer) return;
     observer.kill();

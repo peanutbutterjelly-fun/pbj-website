@@ -1,0 +1,154 @@
+/* Know More: three cards stacked at the centre, and the full pages they widen into */
+.km {
+  --gap: 20px;
+  --cw: min(calc(var(--u) * 24), calc((100vw - var(--tab-size) - 5 * var(--gap)) / 3), calc(60svh * 0.78));
+  --ch: calc(var(--cw) / 0.78);
+  position: relative;
+  height: calc(100svh - var(--bar, 0px) - var(--topbar-h));
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.km.open .km-next { visibility: hidden; }
+
+/* [next] sits just above the cards, at the centre */
+.km-next {
+  position: absolute; left: 50%; top: calc(54% - var(--ch) / 2 - 3.2em - 14px); transform: translateX(-50%);
+  z-index: 5; display: inline-flex; gap: 0.6em; align-items: center; justify-content: center;
+  min-height: 48px; padding: 0 1.2em; border: 0; border-radius: 999px; background: transparent; color: var(--ink);
+  font: 400 0.75em/1 var(--mono); text-transform: uppercase; cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.km-next i, .km-close i { font-style: normal; } /* straight brackets, not slanted */
+.km-next:focus-visible { outline: 2px solid var(--strawberry); outline-offset: 2px; }
+
+/* the stack: every card is centred, and the shuffling moves them from there */
+.km-card {
+  position: absolute; left: 50%; top: 54%; width: var(--cw); height: var(--ch);
+  margin: calc(var(--ch) / -2) 0 0 calc(var(--cw) / -2);
+  border-radius: 22px; background: var(--bg); color: var(--ink);
+  overflow: hidden; cursor: pointer; will-change: transform; outline: none;
+}
+.km-card:focus-visible { outline: 3px solid var(--strawberry); outline-offset: 3px; }
+.km-card::after { content: ""; position: absolute; inset: 0; background: var(--grain); mix-blend-mode: multiply; opacity: 0.35; pointer-events: none; }
+.km-face { position: absolute; left: 50%; top: 50%; width: var(--cw); height: var(--ch); margin: calc(var(--ch) / -2) 0 0 calc(var(--cw) / -2); padding: 1.8em; display: flex; flex-direction: column; justify-content: space-between; }
+.km-tag { margin: 0; font: 400 0.75em/1.2 var(--mono); text-transform: uppercase; }
+.km-teaser { margin: 0; font: 700 calc(var(--cw) * 0.105)/1.02 var(--display); letter-spacing: -1.44px; text-align: left; text-wrap: balance; }
+.km-open { margin: 0; align-self: flex-start; padding: 0.55em 1em; border-radius: 999px; background: var(--ink); color: var(--bg); font: 400 0.75em/1 var(--mono); text-transform: uppercase; text-align: left; }
+
+/* ---- an opened card: it widens to fill the frame and becomes the page ---- */
+.km-card.is-open {
+  position: absolute; inset: calc(var(--u) * 0.5) calc(var(--u) * 0.8) calc(var(--u) * 0.8); width: auto; height: auto; margin: 0;
+  cursor: auto; user-select: text; -webkit-user-select: text;
+}
+.km-card.is-open::after { display: none; }
+.km-page { display: none; position: absolute; inset: 0; z-index: 2; background: var(--page); color: var(--ink); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; outline: none; text-align: left; }
+.km-card.is-open .km-page { display: block; }
+.km-page > * { text-align: left; }
+
+.km-close {
+  position: sticky; top: 12px; margin: 12px 14px -56px auto; width: max-content; z-index: 4; display: flex; gap: 0.5em; align-items: center; /* (not a float: a float made the top block squeeze up beside it) */
+  min-height: 44px; padding: 0 1em; border: 0; border-radius: 999px; background: var(--brown); color: var(--cream);
+  font: 400 0.75em/1 var(--mono); text-transform: uppercase; cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* the top of a page is laid out like the About page: the big heading on the left, the text (and buttons) in a column on the right, low down */
+.km-hero { padding: 4.5em 3em 3.5em; background: var(--bg); color: var(--ink); display: grid; grid-template-columns: 1.5fr 1fr; grid-template-rows: auto 1fr auto auto; column-gap: 4em; }
+.km-kicker { grid-column: 1 / -1; margin: 0 0 1.4em; font: 400 0.75em/1.2 var(--mono); text-transform: uppercase; }
+.km-head { grid-column: 1; grid-row: 2 / span 3; align-self: start; margin: 0; font: 700 5.2em/0.98 var(--display); letter-spacing: -1.44px; }
+.km-sub { grid-column: 2; grid-row: 3; align-self: end; margin: 0; font: 400 0.9em/1.35 var(--mono); text-transform: uppercase; text-align: left; }
+.km-hero .km-ctas { grid-column: 2; grid-row: 4; align-self: start; margin: 2em 0 0; display: flex; flex-wrap: wrap; gap: 0.8em; }
+.km-ctas { margin: 2.2em 0 0; display: flex; flex-wrap: wrap; gap: 0.8em; }
+/* Buttons: like the dashboard's Next button (square-ish corners, solid dark-brown offset shadow, no outline) */
+.km-btn {
+  min-height: 48px; padding: 0.6rem 2.2rem; border: 0; border-radius: 8px; background: var(--cream); color: var(--brown);
+  font: 400 0.75em/1 var(--mono); text-transform: uppercase; cursor: pointer; box-shadow: 5px 5px 0 var(--brown);
+}
+.km-btn.alt { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink), 5px 5px 0 var(--brown); }
+.km-btn:focus-visible { outline: 3px solid var(--pop); outline-offset: 3px; }
+
+/* the running strip of perks */
+.km-strip { overflow: hidden; background: var(--brown); color: var(--cream); padding: 0.9em 0; border-block: 2px solid var(--brown); }
+.km-run { display: flex; width: max-content; animation: km-run 28s linear infinite; }
+.km-run span { display: flex; flex: none; }
+.km-run b { flex: none; padding: 0 1.4em; font: 400 0.9em/1 var(--mono); text-transform: uppercase; white-space: nowrap; }
+.km-run b::after { content: "\2726"; margin-left: 2.8em; color: var(--honey); }
+@keyframes km-run { to { transform: translateX(-50%); } }
+
+.km-sec { padding: 4em 3em 0; }
+.km-sec h3, .km-closer h3 { margin: 0 0 1.2em; font: 700 3em/1 var(--display); letter-spacing: -1.44px; text-align: left; }
+
+/* numbered cards, like Offlyn's six features */
+.km-feats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 1.4em; row-gap: 0; }
+/* each card spans three rows (number, title, text) shared with its neighbours, so in a row of cards every title box is as tall as the tallest one and the texts start at the same height */
+.km-feats li { position: relative; padding: 2.4em 2em; display: grid; grid-template-rows: subgrid; grid-row: span 3; row-gap: 0; align-content: start; margin-bottom: 1.4em; border-radius: 18px; background: var(--bg); color: var(--ink); transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.km-feats i, .km-steps i { display: inline-grid; place-items: center; min-width: 2.4em; height: 2.4em; margin-bottom: 1.2em; border-radius: 999px; background: var(--bg); color: var(--ink); font: 400 0.75em/1 var(--mono); font-style: normal; }
+.km-feats i { background: var(--ink); color: var(--bg); min-width: 3em; height: 3em; font-size: 0.9em; justify-self: start; }
+.km-feats h4, .km-steps h4, .km-promises h4 { margin: 0 0 0.7em; font: 700 1.6em/1.05 var(--display); letter-spacing: -0.04em; text-align: left; }
+.km-feats p, .km-steps p, .km-promises p, .km-faq p { margin: 0; font: 400 0.75em/1.35 var(--mono); text-transform: uppercase; text-align: left; }
+/* every text under a heading on a page is the same size as the intro (0.9) */
+.km-page :is(.km-feats, .km-promises, .km-steps, .km-faq) p { font-size: 0.9em; }
+.km-page .km-feats h4 { font-size: 2.2em; line-height: 1; } /* (these sit after the shared rule above, so they win) */
+.km-page .km-promises h4 { font-size: 2.2em; line-height: 1; }
+
+.km-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 1em; row-gap: 0; counter-reset: s; }
+/* like the cards: each step spans three rows (number, title, text) shared with its neighbours, so the texts line up */
+.km-steps li { padding: 1.2em 1em 0 0; border-top: 2px solid var(--ink); display: grid; grid-template-rows: subgrid; grid-row: span 3; row-gap: 0; align-content: start; margin-bottom: 1em; }
+.km-steps i { justify-self: start; }
+.km-promises { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 1.4em; row-gap: 0; }
+/* like the numbered cards: each one spans two rows (title, text) shared with its neighbours, so the texts line up */
+.km-promises li { padding: 2.4em 2em; border-radius: 18px; background: var(--bg); color: var(--ink); display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 0; align-content: start; margin-bottom: 1.4em; }
+
+.km-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.km-table { width: 100%; min-width: 34em; border-collapse: separate; border-spacing: 0; font: 400 0.9em/1.2 var(--mono); text-transform: uppercase; }
+.km-table th, .km-table td { padding: 1.1em 1em; text-align: left; border-bottom: 2px solid rgba(70, 55, 33, 0.2); font-weight: 400; }
+.km-table thead th { border-bottom: 2px solid var(--ink); }
+.km-table .us { background: var(--bg); color: var(--ink); }
+
+.km-faq details { border-top: 2px solid var(--brown); padding: 1.1em 0; }
+.km-faq details:last-child { border-bottom: 2px solid var(--brown); }
+.km-faq summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 1em; font: 700 1.15em/1.1 var(--display); letter-spacing: -0.03em; }
+.km-faq summary::-webkit-details-marker { display: none; }
+.km-faq summary::after { content: "+"; font: 400 1em/1 var(--mono); transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.km-faq details[open] summary::after { transform: rotate(45deg); }
+.km-faq p { margin-top: 0.9em; max-width: 60ch; }
+
+.km-closer { margin-top: 4em; padding: 4em 3em; background: var(--bg); color: var(--ink); }
+.km-closer h3 { font-size: 3.6em; max-width: 14ch; }
+
+/* the text under the headings is justified, like the paragraphs elsewhere on the site (the headings stay left-aligned) */
+.km-page :is(p, .km-sub) { text-align: justify; text-justify: inter-word; }
+
+/* tablets and phones: pages stack into a single column */
+@media (max-width: 991px) {
+  .km-feats, .km-promises { grid-template-columns: repeat(2, 1fr); }
+  .km-steps { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 767px) {
+  .km { --cw: min(70vw, calc(58svh * 0.78)); }
+  .km-next { top: calc(54% - var(--ch) / 2 - 3.6em - 8px); }
+  .km-face { padding: 1.4em; }
+  .km-card.is-open { inset: 0.4em 0.5em 0.6em; border-radius: 18px; }
+  .km-hero { padding: 4em 1.4em 2.6em; display: block; }
+  .km-sub { margin-top: 1.6em; }
+  .km-close { min-height: 44px; padding: 0 0.9em; font-size: 0.65em; margin: 10px 10px -46px auto; top: 10px; }
+  .km-run b { font-size: 0.7em; }
+  .km-ctas .km-btn { flex: 1 1 100%; min-height: 52px; }
+  .km-hero .km-ctas { margin-top: 1.6em; }
+  .km-head { font-size: 3em; }
+  .km-sec { padding: 3em 1.4em 0; }
+  .km-sec h3 { font-size: 2.2em; }
+  .km-page .km-feats h4 { font-size: 2.3em; }
+  .km-page .km-promises h4 { font-size: 1.8em; }
+  .km-promises li { padding: 2em 1.6em; }
+  .km-feats li { padding: 2em 1.6em; }
+  .km-steps h4, .km-promises h4 { font-size: 1.4em; }
+  .km-feats, .km-promises, .km-steps { grid-template-columns: 1fr; }
+  .km-closer { padding: 3em 1.4em; }
+  .km-closer h3 { font-size: 2.2em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .km-run { animation: none; }
+  .km-feats li, .km-btn, .km-next, .km-close { transition: none; }
+}
