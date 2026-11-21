@@ -181,7 +181,7 @@ function renderProfile() {
   const p = profile(), list = places();
   const count = (k) => (k === "all" ? list.length : list.filter((x) => x.list === k).length);
   const shown = tile === "all" ? list : list.filter((x) => x.list === tile);
-  const handle = (p.handle || p.name || "you").toLowerCase().replace(/[^a-z0-9_]/g, "");
+  const handle = (p.handle || p.name || "you").toLowerCase().replace(/[^a-z0-9_.]/g, "");
   const complete = p.name && p.bio && safeImg(p.photo);
   app.innerHTML = `${account.nudge()}
     <section class="sp-card sp-head">
@@ -265,12 +265,11 @@ function renderEdit() {
     f.handle = String(f.handle).toLowerCase().replace(/[^a-z0-9_.]/g, "");
     const next = { ...profile(), ...f, badge: badgeOf(f.badge) || profile().badge, photo };
     if (!write(PROFILE, next)) return; // always kept on this device first (the photo stays picked, so they can try a smaller one)
-    if (account.isSignedIn()) {
-      btn.disabled = true; err.hidden = true;
-      const r = await account.save(next, { photoChanged: photo !== p.photo });
-      btn.disabled = false;
-      if (!r.ok) { err.textContent = r.message; err.hidden = false; err.scrollIntoView({ block: "center" }); return; }
-    }
+    // then on the account when signed in (it waits for a sign-in still being restored, and retries a photo that hasn't made it yet)
+    btn.disabled = true; err.hidden = true;
+    const r = await account.save(next);
+    btn.disabled = false;
+    if (!r.ok) { err.textContent = r.message; err.hidden = false; err.scrollIntoView({ block: "center" }); return; }
     toast("Saved"); location.hash = "#/profile";
   });
 }
@@ -295,7 +294,7 @@ function renderSettings() {
     <button class="sp-link danger" id="sp-del" type="button">Delete account</button></div>`;
   app.querySelector("#sp-bday").addEventListener("change", async (e) => {
     const next = { ...profile(), birthday: e.target.value }; if (!write(PROFILE, next)) return;
-    if (account.isSignedIn()) { const r = await account.save(next); toast(r.ok ? "Saved" : r.message); } else toast("Saved");
+    const r = await account.save(next); toast(r.ok ? "Saved" : r.message);
   });
   app.querySelectorAll("[data-pref]").forEach((b) => b.addEventListener("click", () => {
     const on = b.getAttribute("aria-checked") !== "true";
@@ -306,7 +305,12 @@ function renderSettings() {
   app.querySelector("#sp-out").textContent = account.isSignedIn() ? "Account and sign out" : account.configured() ? "Sign in" : "Sign in (not connected yet)";
   const del = app.querySelector("#sp-del");
   del.addEventListener("click", () => {
-    if (account.isSignedIn()) { location.href = "mailto:hello@peanutbutterjelly.vip?subject=Delete%20my%20PB%26J%20account&body=Please%20delete%20my%20account%20(" + encodeURIComponent(account.email()) + ")."; return; } // until the server can do it itself
+    // Signed in: the account lives on our server, which can't delete it by itself yet, so this sends us a request by email
+    if (account.isSignedIn()) {
+      if (!del.dataset.sure) { del.dataset.sure = "1"; del.textContent = "Tap again to email us a deletion request"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete account"; }, 4000); return; }
+      location.href = "mailto:hello@peanutbutterjelly.vip?subject=Delete%20my%20PB%26J%20account&body=Please%20delete%20my%20account%20(" + encodeURIComponent(account.email()) + ").";
+      toast("We've opened an email asking us to delete your account. It's a request: we delete it and reply within a few days"); return;
+    }
     if (del.dataset.sure) { clearAll(); toast("Everything cleared"); location.hash = "#/profile"; route(); }
     else { del.dataset.sure = "1"; del.textContent = "Tap again to delete everything"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete account"; }, 4000); }
   });
