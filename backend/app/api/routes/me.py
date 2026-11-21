@@ -1,7 +1,7 @@
 """The logged-in person's own profile."""
 
 import re
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,6 +14,7 @@ from app.db import get_db
 
 router = APIRouter(prefix="/me", tags=["me"])
 Db = Annotated[Connection, Depends(get_db)]
+MUMBAI = timezone(timedelta(hours=5, minutes=30))  # India has one time zone and no daylight saving
 
 COLUMNS = (
     "id, full_name, avatar_url, city, role, phone, host_kind, link, about, wants_call, onboarded_at,"
@@ -44,6 +45,21 @@ class ProfileUpdate(BaseModel):
     @classmethod
     def lower_handle(cls, value: str | None) -> str | None:
         return value.lower() if value else value
+
+    @field_validator("badge", "city")
+    @classmethod
+    def not_empty(cls, value: str | None) -> str:
+        # these always have a value in the database (sending null is a mistake, not "clear it")
+        if value is None:
+            raise ValueError("can't be empty")
+        return value
+
+    @field_validator("birthday")
+    @classmethod
+    def real_birthday(cls, value: date | None) -> date | None:
+        if value is not None and not (date(1900, 1, 1) <= value <= datetime.now(MUMBAI).date()):
+            raise ValueError("must be a real birthday: not in the future, and not before 1900")
+        return value
 
 
 @router.get("")

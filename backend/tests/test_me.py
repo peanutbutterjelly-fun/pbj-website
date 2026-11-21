@@ -1,6 +1,7 @@
 import re
 import time
 import uuid
+from datetime import date, timedelta
 
 import jwt
 import pytest
@@ -191,3 +192,28 @@ def test_public_profile_needs_no_login_and_hides_private_fields(client):
     assert body["handle"] == "asha_k" and body["badge"] == "vibes" and body["about"] == "Hunting hidden gems"
     assert c.get("/api/people/nobody_here").status_code == 404
     assert c.get("/api/people/a").status_code == 422
+
+
+def test_me_rejects_empty_badge_and_city(client):
+    c, db = client
+    for bad in ({"badge": None}, {"city": None}):
+        assert c.patch("/api/me", json=bad, headers=auth_header()).status_code == 422, bad
+    assert db.updates == []
+
+
+def test_me_rejects_impossible_birthdays(client):
+    c, db = client
+    tomorrow = (date.today() + timedelta(days=2)).isoformat()
+    for bad in (tomorrow, "1899-12-31", "2002-02-30", "not a date"):
+        assert c.patch("/api/me", json={"birthday": bad}, headers=auth_header()).status_code == 422, bad
+    assert db.updates == []
+    assert c.patch("/api/me", json={"birthday": "1900-01-01"}, headers=auth_header()).status_code == 200
+    assert c.patch("/api/me", json={"birthday": None}, headers=auth_header()).status_code == 200  # clearing it is fine
+
+
+def test_values_the_database_refuses_are_a_422_not_a_crash(client):
+    c, db = client
+    for err in (errors.CheckViolation(), errors.NotNullViolation()):
+        db.fail_with = err
+        r = c.patch("/api/me", json={"full_name": "Asha"}, headers=auth_header())
+        assert r.status_code == 422
