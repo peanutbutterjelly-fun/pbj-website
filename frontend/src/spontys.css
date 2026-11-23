@@ -637,8 +637,8 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 .fs-chip { border: 1px solid var(--line); border-radius: 999px; background: var(--card); padding: 0.9em 1.5em; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 14px rgba(70, 55, 33, 0.1); transition: background 0.15s; }
 .fs-chip:hover { background: var(--bread); }
 .fs-dock .fd-ask { box-shadow: 0 10px 30px rgba(70, 55, 33, 0.25); }
-  .fs .as-btns .btn { white-space: nowrap; padding-inline: 1em; flex: 1 1 auto; }
 @media (max-width: 767px) {
+  .fs .as-btns .btn { white-space: nowrap; padding-inline: 1em; flex: 1 1 auto; }
   .fs-ev { grid-template-columns: 6em 1fr auto; gap: 0.9em; }
   .fs-art { min-height: 6em; }
   .fs-map { height: 46vh; }
