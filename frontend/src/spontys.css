@@ -28,7 +28,7 @@
 .sp-nudge { margin-top: 1.8em; }
 
 /* Tile shelf */
-.sp-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.8em; margin: 1.6em 0 1.2em; }
+.sp-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8em; margin: 1.6em 0 1.2em; }
 .sp-tile { border: 1px solid var(--line); border-radius: 20px; background: var(--card); padding: 1.2em 0.4em; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5em; transition: background .15s, border-color .15s, transform .2s cubic-bezier(.34,1.56,.64,1); }
 .sp-tile:hover { transform: translateY(-3px); }
 .sp-tile.on { background: var(--bread); border-color: var(--ink); }
@@ -92,7 +92,6 @@
 
 .sp-tile:focus-visible, .sp-ico:focus-visible, .sp-link:focus-visible, .sp-switch:focus-visible { outline: 3px solid var(--strawberry); outline-offset: 2px; }
 
-@media (max-width: 991px) { .sp-tiles { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 767px) {
   .sp { padding: 1.6em 5vw 6em; }
   .sp-card { padding: 1.8em 1.4em; border-radius: 24px; }

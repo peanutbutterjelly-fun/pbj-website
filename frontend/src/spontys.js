@@ -23,11 +23,10 @@ const I = {
   dots: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   pen: '<path d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4z"/>',
 };
-// Tiles: Corner's six, renamed for events and hidden gems. "all" shows everything.
+// Tiles: All, Want to go, Going and Recommend for now (Favorites, Okay and Not for me are held back). "all" shows everything.
 const TILES = [
-  ["all", "All", "all"], ["want", "Want to go", "want"], ["going", "Going", "tick"],
-  ["fav", "Favorites", "fav"], ["rec", "Recommend", "rec"], ["okay", "Okay", "okay"], ["no", "Not for me", "no"],
-];
+  ["all", "All", "all"], ["want", "Want to go", "want"], ["going", "Going", "tick"], ["rec", "Recommend", "rec"],
+  ];
 const AREAS = ["Bandra West", "Bandra East", "Khar", "Juhu", "Andheri", "Colaba", "Fort", "Lower Parel", "Worli", "Powai", "Versova", "Dadar", "Matunga", "Kala Ghoda", "Other"];
 
 
@@ -192,7 +191,7 @@ function renderProfile() {
     <div class="pe-seg" role="tablist">${[["saved", "Saved", list.length], ["attended", "Attended", screens.ev.counts().attended], ["hosted", "Hosted", screens.ev.counts().hosted]].map(([k, l, n]) => `<button type="button" role="tab" class="${pview === k ? "on" : ""}" data-pv="${k}" aria-selected="${pview === k}">${l} <b>${n}</b></button>`).join("")}</div>
     ${pview === "saved" ? "" : screens.ev.ownTab(pview)}
     <div class="sp-tiles" role="tablist" ${pview === "saved" ? "" : "hidden"}>${TILES.map(([k, label, ico]) => `<button type="button" class="sp-tile ${tile === k ? "on" : ""}" data-tile="${k}" role="tab" aria-selected="${tile === k}">${svg(I[ico])}<b>${count(k)}</b><span>${label}</span></button>`).join("")}</div>
-    <div class="sp-soon" aria-label="Coming soon"><span class="chip">Import from Instagram Reels &amp; YouTube Shorts · soon</span><span class="chip">Import Google Maps list · soon</span><span class="chip">Friends · soon</span><span class="chip">Map · soon</span></div>
+    <div class="sp-soon" aria-label="Coming soon"><span class="chip">Import from Instagram Reels &amp; YouTube Shorts · soon</span><span class="chip">Friends · soon</span></div>
     <div class="sp-bar"><h2 class="cut">${tile === "all" ? "Your events &amp; gems" : esc(TILES.find((t) => t[0] === tile)[1])}</h2></div>
     <form class="sp-add" id="sp-add" novalidate><input class="sp-in" name="title" placeholder="Event or hidden gem" aria-label="Event or hidden gem" autocomplete="off" />
       <select class="sp-in" name="area" aria-label="Area">${AREAS.map((a) => `<option>${a}</option>`).join("")}</select><button class="btn small" type="submit">+ Add</button></form>
