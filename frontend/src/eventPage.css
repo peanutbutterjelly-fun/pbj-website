@@ -10,7 +10,7 @@
 .ep-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ep-none { display: grid; place-items: center; }
 .ep-thumbs { display: flex; gap: 0.8em; margin-top: 1em; flex-wrap: wrap; }
-.ep-thumbs button { width: 5em; aspect-ratio: 4 / 5; padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; cursor: pointer; background: none; opacity: 0.6; transition: opacity 0.2s, border-color 0.2s; }
+.ep-thumbs button { width: 5em; aspect-ratio: 4 / 5; padding: 0; border: 1px solid transparent; border-radius: 10px; overflow: hidden; cursor: pointer; background: none; opacity: 0.6; transition: opacity 0.2s, border-color 0.2s; }
 .ep-thumbs button:hover { opacity: 1; }
 .ep-thumbs button.on { border-color: var(--ink); opacity: 1; }
 .ep-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -45,6 +45,10 @@
 .ep-rich ul, .ep-rich ol { margin: 0 0 1em; padding-left: 1.5em; }
 .ep-rich li { margin: 0 0 0.4em; }
 .ep-rich a { text-underline-offset: 0.2em; }
+.ep-rich img { max-width: 100%; height: auto; border-radius: 10px; display: block; margin: 0 0 1em; }
+.ep-rich iframe { display: block; width: 100%; max-width: 640px; aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 10px; margin: 0 0 1em; }
+.ep-rich hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+.ep-rich blockquote { margin: 0 0 1em; padding-left: 1em; border-left: 3px solid var(--bread); }
 .ep-terms { opacity: 0.8; }
 .ep-people { display: grid; gap: 1.4em; }
 .ep-person { display: flex; gap: 1.2em; align-items: flex-start; }
@@ -90,6 +94,7 @@
 .ep-tickets li { display: grid; grid-template-columns: 1fr auto auto; }
 .ep-tickets li.off { opacity: 0.55; grid-template-columns: 1fr auto; }
 .ep-price { font-weight: 700; font-size: 1.3em; white-space: nowrap; }
+.ep-price small { display: block; font-size: 0.55em; font-weight: 400; text-align: right; }
 .ep-tickets span.ep-price { font-size: 1.3em; }
 .ep-step { display: inline-flex; align-items: center; gap: 0.9em; }
 .ep-step button { width: 2.4em; height: 2.4em; border-radius: 50%; border: 1px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer; font-size: 1.1em; line-height: 1; display: grid; place-items: center; transition: background 0.2s, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -102,7 +107,7 @@
 .ep-msg[hidden] { display: none; }
 
 /* Map */
-.ep-map { aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: #e9e6d2; }
+.ep-map { aspect-ratio: 2.4 / 1; max-height: 16em; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: #e9e6d2; }
 .ep-map iframe { width: 100%; height: 100%; border: 0; display: block; }
 .ep-where { margin-top: 1em; display: flex; justify-content: space-between; align-items: center; gap: 1.5em; flex-wrap: wrap; }
 .ep-where > div { display: flex; gap: 0.8em; align-items: flex-start; }
@@ -125,3 +130,92 @@
 
 /* Buttons on this page: the same yellow with a brown underlay as the dashboard */
 .ep .btn:not(.ghost) { background: var(--bread); color: var(--ink); box-shadow: 0 6px 0 var(--ink); }
+
+/* More than one time slot: ticket stubs, with a round button outside each one to pick it */
+.ep-slots { list-style: none; margin: 0 0 1em; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(19em, 1fr)); gap: 0.9em 1.2em; }
+.ep-slots li { display: flex; align-items: center; gap: 0.8em; }
+.ep-pick { flex: none; width: 1.6em; height: 1.6em; padding: 0; border: 2px solid var(--brown); border-radius: 50%; background: var(--card, #fffffa); box-sizing: border-box; cursor: pointer; transition: box-shadow 0.15s; }
+.ep-pick[aria-checked="true"] { background: var(--brown); box-shadow: inset 0 0 0 3px var(--card, #fffffa); }
+.ep-pick:focus-visible { outline: 3px solid var(--bread); outline-offset: 3px; }
+.ep-slots .ep-slot { flex: 1; min-width: 0; display: flex; grid-template-columns: none; gap: 0; align-items: stretch; overflow: hidden; background: var(--card, #fffffa); border: 1px solid var(--line); border-radius: 14px; box-shadow: 3px 3px 0 var(--brown); }
+.ep-slots .ep-stub { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 4.2em; padding: 0.8em 0.9em; background: var(--bread); border-right: 2px dashed var(--brown); }
+.ep-stub i { font-style: normal; font-weight: 700; line-height: 1; }
+.ep-stub b { font-size: 2.2em; font-weight: 700; line-height: 1.1; opacity: 1; }
+.ep-slots .ep-slotbody { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.3em; padding: 0.8em 1.1em; min-width: 0; }
+.ep-slotbody > span { font-weight: 700; line-height: 1.25; white-space: nowrap; }
+.ep-slotbody small { margin: 0; opacity: 0.7; white-space: nowrap; }
+.ep-slots + small { margin: 0 0 1.2em; }
+@media (prefers-reduced-motion: reduce) { .ep-pick { transition: none; } }
+@media (max-width: 767px) { .ep-map { aspect-ratio: 16 / 10; } }
+
+/* Ticket tag and what's included on the public page */
+.ep-tickets .ep-tag { display: inline-block; margin-left: 0.7em; padding: 0.15em 0.75em; border-radius: 999px; background: var(--bread); font-style: normal; font-weight: 700; font-size: 0.85em; vertical-align: 0.1em; }
+.ep-tickets small.ep-inc { opacity: 0.85; }
+
+/* tickets that are not offered for the chosen time slot */
+.ep-tickets li.noslot { opacity: 0.5; }
+.ep-tickets li.noslot .ep-step { display: none; }
+.ep-tickets small.ep-noslot { color: var(--jam); opacity: 1; }
+
+/* Artist and partner links */
+.ep-links { display: flex; flex-wrap: wrap; gap: 0.5em; margin-top: 0.6em; }
+.ep-links a { padding: 0.25em 0.9em; border-radius: 999px; background: var(--bread); color: inherit; text-decoration: none; font-weight: 700; }
+.ep-links a:hover { background: #ffd95c; }
+.ep-tickets small[hidden] { display: none; }
+.ep-tickets li.off .ep-step { display: none; }
+
+/* Bulk discounts on the public page */
+.ep-tickets small.ep-bulkinfo { opacity: 0.75; }
+.ep-tickets small.ep-bulk { color: #1f6b35; font-weight: 700; opacity: 1; }
+.ep-tickets small.ep-bulk[hidden] { display: none; }
+.ep-savings { margin: -0.6em 0 1em; color: #1f6b35; font-weight: 700; }
+.ep-savings[hidden] { display: none; }
+
+/* Guest questions on the event page */
+.ep-qs { margin: 1.4em 0 1em; padding: 1.2em 1.3em; border: 1px solid var(--line); border-radius: 14px; background: var(--card); display: grid; gap: 1.1em; }
+.ep-qs h3 { margin: 0; font-weight: 700; }
+.ep-q { display: grid; gap: 0.6em; }
+.ep-q-l i { color: var(--jam); font-style: normal; }
+.ep-q-in { width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--page, #fff); padding: 0.9em 1.1em; font: inherit; color: inherit; text-transform: uppercase; }
+.ep-q-in:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 4px rgba(255,227,134,.35); }
+.ep-q-opts { display: flex; flex-wrap: wrap; gap: 0.6em; }
+.ep-q-opts label { cursor: pointer; }
+.ep-q-opts input { position: absolute; opacity: 0; pointer-events: none; }
+.ep-q-opts span { display: inline-block; min-height: 44px; line-height: 44px; padding: 0 1.2em; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
+.ep-q-opts input:checked + span { background: var(--bread); border-color: var(--ink); font-weight: 700; }
+.ep-q-opts input:focus-visible + span { outline: 3px solid var(--bread); outline-offset: 2px; }
+.ep-q.bad .ep-q-in, .ep-q.bad .ep-q-opts span { border-color: var(--jam); }
+.ep-q-err { margin: 0; color: var(--jam); }
+.ep-q-err[hidden] { display: none; }
+
+/* FAQs on the event page */
+.ep-faqs { display: grid; gap: 0.7em; }
+.ep-faqs details { border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.ep-faqs summary { list-style: none; cursor: pointer; padding: 1em 3em 1em 1.2em; min-height: 44px; position: relative; font-weight: 700; }
+.ep-faqs summary::-webkit-details-marker { display: none; }
+.ep-faqs summary::after { content: "+"; position: absolute; right: 1.2em; top: 50%; transform: translateY(-50%); font-weight: 400; font-size: 1.4em; line-height: 1; }
+.ep-faqs details[open] summary::after { content: "−"; }
+.ep-faqs summary:focus-visible { outline: 3px solid var(--bread); outline-offset: 2px; border-radius: 14px; }
+.ep-faqs p { margin: 0; padding: 0 1.2em 1.1em; white-space: pre-line; }
+.ep-tags .ep-wo { background: var(--bread); color: var(--ink); font-weight: 700; }
+/* FAQs use the site font style: Chivo Mono in capitals, same size and line spacing as the About and Terms text */
+.ep-faqs summary, .ep-faqs p { text-transform: uppercase; line-height: 1.8; font-size: inherit; letter-spacing: normal; }
+.ep-faqs details { border-radius: 12px; }
+.ep-faqs summary { padding-block: 0.9em; }
+.ep-faqs p { padding-bottom: 1em; }
+
+/* Time slots as pick-a-time rows: tap anywhere on a row; the chosen row turns solid yellow with no outline */
+.ep-slots { grid-template-columns: minmax(0, 1fr); max-width: 32em; gap: 0.6em; }
+.ep-slots li { gap: 0.9em; padding: 0.85em 1.1em; min-height: 48px; background: var(--card, #fffffa); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+.ep-slots li:has(.ep-pick[aria-checked="true"]) { background: var(--bread); border-color: var(--bread); }
+.ep-slots .ep-slot { background: none; border: 0; box-shadow: none; overflow: visible; }
+.ep-slots .ep-stub { display: none; }
+.ep-slots .ep-slotbody { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.2em 1em; padding: 0; }
+.ep-slots .ep-pick[aria-checked="true"] { box-shadow: inset 0 0 0 3px var(--bread); }
+.ep-slots .ep-pick { width: 1.15em; height: 1.15em; border-width: 1.5px; }
+.ep-slots .ep-pick[aria-checked="true"] { box-shadow: inset 0 0 0 2px var(--bread); }
+/* A little breathing room between the top bar and the page (the old yellow preview bar used to provide it) */
+.ep { padding-top: 3.2em; }
+@media (max-width: 767px) { .ep { padding-top: 2em; } }
+/* Outlined buttons on the event page (Get directions): a thin 1px outline, like the ticket + and − circles */
+.ep .btn.ghost { box-shadow: none; border: 1px solid var(--ink); }

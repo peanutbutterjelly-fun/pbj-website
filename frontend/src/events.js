@@ -4,6 +4,7 @@ import { Observer } from "gsap/Observer";
 import { Flip } from "gsap/Flip";
 import { createCutLetter } from "./cutword.js";
 import { saveLead } from "./leads.js";
+import { guestPays, rupees } from "./gst.js";
 import { EVENTS } from "./eventsData.js";
 
 gsap.registerPlugin(Flip, ScrollTrigger, Observer);
@@ -1387,12 +1388,12 @@ function publishedEvents(today) {
   return saved.filter((e) => e.status === "published" && e.dateFrom && (e.images || []).some(Boolean)).map((e) => {
     const [y, mo, d] = (e.dateTo || e.dateFrom).split("-").map(Number);
     if (new Date(y, mo - 1, d) < today) return null; // an event hides itself once its last day has passed
-    const prices = (e.tickets || []).filter((t) => t.enabled !== false).map((t) => (t.paid ? Number(t.price) || 0 : 0));
+    const prices = (e.tickets || []).filter((t) => t.enabled !== false).map(guestPays);
     const low = prices.length ? Math.min(...prices) : 0;
     return {
       real: true, kind: e.type === "guestlist" ? "sponty" : e.type === "exclusive" ? "exclusive" : "open", id: e.id, title: e.title || "Untitled event", cover: e.images.filter(Boolean)[0].replace(/'/g, "%27"),
-      category: e.category, area: e.venueStatus === "Decided" && e.venue ? e.venue : e.city || "Mumbai",
-      price: low ? `₹${low.toLocaleString("en-IN")}` : "Free", date: e.dateFrom, time: hm(e.start),
+      category: e.category, keywords: e.subs || [], area: e.venueStatus === "Decided" && e.venue && !(e.womenOnly || e.hideLocation) ? e.venue : e.city || "Mumbai",
+      price: low ? rupees(Math.round(low)) : "Free", date: e.dateFrom, time: hm(e.start),
     };
   }).filter(Boolean);
 }
