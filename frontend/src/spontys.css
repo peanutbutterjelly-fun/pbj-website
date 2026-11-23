@@ -1001,7 +1001,7 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 .mg-sec { display: grid; gap: 0.9em; margin-bottom: 1em; padding: 1.4em 1.5em; }
 .mg-sec h2 { font-family: var(--display); font-weight: 700; font-size: 1.7em; letter-spacing: -0.8px; display: flex; align-items: center; gap: 0.6em; margin: 0; }
 .mg-sec p { margin: 0; line-height: 1.4; opacity: 0.8; }
-.mg-sec textarea, .mg-sec input:not([type=checkbox]) { width: 100%; border: 1.5px solid var(--ink); border-radius: 16px; background: var(--card); padding: 0.9em 1.1em; }
+.mg-sec textarea, .mg-sec input:not([type=checkbox]) { width: 100%; border: 1px solid var(--ink); border-radius: 16px; background: var(--card); padding: 0.9em 1.1em; }
 .mg-sec textarea { min-height: 6.5em; resize: vertical; line-height: 1.4; }
 .mg-sec input:not([type=checkbox]) { height: 3.4em; padding: 0 1.2em; border-radius: 999px; }
 .mg-row { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-top: 0.6em; }
@@ -1009,9 +1009,13 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 .mg-sec form { display: grid; gap: 0.6em; }
 .mg-dl { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6em; }
 .mg-d { display: grid; grid-template-columns: 1fr auto; gap: 0.8em; align-items: center; padding: 0.8em 1em; border-radius: 16px; background: color-mix(in srgb, var(--bread) 35%, var(--card)); }
-.mg-d label { display: grid; grid-template-columns: auto 1fr; gap: 0.9em; align-items: start; cursor: pointer; }
-.mg-d input[type=checkbox] { width: 1.4em; height: 1.4em; margin-top: 0.2em; accent-color: var(--strawberry); }
-.mg-d span { display: grid; gap: 0.4em; }
+.mg-d label { display: grid; grid-template-columns: auto 1fr; gap: 0.9em; align-items: start; cursor: pointer; min-width: 0; }
+.mg-d input[type=checkbox] { width: 1.4em; height: 1.4em; margin: 0.05em 0 0; accent-color: var(--strawberry); }
+.mg-d .mg-dtext { display: grid; gap: 0.35em; min-width: 0; }
+.mg-who { display: flex; align-items: baseline; gap: 0.7em; }
+.mg-who b { font-weight: 700; }
+.mg-who i { font-style: normal; opacity: 0.55; text-transform: uppercase; }
+.mg-hint { margin: 0; line-height: 1.4; }
 .mg-d span em { font-style: normal; text-transform: uppercase; line-height: 1.35; }
 .mg-none { opacity: 0.6 !important; }
 .mg-opts { display: grid; gap: 0.6em; }
@@ -1029,7 +1033,7 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 .mg-past summary { cursor: pointer; opacity: 0.8; padding: 0.6em 0; min-height: 44px; display: flex; align-items: center; }
 .mg-pq { display: grid; gap: 0.6em; padding: 0.8em 0; border-top: 1px solid var(--line); }
 .mg-see { display: inline-flex; margin-top: 1.2em; }
-.mg-entry { display: grid; grid-template-columns: 1fr auto; gap: 0.3em 1em; align-items: center; margin-bottom: 0.4em; padding: 1.1em 1.4em; border: 1.5px solid var(--ink); border-radius: 22px; background: var(--card); text-decoration: none; color: inherit; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+.mg-entry { display: grid; grid-template-columns: 1fr auto; gap: 0.3em 1em; align-items: center; margin-bottom: 0.4em; padding: 1.1em 1.4em; border: 1px solid var(--ink); border-radius: 22px; background: var(--card); text-decoration: none; color: inherit; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
 .mg-entry:hover { transform: translateY(-2px); background: #fff6d4; }
 .mg-entry b { font-family: var(--display); font-weight: 700; font-size: 1.4em; letter-spacing: -0.8px; text-transform: uppercase; }
 .mg-entry span { grid-column: 1; opacity: 0.7; line-height: 1.35; }
@@ -1066,10 +1070,10 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 .ch-uav .sp-avatar { width: 2.1em; height: 2.25em; } .ch-uav .sp-avatar text { font-size: 42px; }
 .ch-role { display: inline-block; padding: 0.2em 0.7em; border: 1px solid currentColor; border-radius: 999px; font-size: 0.85em; opacity: 0.85; }
 .ch-re { display: flex; align-items: center; gap: 0.5em; margin: 0; padding: 0.4em 0.8em; border-radius: 10px; background: color-mix(in srgb, var(--bread) 50%, transparent); }
-.ch-body, .ch-qt, .ch-opt .ch-ol, .ch-qnote input, .ch-dbox input, .ch-dlist span { text-transform: none; }
+.ch-body, .ch-opt .ch-ol, .ch-qnote input, .ch-dbox input, .ch-dlist span { text-transform: none; }
 .ch-body { margin: 0; font-size: 1.1em; line-height: 1.55; letter-spacing: 0.005em; overflow-wrap: anywhere; }
 .ch-qk { margin: 0; opacity: 0.75; }
-.ch-qt { margin: 0; font-family: var(--mono); font-weight: 700; font-size: 1.2em; letter-spacing: 0; line-height: 1.4; }
+.ch-qt { margin: 0; font-family: var(--mono); font-weight: 700; font-size: 1em; letter-spacing: 0; line-height: 1.4; text-transform: uppercase; color: color-mix(in srgb, var(--ink) 68%, var(--card)); }
 .ch-opts { display: grid; gap: 0.5em; }
 .ch-opt { min-height: 3.6em; border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent); border-radius: 14px; padding: 0 1.1em; background: var(--page); }
 .ch-opt .ch-ol { font-size: 1.05em; }
@@ -1080,7 +1084,7 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 
 /* Last-minute doubt */
 .ch-doubt { margin-top: 1.6em; border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); border-radius: 18px; background: var(--card); padding: 1.1em 1.2em; gap: 0.7em; }
-.ch-doubt h2 { font-family: var(--mono); font-weight: 700; font-size: 1.1em; letter-spacing: 0; margin: 0; }
+.ch-doubt h2 { font-family: var(--mono); font-weight: 700; font-size: 1em; letter-spacing: 0; margin: 0; }
 .ch-doubt p { opacity: 0.85; }
 .ch-dbox input { border: 1px solid color-mix(in srgb, var(--ink) 40%, transparent); border-radius: 14px; }
 .ch-dcount { opacity: 0.75; }

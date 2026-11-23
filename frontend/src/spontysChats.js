@@ -49,7 +49,7 @@ const tagFor = (c, m) => (m.role === "question" ? `Question from the ${asker(c)}
       <header class="ch-h"><b>${name}</b><span class="ch-role">${asker(c).toUpperCase()}</span><time title="${esc(full(m.at))}" datetime="${new Date(m.at).toISOString()}">${ago(m.at)}</time></header>
       <p class="ch-qk">${closed ? "Question · closed" : "Question · optional"}</p><p class="ch-qt" id="qt-${esc(q.id)}">${esc(q.text)}</p>
       <div class="ch-opts">${t.map((o) => `<button type="button" class="ch-opt ${mine?.option === o.id ? "on" : ""}" data-opt="${esc(o.id)}" aria-pressed="${mine?.option === o.id}" ${closed ? "disabled" : ""}><span class="ch-fill" style="width:${show ? Math.round((o.n / total) * 100) : 0}%"></span><span class="ch-ol">${mine?.option === o.id ? "✓ " : ""}${esc(o.label)}</span>${show ? `<b aria-label="${o.n} chose this">${o.n}</b>` : ""}</button>`).join("")}</div>
-      ${q.allowNote && mine && !closed ? `<form class="ch-qnote"><input name="n" value="${esc(mine.note || "")}" maxlength="140" placeholder="Add a short note (optional)" aria-label="Add a short note" /><button type="submit" class="btn small ghost">Save</button></form>` : ""}
+      ${q.allowNote && mine && !closed ? `<form class="ch-qnote"><input name="n" value="${esc(mine.note || "")}" maxlength="140" placeholder="Add a note (optional)" aria-label="Add a short note" /><button type="submit" class="btn small ghost">Save</button></form>` : ""}
       <p class="ch-qf">${closed ? "Closed. Thanks for answering." : "Tap an option to answer. You can change it until it closes."}${show ? ` ${Object.keys(q.answers).length} answered.` : ""}${q.allowNote && !closed ? " A short note is welcome." : ""}</p></div></article>`; };
 
   /* ---------- One group chat ---------- */
