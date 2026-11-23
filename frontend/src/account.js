@@ -1,6 +1,8 @@
 // Sign in with an email link (Supabase). "[ Sign in ]" in the top bar opens a small card: type your email, we send a
 // link, tapping it brings you back here signed in. The Supabase library only loads when it's needed (you open the card,
 // you're already signed in, or you just came back from the link), so the page stays light for everyone else.
+import { createCutLetter } from "./cutword.js";
+
 const SB_URL = import.meta.env.VITE_SUPABASE_URL;
 const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY; // the publishable key: safe in the browser
 const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
@@ -26,6 +28,20 @@ export function setupAccount() {
   const form = $("#acct-form"), email = $("#acct-email"), send = $("#acct-send"), msg = $("#acct-msg");
   const signedIn = $("#acct-in"), nameEl = $("#acct-name"), mailEl = $("#acct-mail"), out = $("#acct-out");
   const labelOut = btn.querySelector("[data-out]"), labelIn = btn.querySelector("[data-in]");
+
+  // "Squeeze me in!" is the box's heading, in the site's paper-cut lettering
+  const title = form.querySelector(".acct-title");
+  if (title) {
+    const w = document.createElement("span");
+    w.className = "acct-cut";
+    w.setAttribute("aria-hidden", "true");
+    [...("Squeeze me in!")].forEach((ch) => {
+      if (ch === " ") { w.append(" "); return; }
+      const letter = createCutLetter(ch, { fill: "var(--pop)", shadow: "var(--brown)" });
+      if (letter) w.append(letter.el); else w.append(document.createTextNode(ch));
+    });
+    title.append(w);
+  }
 
   if (!SB_URL || !SB_KEY) {
     form.hidden = true;
@@ -62,7 +78,7 @@ export function setupAccount() {
     signedIn.hidden = !inNow;
     labelOut.hidden = inNow;
     labelIn.hidden = !inNow;
-    $(".tb-head").textContent = inNow ? "Signed in" : "Sign in";
+    const head = $(".tb-head"); head.textContent = "Signed in"; head.hidden = !inNow; // signed out, the "Your email" lettering is the heading
     if (inNow) { say(""); showProfile(session); }
   }
 

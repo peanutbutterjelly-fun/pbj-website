@@ -1397,3 +1397,66 @@ html.intro .intro-swirl {
 .acct-msg[data-tone="bad"] { color: var(--strawberry); }
 .acct-form[hidden], .acct-in[hidden], .acct-msg[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .acct-btn { transition: none; } .acct-btn:hover:not(:disabled) { transform: none; } }
+
+/* Sign-in box: lined up on one left edge and dressed like the site's own buttons and boxes */
+.tb-acct { width: 17em; padding: 1em 0.8em 0.9em; }
+.tb-acct .tb-head { margin: 0 0 0.9em 0.2em; }
+.acct-form, .acct-in { gap: 0.8em; padding: 0 0.2em 0.5em; }
+.acct-form label { margin: 0 0 -0.4em 0.1em; font-size: 0.7em; opacity: 0.75; }
+.acct-form input { padding: 0.85em 1.1em; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: color-mix(in srgb, #fff 55%, var(--page)); }
+.acct-form input::placeholder { text-transform: uppercase; opacity: 0.45; }
+.acct-form input:focus { outline: none; border-color: var(--brown); box-shadow: 0 0 0 4px rgba(255, 227, 134, 0.45); }
+.acct-btn { min-height: 48px; margin-top: 0.2em; background: var(--strawberry); color: var(--bread); box-shadow: 0 5px 0 var(--grape); transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s; }
+.acct-btn:hover:not(:disabled) { transform: translateY(-2px) rotate(-1deg); box-shadow: 0 7px 0 var(--grape); }
+.acct-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--grape); }
+.acct-quiet { background: var(--peanut); color: var(--brown); box-shadow: 0 5px 0 var(--brown); }
+.acct-quiet:hover:not(:disabled) { box-shadow: 0 7px 0 var(--brown); }
+.acct-quiet:active:not(:disabled) { box-shadow: 0 2px 0 var(--brown); }
+.acct-note { margin: 0.3em 0.1em 0; font-size: 0.65em; line-height: 1.4; opacity: 0.7; }
+.acct-name, .acct-mail, .acct-msg { margin-left: 0.1em; margin-right: 0.1em; }
+@media (prefers-reduced-motion: reduce) { .acct-btn:hover:not(:disabled), .acct-btn:active:not(:disabled) { transform: none; } }
+.tb-acct .tb-head { margin: 0 0 1em 0.32em; }
+.acct-form label { margin: 0 0 -0.4em 0; font-size: 0.7em; opacity: 1; }
+.acct-note { margin: 0.3em 0 0; }
+.acct-name, .acct-mail, .acct-msg { margin-left: 0; margin-right: 0; }
+
+/* Sign-in box, calmer: small text, an empty email box, and a flat button that stays still (hover only darkens it) */
+.acct-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* still read out by screen readers, just not shown */
+.tb-acct .tb-head { margin-bottom: 0.8em; }
+.acct-form input { font-size: 12px; padding: 0.8em 1em; }
+.acct-btn, .acct-quiet { box-shadow: none; font-size: 0.7em; min-height: 44px; transition: background-color 0.15s; }
+.acct-btn:hover:not(:disabled), .acct-btn:active:not(:disabled) { transform: none; box-shadow: none; background: color-mix(in srgb, var(--strawberry) 88%, #000); }
+.acct-quiet:hover:not(:disabled), .acct-quiet:active:not(:disabled) { background: color-mix(in srgb, var(--peanut) 88%, #000); }
+.acct-note { font-size: 0.6em; }
+@media (pointer: coarse) { .acct-form input { font-size: 16px; } } /* phones zoom in on anything smaller */
+
+/* Sign-in: "Your email" is shown again, and the button is a small arrow beside the empty box */
+.acct-form label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; margin: 0 0 -0.3em 0; font-size: 0.7em; }
+.acct-row { display: flex; gap: 0.5em; align-items: stretch; }
+.acct-row input { flex: 1; min-width: 0; }
+.acct-go { flex: none; width: 44px; min-height: 44px; margin: 0; padding: 0; display: grid; place-items: center; border-radius: 14px; }
+.acct-go svg { width: 1.3em; height: 1.3em; }
+
+/* "Your email" is the sign-in box's heading, in paper-cut lettering like the site's titles */
+.acct-form .acct-title { font-size: 1.7em; line-height: 1; font-weight: 700; text-transform: uppercase; margin: 0 0 0.2em; opacity: 1; }
+.acct-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.acct-cut { display: inline-block; }
+.tb-acct .tb-head[hidden] { display: none; }
+
+/* Sign in opens in the middle of the screen, over a soft dim. Tapping the dim (or Escape) closes it. */
+.tb-layer .tb-pop.tb-acct { position: fixed; top: 50%; left: 50% !important; translate: -50% -50%; width: 19em; transform-origin: center; }
+.tb-layer:has(.tb-acct:not([hidden]))::before { content: ""; position: fixed; inset: 0; background: rgba(70, 55, 33, 0.35); pointer-events: auto; }
+@media (max-width: 767px) { .tb-layer .tb-pop.tb-acct { top: 50%; width: calc(100vw - 2.4rem); } }
+/* A bit bigger on computers */
+@media (min-width: 768px) {
+  .tb-layer .tb-pop.tb-acct { font-size: 1.3em; padding: 1.3em 1.1em 1.1em; }
+  .tb-acct .acct-form input { font-size: 15px; }
+  .tb-acct .acct-go { width: 52px; min-height: 52px; }
+}
+
+/* The sign-in arrow button wears the same look as the buttons on the events dashboard: yellow, small corners, brown offset shadow */
+.acct-go { background: var(--peanut); color: var(--brown); border-radius: 8px; box-shadow: 5px 5px 0 var(--brown); margin-right: 5px; }
+.acct-go:hover:not(:disabled), .acct-btn.acct-go:hover:not(:disabled) { background: #ffd95c; transform: none; box-shadow: 5px 5px 0 var(--brown); }
+.acct-go:active:not(:disabled), .acct-btn.acct-go:active:not(:disabled) { background: #ffd95c; transform: translate(2px, 2px); box-shadow: 3px 3px 0 var(--brown); }
+/* "Your email" inside the box reads like the site's subtext: Chivo Mono capitals in soft brown */
+.acct-form input::placeholder { color: var(--ink); opacity: 0.65; font-weight: 400; font-size: 0.85em; text-transform: uppercase; letter-spacing: normal; }
