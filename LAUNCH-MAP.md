@@ -188,6 +188,40 @@ A **soft launch** (one city, invited hosts, free events) can happen after Phase 
 
 ---
 
+## 5b. How someone joins a Sponty plan (owner's flow)
+
+**Where plans are browsed:** the website's Events page, under the **Sponty Plans** category (renamed from "Sponty Events"). Anyone, signed in or not, can read what the planner listed in the events dashboard. A Sponty plan has no ticket button. It has **"I'm In"** instead.
+
+**What happens when someone taps "I'm In":**
+1. **They already have a PB&J account:** they go to the **For You** page for that plan. There live the plan's updates, the planner's account and every other detail, and (once credits exist) where they buy credits and where they are admitted.
+2. **They are a guest with no account:** a sign-in pop-up appears. After they create an account they land on their **profile page**, which asks them to complete the mandatory details and shows a small prompt, "Verify your identity today to join a Sponty plan".
+3. **They may skip verifying** for now. Whenever they tap "I'm In" on any plan later, a pop-up asks them to verify first.
+4. **Signed in and verified, credits switched on:** tapping "I'm In" opens a pop-up to buy credits.
+
+**Credits (planned 3 to 6 months after launch):**
+- 1 credit per plan. Packs of **3, 6 or 10**, and people can buy another pack whenever they run out.
+- A credit is **spent only when the planner accepts** the person as a participant, never just for asking.
+- Until credits are switched on, joining a plan is free (the credit step is skipped).
+
+**Spam limit:** a person can show interest in at most **3 live plans a day**, so requests are genuine and planners can pick fairly.
+
+**Decided (owner):**
+- **Credit check:** a person needs at least 1 credit to send a request. One credit is held when they ask, charged only when the planner accepts, and given back if they are declined or the plan fills.
+- **What counts as a day:** midnight to midnight, Indian time, for the 3-a-day limit. Withdrawing a request does not give the slot back.
+- **Refunds:**
+  - The planner cancels the plan, or does not show up: every accepted participant's credit is refunded, whatever the timing.
+  - A participant who was accepted (credit spent) can cancel and get the credit back **up to 24 hours before the plan's start**.
+  - Inside that last 24 hours, or if they do not turn up, the credit is **not refunded**.
+  - A request that is still waiting (credit only held, not spent) can be withdrawn any time and the hold is released. (It still uses up that day's slot.)
+- **Expiry:** unused credits expire after a set time, 6 months or a year (to be finalised).
+
+**Still to decide:**
+- Price of each pack (3, 6, 10) and how GST is shown.
+- The final expiry period (6 months or a year).
+- Exact mandatory profile details and the ID-check service (see decision 6).
+
+---
+
 ## 6. Decisions only you can make
 1. **Payments at launch or later?** (We suggest free tickets first.)
 2. **Login methods**: phone code, email, Google? (We suggest phone + Google.)
@@ -195,6 +229,7 @@ A **soft launch** (one city, invited hosts, free events) can happen after Phase 
 4. **Who verifies host badges**: PB&J approves each host?
 5. **Commission and payout terms** for hosts (currently "to be set").
 6. **Rules for sponty plans**: age limit, public venues only, can anyone plan, or only approved planners?
+   - **Decided (owner):** to send an "I'm in" request, a person must have a PB&J account, a complete profile (mandatory details) and a passed third-party identity check. The planner then accepts each person. Anyone can browse a plan's basic details (title, area, time); the exact meeting spot and the member list stay hidden until the planner accepts. Still open: the exact mandatory-details list (suggested: name, handle, photo, phone checked by code, birthday for 18+, city) and which ID-check service.
 7. **Chat life**: how many days after the event do chats close (we suggest 7)?
 8. **Who can see who went**: public on profiles, friends only, or private by default?
 9. **Cities**: Mumbai only at launch, which next?
