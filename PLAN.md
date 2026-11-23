@@ -83,7 +83,7 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 
 ## Rules decided by the owner (15 Nov 2026): who can do what
 - **Accounts.** Every host and every Sponty planner has their own account with us. Anyone with an account can list an event through the My Events dashboard. Only the **PBJ Exclusive** badge is decided by the PB&J team.
-- **Sponty plans are events** whose event type is "Sponty Event" in the My Events dashboard. Free tickets only; the ticket is the proof of RSVP.
+- **Sponty plans are events** whose event type is "Sponty Plan" in the My Events dashboard. Free tickets only; the ticket is the proof of RSVP.
 - **One-time identity check** by a third-party service is mandatory for planners who list a plan and for people who say "interested" or "I'm in" on a plan. Until a service is connected the team marks people verified by hand.
 - **The planner decides who joins**, even for a free spot. By default they approve each person (safety). They can switch on **auto-approval** (first come, first served) when they only care that someone comes. The requests and guest list live in the My Events dashboard on each Sponty event (a Requests page with Accept and Decline, and spots left).
 - **Browsing is open.** People can search and browse events without an account. An account is recommended (and needed for Sponty plans) so payments and bookings are easy to find. Paid events can be bought as a guest.

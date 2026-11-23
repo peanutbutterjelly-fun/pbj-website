@@ -1483,7 +1483,7 @@ function setupBrowse(root) {
       <button class="ev-arrow next" aria-label="Next">→</button>
     </div>
     <div class="ev-cats"><button class="ev-arrow sm prev" aria-label="Previous">←</button>
-      <div class="ev-cats-track"><button class="on" data-cat="">All events</button><button data-cat="PBJ Exclusive Events">PBJ Exclusive Events</button><button data-cat="Sponty Events">Sponty Events</button>${cats.map((c) => `<button data-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+      <div class="ev-cats-track"><button class="on" data-cat="">All events</button><button data-cat="PBJ Exclusive Events">PBJ Exclusive Events</button><button data-cat="Sponty Plans">Sponty Plans</button>${cats.map((c) => `<button data-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
       <button class="ev-arrow sm next" aria-label="Next">→</button></div>
     <div class="ev-body">
       <aside class="ev-filters">
@@ -1527,10 +1527,10 @@ function setupBrowse(root) {
   const render = () => {
     let list = upcoming.filter((ev) => {
       const d = dateOf(ev), p = priceNum(ev.price);
-      if (state.cat && state.cat !== "PBJ Exclusive Events" && state.cat !== "Sponty Events" && ev.category !== state.cat) return false;
+      if (state.cat && state.cat !== "PBJ Exclusive Events" && state.cat !== "Sponty Plans" && ev.category !== state.cat) return false;
       // PBJ Exclusive and Sponty: only that kind of event, so the cards shuffle like with the other categories
       if (state.cat === "PBJ Exclusive Events" && ev.kind !== "exclusive") return false;
-      if (state.cat === "Sponty Events" && ev.kind !== "sponty") return false;
+      if (state.cat === "Sponty Plans" && ev.kind !== "sponty") return false;
       if (state.day === "today" && !same(d, today)) return false;
       if (state.day === "tomorrow" && !same(d, tomorrow)) return false;
       if (state.day === "weekend" && ![0, 6].includes(d.getDay())) return false;
