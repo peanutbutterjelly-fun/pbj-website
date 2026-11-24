@@ -2,7 +2,7 @@ import { createCutLetter } from "./cutword.js";
 import { welcomeGate, profileForm } from "./welcome.js";
 import { signOut } from "./auth.js";
 import { shrinkImage, uploadImage, blobToDataUrl, imageMessage, photoLinks, removeImages } from "./images.js";
-import { loadMyEvents, saveEvents, deleteEvents, liftInlineImages } from "./eventsStore.js";
+import { loadMyEvents, saveEvents, deleteEvents, liftInlineImages, eventPath } from "./eventsStore.js";
 
 // Host dashboard: "Your Events" list and the Create an Event steps.
 // Steps 0 (Event Type) and 1 (Basic Info) are built. The rest of the steps show in the bar and open a "coming next" page.
@@ -201,7 +201,7 @@ const dayLine = (e) => {
   const more = e.dateTo && e.dateTo !== e.dateFrom ? ` → ${dmy(e.dateTo)}` : "";
   return `${first}${more}${e.start && e.start.h && e.start.m ? ` · ${e.start.h}:${e.start.m}` : ""}`;
 };
-const eventLink = (e) => `peanutbutterjelly.vip/e/${e.id.replace(/^e/, "").slice(-7)}`;
+const eventLink = (e) => `${location.host}${eventPath(e)}`; // the event's real public address (shown without https://)
 const TABS = [["all", "All"], ["published", "Published"], ["cancelled", "Cancelled"], ["soldout", "Sold out"], ["draft", "Drafts"], ["past", "Past"]];
 const inTab = (e, tab) => (tab === "all" ? true : tab === "past" ? isPast(e) : !isPast(e) && statusOf(e) === tab);
 const iconSvg = {
@@ -308,12 +308,12 @@ function renderList() {
     if (what === "status") { openMenu = openMenu === `st-${e.id}` ? null : `st-${e.id}`; paint(); }
     else if (what === "kebab") { openMenu = openMenu === `k-${e.id}` ? null : `k-${e.id}`; paint(); }
     else if (what === "edit") { draft = e; location.hash = `#/create/${e.submitted ? 1 : Math.min(e.step ?? 0, STEPS.length - 1)}`; }
-    else if (what === "view") { location.href = `/event.html?id=${encodeURIComponent(e.id)}`; }
+    else if (what === "view") { location.href = eventPath(e); }
     else if (what === "flip") { const art = act.closest(".ev-card"); if (art.classList.toggle("flipped")) flipped.add(e.id); else flipped.delete(e.id); }
     else if (what === "coupons") location.hash = `#/event/${e.id}/coupons`;
     else if (what === "sales") location.hash = `#/event/${e.id}/sales`;
     else if (what === "soon") toast(`${act.dataset.what} comes later`);
-    else if (what === "copy") { try { await navigator.clipboard.writeText(`https://${eventLink(e)}`); toast("Link copied"); } catch { toast(eventLink(e)); } }
+    else if (what === "copy") { try { await navigator.clipboard.writeText(location.origin + eventPath(e)); toast("Link copied"); } catch { toast(eventLink(e)); } }
     else if (what === "dup") { const c = JSON.parse(JSON.stringify(e)); c.id = newId(); c.title = `${e.title || "Untitled event"} (copy)`; c.status = "draft"; c.submitted = false; c.step = 1; events.unshift(c); save(events); openMenu = null; paint(); toast("Event duplicated as a draft"); }
     else if (what === "del") { openMenu = null; if (await ask({ title: "Delete this event?", message: "This can't be undone.", ok: "Delete" })) { save(events.filter((x) => x.id !== e.id)); renderList(); } else paint(); }
   });

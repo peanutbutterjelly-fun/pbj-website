@@ -121,3 +121,14 @@ export async function fetchEvent(id, session = null) {
   }
   return (await rest(`select=id,status,data&id=eq.${encodeURIComponent(id)}&limit=1`))[0] || null;
 }
+
+// ---- Event addresses: /e/<name>-<id> ----
+// The name part is only for people (and it can change with the title); the id at the end is what finds the event.
+const slugOf = (title) => String(title || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/, "");
+export const eventPath = (e) => { const s = slugOf(e.title); return `/e/${s ? `${s}-` : ""}${encodeURIComponent(e.id)}`; };
+// The event id from an address like /e/sunday-linocut-social-e1x2y3 (or the older /event.html?id=e1x2y3)
+export function eventIdFromUrl(loc = location) {
+  const m = loc.pathname.match(/^\/e\/([^/]+?)\/?$/);
+  if (m) return decodeURIComponent(m[1]).split("-").pop() || null;
+  return new URLSearchParams(loc.search).get("id");
+}
