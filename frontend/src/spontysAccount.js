@@ -7,7 +7,7 @@
 // in step with the server:
 //   - a change that hasn't reached the server yet is marked "dirty", and is never overwritten by what the server says (it is sent again)
 //   - the copy remembers whose account it belongs to; signing out clears it (and the rest of this browser's Spontys data)
-import { authReady, apiReady, client, hasSavedSession, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe, onAuthChange, deleteAccount } from "./auth.js";
+import { authReady, apiReady, client, hasSavedSession, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe, onAuthChange, deleteAccount, googleButtonHtml, wireGoogle } from "./auth.js";
 import { shrinkImage, uploadImage, imageMessage, removeImages } from "./images.js";
 import { PREFIX, read, write, clearAll } from "./spontysStore.js";
 
@@ -175,14 +175,16 @@ export function initAccount({ esc, toast, onProfile }) {
       back.innerHTML = session
         ? `<div class="wd-card" role="dialog" aria-modal="true" aria-label="Your account"><h2>Signed in</h2><p class="sp-sub">${esc(session.user.email || "")}</p><p class="gt-note">Your profile is saved to your account, so it is the same on every device. Signing out clears it from this device.</p><p class="si-msg" id="si-msg" role="status" hidden></p><div class="wd-btns"><button type="button" class="btn small ghost" data-close>Close</button><button type="button" class="btn small" data-out>Sign out</button></div></div>`
         : `<form class="wd-card" role="dialog" aria-modal="true" aria-label="Sign in" novalidate><h2>Sign in</h2><p class="gt-note">We'll email you a link. Tap it and you're in. No password to remember.</p>
+            ${googleButtonHtml()}
             <label class="si-f"><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required /></label>
             <p class="si-msg" id="si-msg" role="status" ${msg ? "" : "hidden"}>${esc(msg)}</p>
             <div class="wd-btns"><button type="button" class="btn small ghost" data-close>Cancel</button><button type="submit" class="btn small" id="si-send">Send link</button></div></form>`;
     };
-    draw(); draws.add(draw);
-    document.body.append(back);
     const say2 = (t, tone = "") => { const m = back.querySelector("#si-msg"); if (!m) return; m.textContent = t; m.dataset.tone = tone; m.hidden = !t; };
-    const close = () => { document.removeEventListener("keydown", onKey); draws.delete(draw); back.classList.remove("show"); setTimeout(() => back.remove(), 200); };
+    const drawAndWire = () => { draw(); wireGoogle(back, location.pathname, (t) => say2(t, "bad")); };
+    drawAndWire(); draws.add(drawAndWire);
+    document.body.append(back);
+    const close = () => { document.removeEventListener("keydown", onKey); draws.delete(drawAndWire); back.classList.remove("show"); setTimeout(() => back.remove(), 200); };
     const onKey = (e) => { if (e.key === "Escape") close(); };
     document.addEventListener("keydown", onKey);
     back.addEventListener("click", async (e) => {

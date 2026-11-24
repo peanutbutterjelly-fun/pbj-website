@@ -106,3 +106,37 @@ export async function deleteAccount(session) {
   if (!res.ok && res.status !== 404) throw new Error(`me-${res.status}`);
   try { await sb.auth.signOut({ scope: "local" }); } catch { /* the login is already gone on the server */ }
 }
+
+// ---- "Continue with Google" ----
+// The button stays hidden until Supabase has Google switched on (Authentication > Sign In / Providers), so nothing looks
+// broken before that's set up. Supabase says which sign-in ways are on at /auth/v1/settings (public, needs only the publishable key).
+let providersP;
+export const providers = () =>
+  (providersP ??= authReady()
+    ? fetch(`${SB_URL}/auth/v1/settings`, { headers: { apikey: SB_KEY } }).then((r) => (r.ok ? r.json() : {})).then((s) => s.external || {}).catch(() => ({}))
+    : Promise.resolve({}));
+
+export async function signInWithGoogle(next = location.pathname) {
+  const sb = await client();
+  try { localStorage.setItem(NEXT, next); } catch { /* private mode: Google brings them back to the page it was sent */ }
+  return sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + next } });
+}
+
+const G_LOGO = `<svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>`;
+/** The button and the "or" line under it, hidden until Google is switched on. Put it at the top of a sign-in form. */
+export const googleButtonHtml = () =>
+  `<div class="g-wrap" data-google hidden><button type="button" class="g-btn">${G_LOGO}<span>Continue with Google</span></button><p class="g-or"><span>or use your email</span></p></div>`;
+/** Shows the button when Google is on, and starts the Google sign-in when tapped. say(text) shows a problem. */
+export function wireGoogle(root, next, say = () => {}) {
+  const wrap = root.querySelector("[data-google]");
+  if (!wrap) return;
+  providers().then((p) => { if (p.google) wrap.hidden = false; });
+  wrap.querySelector("button").addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    try {
+      const { error } = await signInWithGoogle(next);
+      if (error) { say("Google sign-in isn't working just now. Use your email instead."); b.disabled = false; }
+      // on success the browser goes to Google, then comes back signed in
+    } catch { say("Couldn't reach the sign-in service. Check your connection and try again."); b.disabled = false; }
+  });
+}

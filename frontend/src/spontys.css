@@ -1145,3 +1145,13 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 .sp-acct { line-height: 1.2; letter-spacing: 0; }
 .dash-nav { align-items: center; }
 .wd-card .btn.danger { background: var(--strawberry); color: var(--cream); }
+
+/* "Continue with Google" (auth.js googleButtonHtml), hidden until Google sign-in is switched on in Supabase */
+.g-wrap[hidden] { display: none; }
+.g-btn { display: flex; align-items: center; justify-content: center; gap: 0.7em; width: 100%; min-height: 44px; padding: 0.6em 1.2em; border: 1.5px solid var(--brown, #463721); border-radius: 999px; background: #fff; color: #463721; font: inherit; text-transform: none; cursor: pointer; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.g-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.g-btn:disabled { opacity: 0.6; cursor: default; }
+.g-btn:focus-visible { outline: 2px solid var(--brown, #463721); outline-offset: 2px; }
+.g-or { display: flex; align-items: center; gap: 0.8em; margin: 0.9em 0 0.6em; font-size: 0.85em; opacity: 0.7; }
+.g-or::before, .g-or::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.35; }
+@media (prefers-reduced-motion: reduce) { .g-btn { transition: none; } .g-btn:hover:not(:disabled) { transform: none; } }
