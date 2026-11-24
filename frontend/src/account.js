@@ -1,6 +1,6 @@
 // "[ Sign in ]" in the top bar opens a small card: type your email, we send a link, tapping it brings you back signed in.
 // Once signed in, the card says hello and links to your dashboard (or to "Finish your profile" until the welcome steps are done).
-import { authReady, client, hasSavedSession, cameFromLink, sendLink, signOut, takeNext, fetchMe } from "./auth.js";
+import { googleButtonHtml, wireGoogle, authReady, client, hasSavedSession, cameFromLink, sendLink, signOut, takeNext, fetchMe } from "./auth.js";
 
 export function setupAccount() {
   const item = document.querySelector('.tb-item[data-menu="account"]');
@@ -23,6 +23,9 @@ export function setupAccount() {
     msg.dataset.tone = tone;
     msg.hidden = !text;
   }
+
+  form.insertAdjacentHTML("afterbegin", googleButtonHtml());
+  btn.addEventListener("click", () => wireGoogle(form, location.pathname, (t) => say(t, "bad")), { once: true }); // asks Supabase only once the card is opened
 
   let activeUser = null; // whose details the card is showing; a late answer for anyone else is ignored
 
