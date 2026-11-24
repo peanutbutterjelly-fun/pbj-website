@@ -1,7 +1,7 @@
 // The door to the host dashboard: sign in with an email link, then (the first time only) tell us who you are.
 // welcomeGate() resolves with { session, me } once both are done. The profile page (#/profile) reuses the same form.
 import { shrinkImage, uploadImage, imageMessage, removeImages } from "./images.js";
-import { authReady, client, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe } from "./auth.js";
+import { authReady, client, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe, googleButtonHtml, wireGoogle } from "./auth.js";
 
 // The kinds of hosts from PLAN.md (free listings are for everyday people with a spare ticket or a group plan)
 export const HOST_KINDS = [
@@ -63,6 +63,7 @@ function signInScreen(app, after, linkError) {
       <div class="create-head"><h1 class="cut">Sign in to list your event</h1>
         <p>No password. We email you a link, you tap it, and you're in.</p></div>
       <form class="card welcome-card" novalidate>
+        ${googleButtonHtml()}
         <div class="field"><label for="w-email">Your email <span class="req">*</span></label>
           <input id="w-email" class="box" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" maxlength="200" /></div>
         <p class="welcome-msg" role="status" aria-live="polite"></p>
@@ -71,6 +72,7 @@ function signInScreen(app, after, linkError) {
     after();
     const form = app.querySelector("form"), input = form.querySelector("input"), go = form.querySelector("button"), msg = form.querySelector(".welcome-msg");
     const say = (t, tone = "") => { msg.textContent = t; msg.dataset.tone = tone; };
+    wireGoogle(form, "/dashboard.html", (t) => say(t, "bad"));
     if (linkError) say(linkError.includes("expired") ? "That link has expired. Ask for a new one." : linkError, "bad");
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
