@@ -1,6 +1,6 @@
-// One event's own page (/event.html?id=...). Reads the event from the database (src/eventsStore.js): anyone can open a listed event,
+// One event's own page (/e/<name>-<id>; the older /event.html?id=<id> still works). Reads the event from the database (src/eventsStore.js): anyone can open a listed event,
 // and the host can also preview their own drafts. Everything the host typed is escaped or cleaned before it goes on the page.
-import { fetchEvent, fetchListedEvents, safeImg as remoteImg, LISTED } from "./eventsStore.js";
+import { fetchEvent, fetchListedEvents, safeImg as remoteImg, LISTED, eventPath, eventIdFromUrl } from "./eventsStore.js";
 import { currentSession, authReady } from "./auth.js";
 const app = document.getElementById("app");
 // Photos: plain web links only. A local copy with no database keeps the host's own photos inline (data:), so those are allowed there.
@@ -59,7 +59,7 @@ const clock = (t) => { const h = Number(t?.h); return Number.isFinite(h) && t?.h
 
 // The event in the address. Without the database (a local copy with no keys), the dashboard's own browser copy is used, as before.
 async function load() {
-  const id = new URLSearchParams(location.search).get("id");
+  const id = eventIdFromUrl();
   if (!authReady()) {
     try { const e = (JSON.parse(localStorage.getItem("pbj-host-events")) || []).find((x) => x.id === id); return e ? { ...e, mine: true } : null; } catch { return null; }
   }
@@ -156,7 +156,7 @@ function similar(e, all = []) {
   if (!rest.length) return "";
   const card = (x) => {
     const [y, m, d] = x.dateFrom.split("-").map(Number);
-    return `<a class="ep-card" href="/event.html?id=${encodeURIComponent(x.id)}"><div class="ep-card-img" style="background-image:url('${esc(safeImg(x.images.filter(Boolean)[0]))}')"></div><b>${esc(x.title || "Untitled event")}</b><small>${d} ${MONTHS[m - 1]} ${y}${x.category ? ` · ${esc(x.category)}` : ""}</small></a>`;
+    return `<a class="ep-card" href="${eventPath(x)}"><div class="ep-card-img" style="background-image:url('${esc(safeImg(x.images.filter(Boolean)[0]))}')"></div><b>${esc(x.title || "Untitled event")}</b><small>${d} ${MONTHS[m - 1]} ${y}${x.category ? ` · ${esc(x.category)}` : ""}</small></a>`;
   };
   return `<section class="ep-sec"><h2>More like this</h2><div class="ep-more">${rest.slice(0, 4).map(card).join("")}</div></section>`;
 }
@@ -288,6 +288,8 @@ const othersP = NO_DB ? Promise.resolve(localListed()) : fetchListedEvents().cat
 load()
   .then((ev) => {
     if (!ev) return missing();
+    // show the event's own tidy address (its current name), whichever link was used to get here
+    if (location.pathname !== eventPath(ev)) history.replaceState(null, "", eventPath(ev) + location.hash);
     show(ev);
     othersP.then((others) => { const box = app.querySelector("#ep-similar"); if (box) box.innerHTML = similar(ev, others); });
   })
