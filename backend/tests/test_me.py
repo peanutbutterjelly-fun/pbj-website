@@ -217,3 +217,11 @@ def test_values_the_database_refuses_are_a_422_not_a_crash(client):
         db.fail_with = err
         r = c.patch("/api/me", json={"full_name": "Asha"}, headers=auth_header())
         assert r.status_code == 422
+
+
+def test_delete_needs_login_and_the_typed_word(client):
+    c, _ = client
+    assert c.request("DELETE", "/api/me", json={"confirm": "DELETE"}).status_code == 401
+    for body in [None, {}, {"confirm": "delete"}, {"confirm": "yes"}]:
+        r = c.request("DELETE", "/api/me", json=body, headers={"Authorization": f"Bearer {token()}"})
+        assert r.status_code == 422, body
