@@ -305,12 +305,8 @@ function renderSettings() {
   app.querySelector("#sp-out").textContent = account.isSignedIn() ? "Account and sign out" : account.configured() ? "Sign in" : "Sign in (not connected yet)";
   const del = app.querySelector("#sp-del");
   del.addEventListener("click", () => {
-    // Signed in: the account lives on our server, which can't delete it by itself yet, so this sends us a request by email
-    if (account.isSignedIn()) {
-      if (!del.dataset.sure) { del.dataset.sure = "1"; del.textContent = "Tap again to email us a deletion request"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete account"; }, 4000); return; }
-      location.href = "mailto:hello@peanutbutterjelly.vip?subject=Delete%20my%20PB%26J%20account&body=Please%20delete%20my%20account%20(" + encodeURIComponent(account.email()) + ").";
-      toast("We've opened an email asking us to delete your account. It's a request: we delete it and reply within a few days"); return;
-    }
+    // Signed in: the account lives on our server; deleting it there needs typing DELETE first
+    if (account.isSignedIn()) { account.deleteForGood(); return; }
     if (del.dataset.sure) { clearAll(); toast("Everything cleared"); location.hash = "#/profile"; route(); }
     else { del.dataset.sure = "1"; del.textContent = "Tap again to delete everything"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete account"; }, 4000); }
   });

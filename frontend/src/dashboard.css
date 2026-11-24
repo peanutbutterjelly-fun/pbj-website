@@ -1660,3 +1660,8 @@ select.box { appearance: none; -webkit-appearance: none; background-image: url("
 .w-photo-row .btn.small { min-height: 44px; }
 .w-pick.is-busy { opacity: 0.5; pointer-events: none; }
 .w-unpick[hidden] { display: none; }
+/* Delete my account (profile page) */
+.w-danger { margin-top: 1.6em; }
+.w-danger h2 { font-size: calc(var(--h) * 0.45); margin-bottom: 0.6em; color: var(--jam); }
+.w-danger p { text-transform: none; line-height: 1.5; }
+.w-del-go { background: var(--jam); }

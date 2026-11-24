@@ -81,3 +81,28 @@ export async function saveMe(session, changes) {
   if (!res.ok) throw await problem(res);
   return res.json();
 }
+
+// ---- Deleting the account (India's DPDP Act: people can erase their data) ----
+/** Deletes the signed-in person's account for good: their photos first (storage only lets people delete their own folder),
+ *  then the account and everything linked to it on the server, then the sign-in on this device. Throws if the server refused. */
+export async function deleteAccount(session) {
+  if (!API) throw new Error("no-api");
+  const sb = await client();
+  const bucket = sb.storage.from("images");
+  for (const kind of ["profile", "events", "logos"]) {
+    const dir = `${session.user.id}/${kind}`;
+    for (let round = 0; round < 50; round++) { // 100 files at a time
+      const { data, error } = await bucket.list(dir, { limit: 100 });
+      if (error || !data?.length) break;
+      const { error: removeError } = await bucket.remove(data.map((f) => `${dir}/${f.name}`));
+      if (removeError || data.length < 100) break;
+    }
+  }
+  const res = await fetch(`${API}/api/me`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: "DELETE" }),
+  });
+  if (!res.ok && res.status !== 404) throw new Error(`me-${res.status}`);
+  try { await sb.auth.signOut({ scope: "local" }); } catch { /* the login is already gone on the server */ }
+}
