@@ -1,7 +1,7 @@
 // The door to the host dashboard: sign in with an email link, then (the first time only) tell us who you are.
 // welcomeGate() resolves with { session, me } once both are done. The profile page (#/profile) reuses the same form.
 import { shrinkImage, uploadImage, imageMessage, removeImages } from "./images.js";
-import { authReady, client, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe, googleButtonHtml, wireGoogle } from "./auth.js";
+import { authReady, client, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe, deleteAccount, googleButtonHtml, wireGoogle } from "./auth.js";
 
 // The kinds of hosts from PLAN.md (free listings are for everyday people with a spare ticket or a group plan)
 export const HOST_KINDS = [
@@ -121,8 +121,19 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
         <label class="check"><input type="checkbox" id="w-call" ${me.wants_call ? "checked" : ""} /><span>I'm keen to be a PB&amp;J pilot host. Book me a quick call.</span></label>
         <p class="welcome-msg" role="status" aria-live="polite"></p>
         <div class="nav">${first ? `<button class="btn ghost" type="button" data-out>Sign out</button>` : `<a class="btn ghost" href="#/">Back</a>`}<button class="btn" type="submit">${first ? "Take me to my dashboard" : "Save"}</button></div>
-      </form></div>`;
+      </form>
+      ${first ? "" : `<section class="card welcome-card w-danger">
+        <h2>Delete my account</h2>
+        <p>This deletes your account for good: your profile and photo, the events you host (with their guest lists and chats), your tickets and anything you sent us while signed in. It can't be undone.</p>
+        <button type="button" class="btn ghost" data-del-open>Delete my account</button>
+        <div class="w-del" hidden>
+          <div class="field"><label for="w-del-word">Type DELETE to confirm</label><input id="w-del-word" class="box" autocomplete="off" autocapitalize="characters" spellcheck="false" /></div>
+          <p class="welcome-msg" role="status" aria-live="polite"></p>
+          <div class="nav"><button type="button" class="btn ghost" data-del-cancel>Keep my account</button><button type="button" class="btn w-del-go" data-del-go disabled>Delete for good</button></div>
+        </div>
+      </section>`}</div>`;
     after();
+    wireDelete(app, session);
     const form = app.querySelector("form"), msg = form.querySelector(".welcome-msg"), go = form.querySelector("[type=submit]");
     const $ = (id) => form.querySelector("#" + id);
     // The photo: uploading locks the picker (so two uploads can't race), and photos that end up unused are deleted
@@ -181,5 +192,28 @@ export function profileForm(app, after, session, me, { first = false } = {}) {
       }
     });
     if (matchMedia("(pointer: fine)").matches && !me.full_name) $("w-name").focus({ preventScroll: true });
+  });
+}
+
+// "Delete my account" on the profile page: typing DELETE unlocks the button, then the account is erased and you land on the home page
+function wireDelete(app, session) {
+  const box = app.querySelector(".w-danger");
+  if (!box) return;
+  const panel = box.querySelector(".w-del"), word = box.querySelector("#w-del-word"), go = box.querySelector("[data-del-go]"), msg = box.querySelector(".welcome-msg");
+  const say = (t, tone = "") => { msg.textContent = t; msg.dataset.tone = tone; };
+  box.querySelector("[data-del-open]").addEventListener("click", (e) => { e.currentTarget.hidden = true; panel.hidden = false; word.focus(); });
+  box.querySelector("[data-del-cancel]").addEventListener("click", () => { panel.hidden = true; word.value = ""; go.disabled = true; say(""); box.querySelector("[data-del-open]").hidden = false; });
+  word.addEventListener("input", () => { go.disabled = word.value.trim().toUpperCase() !== "DELETE"; });
+  go.addEventListener("click", async () => {
+    go.disabled = true; word.disabled = true; say("Deleting your account…");
+    try {
+      await deleteAccount(session);
+      try { localStorage.removeItem("pbj-host-events"); } catch { /* nothing kept */ }
+      say("Your account has been deleted. Taking you to the home page…", "good");
+      setTimeout(() => location.replace("/"), 2200);
+    } catch {
+      say("Couldn't delete your account just now. Check your connection and try again, or email hello@peanutbutterjelly.vip.", "bad");
+      go.disabled = false; word.disabled = false;
+    }
   });
 }

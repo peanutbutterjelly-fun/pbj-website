@@ -1144,6 +1144,7 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 @media (max-width: 767px) { .si-nudge { grid-template-columns: 1fr; } .si-nudge .btn { justify-self: start; } }
 .sp-acct { line-height: 1.2; letter-spacing: 0; }
 .dash-nav { align-items: center; }
+.wd-card .btn.danger { background: var(--strawberry); color: var(--cream); }
 
 /* "Continue with Google" (auth.js googleButtonHtml), hidden until Google sign-in is switched on in Supabase */
 .g-wrap[hidden] { display: none; }

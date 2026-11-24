@@ -1660,6 +1660,11 @@ select.box { appearance: none; -webkit-appearance: none; background-image: url("
 .w-photo-row .btn.small { min-height: 44px; }
 .w-pick.is-busy { opacity: 0.5; pointer-events: none; }
 .w-unpick[hidden] { display: none; }
+/* Delete my account (profile page) */
+.w-danger { margin-top: 1.6em; }
+.w-danger h2 { font-size: calc(var(--h) * 0.45); margin-bottom: 0.6em; color: var(--jam); }
+.w-danger p { text-transform: none; line-height: 1.5; }
+.w-del-go { background: var(--jam); }
 
 /* "Continue with Google" (auth.js googleButtonHtml), hidden until Google sign-in is switched on in Supabase */
 .g-wrap[hidden] { display: none; }
@@ -1670,3 +1675,4 @@ select.box { appearance: none; -webkit-appearance: none; background-image: url("
 .g-or { display: flex; align-items: center; gap: 0.8em; margin: 0.9em 0 0.6em; font-size: 0.85em; opacity: 0.7; }
 .g-or::before, .g-or::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.35; }
 @media (prefers-reduced-motion: reduce) { .g-btn { transition: none; } .g-btn:hover:not(:disabled) { transform: none; } }
+.w-danger [hidden] { display: none; } /* (.btn sets display, which would otherwise beat the hidden attribute) */

@@ -7,7 +7,7 @@
 // in step with the server:
 //   - a change that hasn't reached the server yet is marked "dirty", and is never overwritten by what the server says (it is sent again)
 //   - the copy remembers whose account it belongs to; signing out clears it (and the rest of this browser's Spontys data)
-import { authReady, apiReady, client, hasSavedSession, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe, onAuthChange, googleButtonHtml, wireGoogle } from "./auth.js";
+import { authReady, apiReady, client, hasSavedSession, cameFromLink, sendLink, signOut, takeNext, fetchMe, saveMe, onAuthChange, deleteAccount, googleButtonHtml, wireGoogle } from "./auth.js";
 import { shrinkImage, uploadImage, imageMessage, removeImages } from "./images.js";
 import { PREFIX, read, write, clearAll } from "./spontysStore.js";
 
@@ -212,6 +212,37 @@ export function initAccount({ esc, toast, onProfile }) {
     requestAnimationFrame(() => { back.classList.add("show"); (back.querySelector("input") || back.querySelector("button")).focus({ preventScroll: true }); });
   }
 
+  /** "Delete account" while signed in: typing DELETE unlocks it; then the account is erased on the server and this device forgets it. */
+  function deleteForGood() {
+    if (!session) return;
+    const back = document.createElement("div"); back.className = "wd-back si";
+    back.innerHTML = `<form class="wd-card" role="dialog" aria-modal="true" aria-label="Delete your account" novalidate><h2>Delete your account?</h2>
+      <p class="gt-note">This deletes your account for good: your profile and photo, plans and events you host, your tickets and chats. It can't be undone.</p>
+      <label class="si-f"><span>Type DELETE to confirm</span><input name="word" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>
+      <p class="si-msg" role="status" hidden></p>
+      <div class="wd-btns"><button type="button" class="btn small ghost" data-close>Keep it</button><button type="submit" class="btn small danger" disabled>Delete for good</button></div></form>`;
+    document.body.append(back);
+    const f = back.querySelector("form"), go = f.querySelector("[type=submit]"), m = f.querySelector(".si-msg");
+    const close = () => { document.removeEventListener("keydown", onKey); back.classList.remove("show"); setTimeout(() => back.remove(), 200); };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-close]")) close(); });
+    f.word.addEventListener("input", () => { go.disabled = f.word.value.trim().toUpperCase() !== "DELETE"; });
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (go.disabled) return;
+      go.disabled = true; f.word.disabled = true; m.hidden = false; m.dataset.tone = ""; m.textContent = "Deleting your account…";
+      try {
+        await deleteAccount(session);
+        forget(); close(); toast("Your account has been deleted");
+      } catch {
+        m.dataset.tone = "bad"; m.textContent = "Couldn't delete your account just now. Check your connection and try again.";
+        go.disabled = false; f.word.disabled = false;
+      }
+    });
+    requestAnimationFrame(() => { back.classList.add("show"); f.word.focus({ preventScroll: true }); });
+  }
+
   /** After signing out: this device forgets the profile and the rest of the account's Spontys data, so the next person doesn't see it. */
   function forget() { clearAll(); session = null; label(); onProfile?.(); }
 
@@ -247,5 +278,5 @@ export function initAccount({ esc, toast, onProfile }) {
     btn?.addEventListener("pointerenter", () => start().catch(() => {}), { once: true });
   }
 
-  return { isSignedIn: () => Boolean(session), email: () => session?.user.email || "", openSheet, save, pull, nudge, configured, ready: () => ready };
+  return { isSignedIn: () => Boolean(session), email: () => session?.user.email || "", openSheet, deleteForGood, save, pull, nudge, configured, ready: () => ready };
 }
