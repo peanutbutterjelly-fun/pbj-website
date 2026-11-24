@@ -5,7 +5,7 @@ import { Flip } from "gsap/Flip";
 import { createCutLetter } from "./cutword.js";
 import { saveLead } from "./leads.js";
 import { currentSession, fetchMe } from "./auth.js";
-import { fetchListedEvents, safeImg, LISTED } from "./eventsStore.js";
+import { fetchListedEvents, safeImg, LISTED, eventPath } from "./eventsStore.js";
 import { EVENTS } from "./eventsData.js";
 
 gsap.registerPlugin(Flip, ScrollTrigger, Observer);
@@ -1381,7 +1381,7 @@ function poster() { return emptyCard(); }
 function card(ev) { return ev.real ? `<a class="ev-card-b real" href="${eventUrl(ev)}">${coverCard(ev)}</a>` : `<div class="ev-card-b">${emptyCard()}</div>`; }
 
 // A real event: its cover on the poster, then category, title, date and price (the belt shows the poster with the title on it)
-const eventUrl = (ev) => `/event.html?id=${encodeURIComponent(ev.id)}`;
+const eventUrl = (ev) => eventPath(ev);
 function coverCard(ev, onBelt = false) {
   const poster = `<div class="ev-poster ev-cover" style="background-image:url('${esc(safeImg(ev.cover))}')"${onBelt ? ` role="img" aria-label="${esc(ev.title)}"` : ""}></div>`;
   if (onBelt) return poster;

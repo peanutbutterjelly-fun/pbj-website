@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from psycopg import Connection, errors
 from pydantic import BaseModel, Field, field_validator
 
@@ -108,3 +108,22 @@ def update_me(body: ProfileUpdate, user: LoggedIn, db: Db) -> dict:
         except errors.UniqueViolation:
             raise HTTPException(409, "That handle is taken") from None
     return read_me(user, db)
+
+
+class DeleteAccount(BaseModel):
+    # Typed by the person in the website, so an account is never deleted by a slip or a stray request
+    confirm: Literal["DELETE"]
+
+
+@router.delete("", status_code=204)
+def delete_me(body: DeleteAccount, user: LoggedIn, db: Db) -> Response:
+    """Deletes the logged-in person's account for good (India's DPDP Act: the right to erasure).
+
+    Removing the login removes everything linked to it: the profile, events they host (with those events' private details,
+    tickets and chats), their own tickets, chat memberships and messages. Sign-ups and forms they sent while signed in are
+    deleted too. Their photos are removed from storage by the website just before it calls this (storage only lets them
+    delete their own folder).
+    """
+    db.execute("delete from public.leads where user_id = %s", (user.id,))
+    db.execute("delete from auth.users where id = %s", (user.id,))
+    return Response(status_code=204)

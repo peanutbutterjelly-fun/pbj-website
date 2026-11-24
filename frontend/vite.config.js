@@ -2,7 +2,19 @@ import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
 // Two pages: the main site and the scroll-flip magazine
+// Event addresses (/e/<name>-<id>) are served by event.html, like the rewrite in vercel.json does on the live site
+const eventAddresses = {
+  name: "event-addresses",
+  configureServer(server) {
+    server.middlewares.use((req, _res, next) => { if (/^\/e\/[^/]+\/?(\?|$)/.test(req.url)) req.url = "/event.html"; next(); });
+  },
+  configurePreviewServer(server) {
+    server.middlewares.use((req, _res, next) => { if (/^\/e\/[^/]+\/?(\?|$)/.test(req.url)) req.url = "/event.html"; next(); });
+  },
+};
+
 export default defineConfig({
+  plugins: [eventAddresses],
   // The 3D letter pages load this file late; naming it here makes the dev server prepare it at start-up, so the
   // letters never fail with "Outdated Optimize Dep" after a restart
   optimizeDeps: { include: ["three", "three/examples/jsm/environments/RoomEnvironment.js", "three/examples/jsm/utils/BufferGeometryUtils.js"] },

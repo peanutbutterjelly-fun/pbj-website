@@ -1,3 +1,4 @@
 {
-  "ignoreCommand": "bash scripts/vercel-ignore.sh"
+  "ignoreCommand": "bash scripts/vercel-ignore.sh",
+  "rewrites": [{ "source": "/e/:path*", "destination": "/event.html" }]
 }
