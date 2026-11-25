@@ -4,3 +4,5 @@ export const guestPays = (t) => (t && t.paid ? (Number(t.price) || 0) * (1 + rat
 export const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 // true when this ticket has GST on top of its price
 export const hasGst = (t) => !!(t && t.paid && rate(t.gst) > 0);
+// The pieces behind the guest's price, for the "Incl. GST" breakdown
+export const gstParts = (t) => { const base = Number(t?.price) || 0, r = rate(t?.gst); return { base, tax: base * r, total: base * (1 + r), pct: Math.round(r * 10000) / 100, label: (t?.gst || "").trim() }; };

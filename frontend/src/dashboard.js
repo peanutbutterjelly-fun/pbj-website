@@ -1,5 +1,6 @@
 import { createCutLetter } from "./cutword.js";
 import { restoreDrafts, backupDrafts } from "./devBackup.js";
+import { renderHostChat, renderCheckIn, syncEventChat } from "./hostChat.js";
 
 // Host dashboard: "Your Events" list and the Create an Event steps.
 // Steps 0 (Event Type) and 1 (Basic Info) are built. The rest of the steps show in the bar and open a "coming next" page.
@@ -41,7 +42,7 @@ const app = document.getElementById("app");
 if (location.search.includes("inline")) document.documentElement.classList.add("inline");
 
 const load = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
-const save = (list) => { try { localStorage.setItem(STORE, JSON.stringify(list)); backupDrafts(list); } catch { toast("Couldn't save: too many or too large images. Remove a few."); } };
+const save = (list) => { try { const prev = load(); localStorage.setItem(STORE, JSON.stringify(list)); backupDrafts(list); list.forEach((e) => syncEventChat(prev.find((o) => o.id === e.id), e, dayLine)); } catch { toast("Couldn't save: too many or too large images. Remove a few."); } };
 const newId = () => "e" + Date.now().toString(36);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const textLen = (html) => { const d = document.createElement("div"); d.innerHTML = html; return d.textContent.trim().length; };
@@ -63,14 +64,15 @@ function toast(msg) {
 function ask({ title, message = "", input, ok = "OK" }) {
   return new Promise((resolve) => {
     const back = document.createElement("div");
-    back.className = "modal-back";
+    back.className = "modal-back centered";
     back.innerHTML = `<div class="modal small" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-      <div class="modal-head"><div><h3>${esc(title)}</h3></div><button type="button" class="modal-x" data-no aria-label="Close">×</button></div>
+      <div class="modal-head"><div><h3 class="cut">${esc(title)}</h3></div><button type="button" class="modal-x" data-no aria-label="Close">×</button></div>
       <div class="modal-body">${message ? `<p class="ask-msg">${esc(message)}</p>` : ""}${input ? `<input class="box" id="ask-in" type="text" placeholder="${esc(input.placeholder || "")}" />` : ""}</div>
       <div class="modal-foot"><button type="button" class="btn ghost" data-no>Cancel</button><button type="button" class="btn ask-ok" data-yes>${esc(ok)}</button></div></div>`;
     document.body.append(back);
     const field = back.querySelector("#ask-in");
-    const done = (v) => { document.removeEventListener("keydown", onKey); back.remove(); resolve(v); };
+    const headLetters = cutHeadings(back);
+    const done = (v) => { headLetters.forEach((l) => l.dispose()); document.removeEventListener("keydown", onKey); back.remove(); resolve(v); };
     const yes = () => done(field ? field.value.trim() || null : true);
     const onKey = (e) => { if (e.key === "Escape") done(null); if (e.key === "Enter" && field) { e.preventDefault(); yes(); } };
     document.addEventListener("keydown", onKey);
@@ -97,7 +99,7 @@ function info(text, title = "Information") {
 }
 
 // The little (i) buttons: tap one to read what that field is for. Text is written for PB&J hosts.
-const LINK_HOST = "peanutbutterjelly.vip"; // where the custom event links live
+const LINK_HOST = "peanutbutterjelly.fun"; // where the custom event links live
 const COMMISSION_PCT = 5, COMMISSION_GST_PCT = 18; // change here if the commission changes
 const INFO_TEXT = {
   "faq": "Answer the questions guests often ask before they book, like parking, what to carry, refreshments or the cancellation and refund policy. They show on your event page.",
@@ -155,7 +157,7 @@ const dayLine = (e) => {
   const more = e.dateTo && e.dateTo !== e.dateFrom ? ` → ${dmy(e.dateTo)}` : "";
   return `${first}${more}${e.start && e.start.h && e.start.m ? ` · ${e.start.h}:${e.start.m}` : ""}`;
 };
-const eventLink = (e) => `peanutbutterjelly.vip/e/${e.id.replace(/^e/, "").slice(-7)}`;
+const eventLink = (e) => `peanutbutterjelly.fun/e/${e.id.replace(/^e/, "").slice(-7)}`;
 const TABS = [["all", "All"], ["published", "Published"], ["cancelled", "Cancelled"], ["soldout", "Sold out"], ["draft", "Drafts"], ["past", "Past"]];
 const inTab = (e, tab) => (tab === "all" ? true : tab === "past" ? isPast(e) : !isPast(e) && statusOf(e) === tab);
 const iconSvg = {
@@ -172,6 +174,7 @@ const iconSvg = {
   chev: '<path d="m6 9 6 6 6-6"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
   check: '<path d="m5 12 5 5 9-10"/>',
+  chat: '<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/>',
   flip: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
 };
 const ic = (name, size = "1.3em") => svg(iconSvg[name], size);
@@ -188,7 +191,7 @@ function qrPlaceholder(seed) {
 }
 
 function renderList() {
-  document.title = "My events — PeanutButterJelly.vip";
+  document.title = "My events — PeanutButterJelly.fun";
   const events = load();
   let tab = "all", query = "", openMenu = null;
   const flipped = new Set(); // tickets currently turned over to show the QR side
@@ -221,13 +224,16 @@ function renderList() {
               <div class="st-menu small" ${kebab ? "" : "hidden"}><button type="button" data-act="dup"><span><b>Duplicate</b></span></button><button type="button" data-act="del" class="dangerous"><span><b>Delete</b></span></button></div></div>
           </div></div>
         <div class="ev-tags"><span class="tag dark1">${esc(typeClash(e) ? "Fix event type" : TYPE_SHORT[e.type] || "No type")}</span>${(e.tickets || []).length ? `<span class="tag ${paid ? "dark2" : "free"}">${paid ? "Paid" : "Free"}</span>` : ""}${!done ? `<span class="tag soft">Step ${Math.min(e.step ?? 0, STEPS.length - 1) + 1} of ${STEPS.length}</span>` : ""}${past ? '<span class="tag soft">Past</span>' : ""}</div>
-        <div class="sold">${ic("ticket", "1.2em")}<b>0</b> sold</div>
+        ${e.type === "guestlist" ? "" : `<div class="sold">${ic("ticket", "1.2em")}<b>0</b> sold</div>`}
         ${done ? `<div class="ev-link">${ic("link", "1.1em")}<span>${eventLink(e)}</span><button type="button" data-act="copy">${ic("copy", "1.1em")}Copy</button></div>` : ""}
         <div class="ev-actions">
           ${past ? "" : `<button type="button" class="act primary" data-act="edit">${ic("edit")}${done ? "Edit" : "Continue"}</button>`}
           <button type="button" class="act" data-act="view">${ic("eye")}View event</button>
-          <button type="button" class="act outline" data-act="sales">${ic("chart")}View sales</button>
-          ${past ? "" : `<button type="button" class="act" data-act="coupons">${ic("tag")}Coupons</button>`}
+          ${e.type === "guestlist" ? "" : `<button type="button" class="act outline" data-act="sales">${ic("chart")}View sales</button>`}
+          ${done ? `<button type="button" class="act" data-act="chat">${ic("chat")}Run chat</button>` : ""}
+          ${done && e.type === "guestlist" ? `<button type="button" class="act" data-act="requests">${ic("check")}Requests</button>` : ""}
+          ${done && !past ? `<button type="button" class="act" data-act="checkin">${ic("ticket")}Check-in</button>` : ""}
+          ${past || e.type === "guestlist" ? "" : `<button type="button" class="act" data-act="coupons">${ic("tag")}Coupons</button>`}
         </div></div></div>
       <div class="tk-face tk-back"><div class="tk-bgw"><div class="tk-edge"></div><div class="tk-bg dark"></div></div>
         <div class="tk-stub qrside">${qrPlaceholder(e.id)}<span class="qr-cap">Admit one</span><small>QR code coming soon</small></div>
@@ -266,6 +272,9 @@ function renderList() {
     else if (what === "flip") { const art = act.closest(".ev-card"); if (art.classList.toggle("flipped")) flipped.add(e.id); else flipped.delete(e.id); }
     else if (what === "coupons") location.hash = `#/event/${e.id}/coupons`;
     else if (what === "sales") location.hash = `#/event/${e.id}/sales`;
+    else if (what === "chat") location.hash = `#/event/${e.id}/chat`;
+    else if (what === "requests") location.hash = `#/event/${e.id}/requests`;
+    else if (what === "checkin") location.hash = `#/event/${e.id}/checkin`;
     else if (what === "soon") toast(`${act.dataset.what} comes later`);
     else if (what === "copy") { try { await navigator.clipboard.writeText(`https://${eventLink(e)}`); toast("Link copied"); } catch { toast(eventLink(e)); } }
     else if (what === "dup") { const c = JSON.parse(JSON.stringify(e)); c.id = newId(); c.title = `${e.title || "Untitled event"} (copy)`; c.status = "draft"; c.submitted = false; c.step = 1; events.unshift(c); save(events); openMenu = null; paint(); toast("Event duplicated as a draft"); }
@@ -321,7 +330,7 @@ function persist(step) {
 
 function renderCreate(step) {
   if (!draft) draft = { id: newId(), status: "draft", type: "", tickets: [], title: "", description: "", terms: DEFAULT_TERMS, category: "", subs: [], city: "", venueStatus: "", images: [], youtube: "", step: 0 };
-  document.title = "Create an event — PeanutButterJelly.vip";
+  document.title = "Create an event — PeanutButterJelly.fun";
   app.innerHTML = `
     <button class="back" type="button" data-back>‹ Back to your events</button>
     <div class="create-head"><h1 class="cut">Create an event</h1><p>Share your event with the PBJ community.</p></div>
@@ -376,7 +385,7 @@ function stepType(host) {
       </button>`).join("")}
     </div>
     <p class="notice"><b>Important:</b> Commission is charged on the gross value of the ticket price you list. Please make sure all pricing is accurate to avoid penalties or limits on listing tickets on PBJ.</p>
-    <p class="err" id="err" style="display:none">Pick an event type to continue.</p>
+    <p class="err" id="err" style="display:none">Pick an event type to continue</p>
     <div class="nav single"><button class="btn dark" type="button" id="next">Next</button></div>`;
   host.querySelectorAll(".type").forEach((b) => b.addEventListener("click", () => {
     draft.type = b.dataset.type;
@@ -752,13 +761,13 @@ function stepBasic(host) {
       <label for="title">Event title <span class="req">*</span></label>
       <input id="title" class="box" type="text" maxlength="120" placeholder="e.g. Sunday Linocut Social at Kala Ghoda" />
       <p class="hint">Make it catchy and descriptive</p>
-      <p class="err">Give your event a title.</p>
+      <p class="err">Give your event a title</p>
     </div>
     <div class="field" id="f-desc">
       <span class="lab">Description <span class="req">*</span> <span style="font-weight:400;opacity:.55">Tell attendees what to expect</span></span>
       <div class="slot"></div>
       <p class="hint count"><span id="c-desc">0</span>/3500</p>
-      <p class="err">Tell attendees a little about the event.</p>
+      <p class="err">Tell attendees a little about the event</p>
     </div>
     <div class="field" id="f-terms">
       <span class="lab">Terms &amp; conditions <span class="opt">Optional</span></span>
@@ -825,7 +834,7 @@ function stepBasic(host) {
     const badDesc = !dLen || dLen > 3500;
     host.querySelector("#f-title").classList.toggle("bad", badTitle);
     host.querySelector("#f-desc").classList.toggle("bad", badDesc);
-    host.querySelector("#f-desc .err").textContent = dLen > 3500 ? "That's over 3500 characters. Please trim it." : "Tell attendees a little about the event.";
+    host.querySelector("#f-desc .err").textContent = dLen > 3500 ? "That's over 3500 characters. Please trim it" : "Tell attendees a little about the event";
     if (tLen > 10000) { toast("Terms are over 10000 characters"); return; }
     if (badTitle || badDesc) { host.querySelector(".bad")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     persist(2);
@@ -926,7 +935,7 @@ function stepDetails(host) {
           <ul id="catlist" role="listbox"></ul>
         </div>
       </div>
-      <p class="err">Pick a category.</p>
+      <p class="err">Pick a category</p>
     </div>
     <div class="field" id="f-subs">
       <span class="lab">Sub categories <span class="req">*</span> (up to 5)</span>
@@ -942,7 +951,7 @@ function stepDetails(host) {
         </div>
       </div>
       <p class="hint count" id="subcount"></p>
-      <p class="err">Pick at least one sub category.</p>
+      <p class="err">Pick at least one sub category</p>
     </div>
     <div class="two">
       <div class="field" id="f-city">
@@ -952,7 +961,7 @@ function stepDetails(host) {
           <ul class="combo-list" id="city-list" role="listbox" hidden></ul>
         </div>
         <p class="hint">Type 3 or more letters to search</p>
-        <p class="err">Choose a city from the list.</p>
+        <p class="err">Choose a city from the list</p>
       </div>
       <div class="field">
         <label for="venue">Venue</label>
@@ -975,7 +984,7 @@ function stepDetails(host) {
           </div>
         </div>
         <p class="hint" id="pickaddr" hidden></p>
-        <p class="err">Choose the venue.</p>
+        <p class="err">Choose the venue</p>
       </div>
       <div class="field tg-field">
         <span class="lab" aria-hidden="true">&nbsp;</span>
@@ -999,17 +1008,17 @@ function stepDetails(host) {
         <input type="file" id="files" accept="image/png,image/jpeg,image/webp" multiple hidden />
       </label>
       <div class="thumbs" id="thumbs"></div>
-      <p class="err">Add at least one image.</p>
+      <p class="err">Add at least one image</p>
     </div>
     <div class="field">
       <label for="yt">YouTube video <span class="opt">Optional</span></label>
       <input id="yt" class="box" type="url" placeholder="Enter YouTube video URL (e.g. https://www.youtube.com/watch?v=…)" />
-      <p class="err" id="yt-err" style="display:none">That doesn't look like a YouTube link.</p>
+      <p class="err" id="yt-err" style="display:none">That doesn't look like a YouTube link</p>
     </div>
     <div class="field" id="f-link">
       <span class="lab">Custom event link <span class="opt">Optional</span> ${infoBtn("link")}</span>
       <div class="box link-box"><span class="link-pre">${LINK_HOST}/e/</span><input id="slug" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="yourevent" aria-label="Custom event link" /></div>
-      <p class="err" id="slug-err">Use at least 3 letters or numbers.</p>
+      <p class="err" id="slug-err">Use at least 3 letters or numbers</p>
     </div>
     <div class="nav"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button></div>`;
 
@@ -1222,7 +1231,7 @@ function stepDetails(host) {
   const slug = $("#slug");
   slug.value = draft.slug || "";
   onInfo($("#f-link"));
-  const slugProblem = (v) => !v ? "" : v.length < 3 ? "Use at least 3 letters or numbers." : load().some((x) => x.id !== draft.id && x.slug === v) ? "That link is already taken. Try another." : "";
+  const slugProblem = (v) => !v ? "" : v.length < 3 ? "Use at least 3 letters or numbers" : load().some((x) => x.id !== draft.id && x.slug === v) ? "That link is already taken. Try another" : "";
   slug.addEventListener("input", () => {
     const v = slug.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-{2,}/g, "-").slice(0, 40);
     if (v !== slug.value) slug.value = v;
@@ -1241,7 +1250,7 @@ function stepDetails(host) {
     const checks = [["#f-cat", !!draft.category], ["#f-subs", draft.subs.length > 0], ["#f-city", !!draft.city], ["#f-media", draft.images.length > 0], ["#f-pick", draft.venueStatus !== "Decided" || !!draft.venue]];
     checks.forEach(([q, ok]) => $(q).classList.toggle("bad", !ok));
     const slugMsg = slugProblem(draft.slug || "");
-    $("#f-link").classList.toggle("bad", !!slugMsg); $("#slug-err").textContent = slugMsg || "Use at least 3 letters or numbers.";
+    $("#f-link").classList.toggle("bad", !!slugMsg); $("#slug-err").textContent = slugMsg || "Use at least 3 letters or numbers";
     const badYt = draft.youtube && !youtubeEmbed(draft.youtube);
     $("#yt-err").style.display = badYt ? "block" : "none";
     const first = host.querySelector(".bad") || (badYt && $("#yt"));
@@ -1277,12 +1286,12 @@ function stepSchedule(host) {
         <div class="cal" id="cal" role="dialog" aria-label="Choose dates" hidden></div>
       </div>
       <p class="hint">Pick the first and last day. For one day, tap it twice.</p>
-      <p class="err">Pick at least one date.</p>
+      <p class="err">Pick at least one date</p>
     </div>
     <div class="field" id="f-start">
       <span class="lab">Start time <span class="req">*</span></span>
       ${timeSelects("st")}
-      <p class="err">Choose the start time.</p>
+      <p class="err">Choose the start time</p>
     </div>
     <div class="field" id="f-end">
       <div class="lab-row"><span class="lab">End time</span>
@@ -1562,7 +1571,7 @@ function openTicketModal(type, existing, onSave) {
         <div class="pays"><span>Customer pays</span><b id="pays"></b></div>
         <button type="button" class="disc-toggle" id="disc-toggle" aria-expanded="false"><span>Add ticket discount</span><b id="disc-sign" aria-hidden="true">+</b></button>
         <div id="disc" class="disc-box" hidden>
-          <div class="field" id="df-code"><label for="dc-code">Discount code <span class="req">*</span></label><input id="dc-code" class="box caps" type="text" maxlength="20" autocomplete="off" placeholder="E.g. EARLY20" /><p class="err" id="dc-code-err">Use 3 to 20 letters or numbers.</p></div>
+          <div class="field" id="df-code"><label for="dc-code">Discount code <span class="req">*</span></label><input id="dc-code" class="box caps" type="text" maxlength="20" autocomplete="off" placeholder="E.g. EARLY20" /><p class="err" id="dc-code-err">Use 3 to 20 letters or numbers</p></div>
           <div class="field"><span class="lab">Discount value <span class="req">*</span></span>
             <div class="disc"><div class="seg" role="tablist"><button type="button" data-dtype="pct">% PCT</button><button type="button" data-dtype="inr">₹ INR</button></div><input id="dc-val" class="box" type="number" min="1" step="any" inputmode="decimal" placeholder="e.g. 20" /></div></div>
           <div class="field"><label for="dc-max">Max users <span class="req">*</span></label><input id="dc-max" class="box" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 50 (how many people can use it)" /></div>
@@ -1643,13 +1652,13 @@ function openTicketModal(type, existing, onSave) {
     $("#disc").hidden = !dsc.on; $("#disc-toggle").setAttribute("aria-expanded", dsc.on); $("#disc-sign").textContent = dsc.on ? "−" : "+";
     back.querySelectorAll("[data-dtype]").forEach((b) => b.classList.toggle("on", b.dataset.dtype === dsc.type));
     $("#dc-val").placeholder = dsc.type === "pct" ? "e.g. 20" : "e.g. 100";
-    const dup = dsc.on && dcTaken(); $("#df-code").classList.toggle("bad", dup); $("#dc-code-err").textContent = dup ? "This code is already used for this event." : "Use 3 to 20 letters or numbers.";
+    const dup = dsc.on && dcTaken(); $("#df-code").classList.toggle("bad", dup); $("#dc-code-err").textContent = dup ? "This code is already used for this event" : "Use 3 to 20 letters or numbers";
     $("#dc-hint").textContent = evFrom ? "Works on this ticket for all your event dates. Change dates and more later in Coupons." : "Pick your event dates in the Schedule step first, so the discount knows when it's valid.";
     $("#tk-save").disabled = !valid();
     $("#gs-add").disabled = !valid();
     const nd = needs(); // say what is stopping Save, instead of just greying it out
     $("#tk-need").hidden = !nd.length;
-    $("#tk-need").textContent = nd.length ? `To save, add ${nd.length > 1 ? nd.slice(0, -1).join(", ") + " and " + nd[nd.length - 1] : nd[0]}.` : "";
+    $("#tk-need").textContent = nd.length ? `To save, add ${nd.length > 1 ? nd.slice(0, -1).join(", ") + " and " + nd[nd.length - 1] : nd[0]}` : "";
     paintSlots();
   };
   // Time slots: when the event has more than one, choose which slots this ticket is sold for (quantity counts per slot)
@@ -1689,7 +1698,7 @@ function openTicketModal(type, existing, onSave) {
   // and again for the next ticket, until an organizer with bank details exists.
   let askedBank = false;
   $("#tk-price").addEventListener("focus", () => {
-    if (askedBank || !t.paid || (draft.organizers || []).length) return;
+    if (askedBank || !t.paid || (draft.organizers || []).some((o) => o.account)) return;
     askedBank = true; $("#tk-price").blur();
     bankReminder(() => close(), () => { const p = $("#tk-price"); p.focus(); p.select(); }); // "Add bank details" leaves this window; closing puts the cursor back in Price
   });
@@ -1770,6 +1779,7 @@ function stepTickets(host) {
         <span class="tkt-ico">${t.icon}</span><h3 class="cut">${t.name}</h3><p>${t.desc}</p></button>`).join("")}
     </div>
     <div class="made" id="made"></div>
+    <p class="err bk-err" id="tk-next-err" role="alert" hidden>Add at least one ticket to continue</p>
     <div class="nav three"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button><button class="btn" type="button" id="save">Save draft</button></div>`;
   cutHeadings();
   onInfo(host);
@@ -1805,7 +1815,7 @@ function stepTickets(host) {
       dropdown(row.querySelector(".m-status"), ["Live", "Coming Soon", "Sold Out"], x.status || "Live", (v) => { x.status = v; persist(4); paint(); });
       dropdown(row.querySelector(".m-enabled"), ["Enabled", "Disabled"], x.enabled === false ? "Disabled" : "Enabled", (v) => { x.enabled = v === "Enabled"; persist(4); paint(); });
     });
-    next.disabled = !draft.tickets.length;
+    if (draft.tickets.length) host.querySelector("#tk-next-err").hidden = true;
   };
   paint();
   const add = (type, existing) => openTicketModal(type, existing, (t) => {
@@ -1837,7 +1847,7 @@ function stepTickets(host) {
   saveCurrent = () => persist(4);
   host.querySelector("#prev").addEventListener("click", () => { saveCurrent(); location.hash = "#/create/3"; });
   host.querySelector("#save").addEventListener("click", () => { saveCurrent(); toast("Draft saved"); draft = null; location.hash = "#/"; });
-  next.addEventListener("click", () => { if (!draft.tickets.length) return; persist(5); location.hash = "#/create/5"; });
+  next.addEventListener("click", () => { if (!draft.tickets.length) { const e = host.querySelector("#tk-next-err"); e.hidden = false; e.scrollIntoView({ behavior: "smooth", block: "center" }); return; } persist(5); location.hash = "#/create/5"; });
 }
 
 /* ---------- Step 5: Partners & artists ---------- */
@@ -1887,7 +1897,7 @@ function openPersonModal(kind, prefill, onAdd) {
         <textarea id="pm-desc" class="box" rows="4" maxlength="500" placeholder="Describe the ${kind}: what they do, their role in this event…"></textarea>
         <p class="hint">Both name and description are required to add ${isArtist ? "an artist" : "a partner"}.</p></div>
       <div class="field links-block"><span class="lab">Links <span class="opt-note">optional</span></span>
-        <div class="link-grid">${PERSON_LINKS.map(([k, n, ph]) => `<div class="field link-field" id="lf-${k}"><label for="pm-${k}">${n}</label><input id="pm-${k}" class="box" type="text" inputmode="${k === "site" || k === "youtube" ? "url" : "text"}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${ph}" /><p class="err">That doesn't look like a ${n} link.</p></div>`).join("")}</div></div>
+        <div class="link-grid">${PERSON_LINKS.map(([k, n, ph]) => `<div class="field link-field" id="lf-${k}"><label for="pm-${k}">${n}</label><input id="pm-${k}" class="box" type="text" inputmode="${k === "site" || k === "youtube" ? "url" : "text"}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${ph}" /><p class="err">That doesn't look like a ${n} link</p></div>`).join("")}</div></div>
     </div>
     <div class="modal-foot split"><button type="button" class="btn" id="pm-add">Add ${kind}</button><button type="button" class="btn ghost" data-x>Cancel</button></div>
   </div>`;
@@ -2012,45 +2022,50 @@ function bankReminder(beforeGo, afterLater) {
     if (t) { pick = t.dataset.atype; paint(); return; }
     if (e.target === back || e.target.closest("[data-later]")) later();
   });
-  back.querySelector("#bank-go").addEventListener("click", () => { draft.accountType = pick; persist(4); if (beforeGo) beforeGo(); close(); location.hash = "#/create/6"; });
+  back.querySelector("#bank-go").addEventListener("click", () => { draft.accountType = pick; draft.wantsBank = true; persist(4); if (beforeGo) beforeGo(); close(); location.hash = "#/create/6"; });
   back.querySelector("#bank-go").focus();
 }
 
 /* ---------- Step 6: Organizer ---------- */
 // Format checks for Indian details (shape only: nothing is verified with a bank or the tax office)
 const ORG_FIELDS = [
-  { k: "email", label: "Email id", req: true, ph: "Enter email", type: "email", ok: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v), msg: "Enter a valid email address." },
-  { k: "gst", label: "GST no.", ph: "Enter GST no.", upper: true, ok: (v) => !v || /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v), msg: "A GST number has 15 characters, like 27ABCDE1234F1Z5." },
-  { k: "holder", label: "Account holder name", req: true, ph: "Account holder name", ok: (v) => v.length >= 2, msg: "Enter the name on the bank account." },
-  { k: "account", label: "Account number", req: true, ph: "Account number", digits: true, ok: (v) => /^\d{9,18}$/.test(v), msg: "An account number has 9 to 18 digits." },
-  { k: "ifsc", label: "IFSC code", req: true, ph: "Enter IFSC code", upper: true, ok: (v) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v), msg: "An IFSC code looks like HDFC0001234." },
-  { k: "pan", label: "PAN no.", req: true, ph: "Enter PAN no.", upper: true, ok: (v) => /^[A-Z]{5}\d{4}[A-Z]$/.test(v), msg: "A PAN looks like ABCDE1234F." },
-  { k: "phone", label: "Phone no.", req: true, ph: "Enter phone no.", type: "tel", digits: true, ok: (v) => /^[6-9]\d{9}$/.test(v), msg: "Enter a 10-digit mobile number." },
+  { k: "email", label: "Email id", req: true, ph: "Enter email", type: "email", ok: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v), msg: "Enter a valid email address" },
+  { k: "gst", pay: true, label: "GST no.", ph: "Enter GST no.", upper: true, ok: (v) => !v || /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v), msg: "A GST number has 15 characters, like 27ABCDE1234F1Z5" },
+  { k: "holder", label: "Account holder name", req: true, ph: "Account holder name", ok: (v) => v.length >= 2, msg: "Enter the name on the bank account" },
+  { k: "account", pay: true, label: "Account number", req: true, ph: "Account number", digits: true, ok: (v) => /^\d{9,18}$/.test(v), msg: "An account number has 9 to 18 digits" },
+  { k: "ifsc", pay: true, label: "IFSC code", req: true, ph: "Enter IFSC code", upper: true, ok: (v) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v), msg: "An IFSC code looks like HDFC0001234" },
+  { k: "pan", pay: true, label: "PAN no.", req: true, ph: "Enter PAN no.", upper: true, ok: (v) => /^[A-Z]{5}\d{4}[A-Z]$/.test(v), msg: "A PAN looks like ABCDE1234F" },
+  { k: "phone", label: "Phone no.", req: true, ph: "Enter phone no.", type: "tel", digits: true, ok: (v) => /^[6-9]\d{9}$/.test(v), msg: "Enter a 10-digit mobile number" },
 ];
 
 function stepOrganizer(host) {
   draft.organizers ??= [];
   const form = { msmeOn: false, msme: "" };
   let atype = draft.accountType || ""; // already picked in the Tickets reminder? it is chosen here too
-  const cell = (f) => `<div class="field" id="of-${f.k}"><label for="o-${f.k}">${f.label}${f.req ? " <span class=\"req\">*</span>" : ""}</label>
-      <input id="o-${f.k}" class="box ${f.upper ? "caps" : ""}" type="${f.type || "text"}" inputmode="${f.digits ? "numeric" : f.type === "email" ? "email" : "text"}" autocomplete="off" placeholder="${f.ph}" maxlength="${f.k === "gst" ? 15 : f.k === "ifsc" ? 11 : f.k === "pan" ? 10 : f.k === "phone" ? 10 : f.k === "account" ? 18 : 80}" />
+  const hasPaid = (draft.tickets || []).some((t) => t.paid), viaReminder = !!draft.wantsBank && !hasPaid; delete draft.wantsBank; // the reminder only opens the bank fields for this one visit
+  const paid = hasPaid || viaReminder; // bank details are only needed to get paid for paid tickets
+  const fields = ORG_FIELDS.filter((f) => paid || !f.pay);
+  const cell = (f) => `<div class="field" id="of-${f.k}"${!paid && f.pay ? " hidden" : ""}><label for="o-${f.k}">${f.k === "holder" && !paid ? "Organizer name" : f.label}${f.req ? " <span class=\"req\">*</span>" : ""}</label>
+      <input id="o-${f.k}" class="box ${f.upper ? "caps" : ""}" type="${f.type || "text"}" inputmode="${f.digits ? "numeric" : f.type === "email" ? "email" : "text"}" autocomplete="off" placeholder="${f.k === "holder" && !paid ? "Organizer name" : f.ph}" maxlength="${f.k === "gst" ? 15 : f.k === "ifsc" ? 11 : f.k === "pan" ? 10 : f.k === "phone" ? 10 : f.k === "account" ? 18 : 80}" />
       <p class="err">${f.msg}</p></div>`;
   host.innerHTML = `
     <h2 class="section-title cut">Organizer</h2>
     <div class="two">
-      <div class="field full" id="of-atype"><span class="lab">Account type <span class="req">*</span></span>
+      <div class="field full" id="of-atype"${paid ? "" : " hidden"}><span class="lab">Account type <span class="req">*</span></span>
         <div class="acct-row" id="o-atype" role="radiogroup" aria-label="Account type">${ACCOUNT_TYPES.map(([k, n, note]) => `<button type="button" role="radio" class="box acct" data-atype="${k}" aria-checked="false"><i aria-hidden="true"></i><span>${n}${note ? ` <small>${note}</small>` : ""}</span></button>`).join("")}</div>
-        <p class="err">Choose an account type.</p></div>
+        <p class="err">Choose an account type</p></div>
       ${ORG_FIELDS.map(cell).join("")}
-      <div class="field msme"><label class="check"><input type="checkbox" id="o-msme-on" /> Do you have an MSME no.?</label>
-        <div id="of-msme" hidden><label for="o-msme" class="lab">MSME (Udyam) no. <span class="req">*</span></label><input id="o-msme" class="box caps" type="text" autocomplete="off" placeholder="UDYAM-MH-00-0000000" maxlength="19" /><p class="err">An Udyam number looks like UDYAM-MH-00-0000000.</p></div></div>
+      <div class="field msme"${paid ? "" : " hidden"}><label class="check"><input type="checkbox" id="o-msme-on" /> Do you have an MSME no.?</label>
+        <div id="of-msme" hidden><label for="o-msme" class="lab">MSME (Udyam) no. <span class="req">*</span></label><input id="o-msme" class="box caps" type="text" autocomplete="off" placeholder="UDYAM-MH-00-0000000" maxlength="19" /><p class="err">An Udyam number looks like UDYAM-MH-00-0000000</p></div></div>
     </div>
+    ${paid ? (viaReminder ? `<p class="hc-note">Not selling paid tickets after all? <button type="button" class="hc-link" id="o-free">Hide bank details</button></p>` : "") : `<p class="hc-note">Bank details are asked only if you add a paid ticket.</p>`}
     <div class="add-row"><button type="button" class="btn small" id="o-add">Add organizer</button></div>
     <div id="o-list"></div>
     <p class="notice info"><b>Secure information:</b> for now, these details are kept only in this browser and are not sent anywhere.</p>
     <div class="nav three"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button><button class="btn" type="button" id="save">Save draft</button></div>`;
   const $ = (q) => host.querySelector(q);
   const list = $("#o-list"), next = $("#next");
+  $("#o-free")?.addEventListener("click", () => stepOrganizer(host));
   const paintType = () => $("#o-atype").querySelectorAll("[data-atype]").forEach((b) => { const on = b.dataset.atype === atype; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
   paintType();
   $("#o-atype").addEventListener("click", (e) => { const b = e.target.closest("[data-atype]"); if (!b) return; atype = b.dataset.atype; draft.accountType = atype; paintType(); $("#of-atype").classList.remove("bad"); });
@@ -2059,18 +2074,19 @@ function stepOrganizer(host) {
   $("#o-msme").addEventListener("input", (e) => { e.target.value = e.target.value.toUpperCase(); $("#of-msme").classList.remove("bad"); });
   $("#o-msme-on").addEventListener("change", (e) => { form.msmeOn = e.target.checked; $("#of-msme").hidden = !form.msmeOn; });
   const paint = () => {
-    list.innerHTML = draft.organizers.length ? `<h3 class="made-h">Organizers</h3>` + draft.organizers.map((o, i) => `<div class="made-row"><div class="made-info"><b>${esc(o.holder)}</b><span class="made-meta">${esc(o.email)} · ${esc(o.phone)} · ${o.accountType === "current" ? "Current" : o.accountType === "savings" ? "Savings" : ""} A/c ••••${esc(o.account.slice(-4))}${o.msme ? " · MSME" : ""}</span></div><div class="made-ctl"><button type="button" class="icon-btn danger" data-rm-o="${i}" aria-label="Remove ${esc(o.holder)}" title="Remove"><svg viewBox="0 0 24 24" width="1.5em" height="1.5em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></div></div>`).join("") : "";
+    list.innerHTML = draft.organizers.length ? `<h3 class="made-h">Organizers</h3>` + draft.organizers.map((o, i) => `<div class="made-row"><div class="made-info"><b>${esc(o.holder)}</b><span class="made-meta">${esc(o.email)} · ${esc(o.phone)} · ${o.accountType === "current" ? "Current" : o.accountType === "savings" ? "Savings" : ""} ${o.account ? " A/c ••••" + esc(o.account.slice(-4)) : ""}${o.msme ? " · MSME" : ""}</span></div><div class="made-ctl"><button type="button" class="icon-btn danger" data-rm-o="${i}" aria-label="Remove ${esc(o.holder)}" title="Remove"><svg viewBox="0 0 24 24" width="1.5em" height="1.5em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></div></div>`).join("") : "";
   };
   paint();
   $("#o-add").addEventListener("click", () => {
     const data = {}; let firstBad = null;
-    ORG_FIELDS.forEach((f) => { const v = val(f); data[f.k] = v; const ok = (f.req ? v.length > 0 : true) && f.ok(v); $(`#of-${f.k}`).classList.toggle("bad", !ok); if (!ok && !firstBad) firstBad = $(`#of-${f.k}`); });
-    const msme = form.msmeOn ? $("#o-msme").value.trim().toUpperCase() : "";
-    const msmeOk = !form.msmeOn || /^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/.test(msme);
+    fields.forEach((f) => { const v = val(f); data[f.k] = v; const ok = (f.req ? v.length > 0 : true) && f.ok(v); $(`#of-${f.k}`).classList.toggle("bad", !ok); if (!ok && !firstBad) firstBad = $(`#of-${f.k}`); });
+    ORG_FIELDS.forEach((f) => { if (!fields.includes(f)) data[f.k] = ""; });
+    const msme = paid && form.msmeOn ? $("#o-msme").value.trim().toUpperCase() : "";
+    const msmeOk = !(paid && form.msmeOn) || /^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/.test(msme);
     $("#of-msme").classList.toggle("bad", !msmeOk);
     if (!msmeOk && !firstBad) firstBad = $("#of-msme");
-    $("#of-atype").classList.toggle("bad", !atype);
-    if (!atype) firstBad = $("#of-atype"); // the account type is at the top, so it comes first
+    $("#of-atype").classList.toggle("bad", paid && !atype);
+    if (paid && !atype) firstBad = $("#of-atype"); // the account type is at the top, so it comes first
     if (firstBad) { firstBad.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     draft.organizers.push({ ...data, msme, accountType: atype });
     ORG_FIELDS.forEach((f) => { $(`#o-${f.k}`).value = ""; });
@@ -2123,7 +2139,8 @@ function stepReview(host) {
     [!d.category, "Category", 2], [!(d.subs || []).length, "Sub categories", 2], [!d.city, "City", 2], [!images.length, "A cover image", 2],
     [!d.dateFrom, "Event dates", 3], [!(d.start && d.start.h && d.start.m), "Start time", 3],
     [!tickets.length, "At least one ticket", 4],
-    [tickets.some((t) => t.paid) && !orgs.length, "Organizer & bank details (needed to get paid for paid tickets)", 6],
+    [(d.type !== "guestlist" || tickets.some((t) => t.paid)) && !orgs.length, tickets.some((t) => t.paid) ? "Organizer & bank details (needed to get paid for paid tickets)" : "Organizer details", 6],
+    [tickets.some((t) => t.paid) && orgs.length > 0 && !orgs.some((o) => o.account), "Bank details (needed to get paid for paid tickets)", 6],
   ].filter((m) => m[0]);
   const edit = (step, label = "Edit") => `<button type="button" class="rv-edit" data-go-step="${step}">${label}</button>`;
   const field = (label, value, cls = "") => `<div class="rv-f ${cls}"><span>${label}</span><b>${value}</b></div>`;
@@ -2156,9 +2173,9 @@ function stepReview(host) {
     ${section("Schedule", 3, eventSlots(d).map((sl, i, all) => `<div class="rv-slot">${all.length > 1 ? `<p class="rv-slot-h">Slot ${i + 1}</p>` : ""}<div class="rv-grid four">${field("Start date", dmy(sl.from))}${field("End date", dmy(sl.to))}${field("Start time", hm(sl.st))}${field("End time", hm(sl.en))}</div></div>`).join(""), eventSlots(d).length > 1 ? `(${eventSlots(d).length} slots)` : "")}
     ${section("Tickets", 4, tickets.length ? tickets.map((t) => `<div class="rv-row"><div><b>${esc(t.name)}</b><span>Qty: ${ticketQtyText(t, eventSlots(d).length)}${ticketSlotText(t, eventSlots(d).length) ? ` · ${ticketSlotText(t, eventSlots(d).length)}` : ""}${(t.tag || t.label1) ? ` · ${esc(t.tag || t.label1)}` : ""}${t.includes ? ` · ${esc(t.includes)}` : ""}</span></div><b class="rv-price">${priceOf(t)}</b></div>`).join("") + (eventSlots(d).length > 1 && tickets.length ? `<div class="slot-tot"><p class="slot-tot-h">Tickets per slot</p>${slotTotals(tickets, eventSlots(d).length).map((n, i) => `<div class="slot-line"><div>${esc(slotName(eventSlots(d)[i], i))}</div><strong>${n} tickets</strong></div>`).join("")}</div>` : "") : "<b>—</b>", `(${tickets.length} type${tickets.length === 1 ? "" : "s"})`)}
     ${section("Artists & partners", 5, people.length ? `<div class="rv-people">${people.map((p) => `<div class="pa-person"><span class="avatar" ${p.logo ? `style="background-image:url(${p.logo})"` : ""}>${p.logo ? "" : esc(p.name.trim().slice(0, 1).toUpperCase())}</span><div class="pa-who"><b>${esc(p.name)}</b><span>${p.role}</span></div></div>`).join("")}</div>` : "<b>—</b>", `(${people.length})`)}
-    ${section("Organizer & banking", 6, orgs.length ? orgs.map((o) => `<div class="rv-grid">${field("Organizer name", esc(o.holder))}${field("Email", `<span class="keep">${esc(o.email)}</span>`)}${field("Phone", esc(o.phone))}${field("Account type", o.accountType === "current" ? "Current" : o.accountType === "savings" ? "Savings" : "—")}${field("Account number", "••••" + esc(o.account.slice(-4)))}${field("IFSC", esc(o.ifsc))}${o.gst ? field("GST no.", esc(o.gst)) : ""}</div>`).join("<hr />") : field("Organizer name", "—"))}
+    ${section("Organizer & banking", 6, orgs.length ? orgs.map((o) => `<div class="rv-grid">${field("Organizer name", esc(o.holder))}${field("Email", `<span class="keep">${esc(o.email)}</span>`)}${field("Phone", esc(o.phone))}${o.account ? field("Account type", o.accountType === "current" ? "Current" : o.accountType === "savings" ? "Savings" : "—") + field("Account number", "••••" + esc(o.account.slice(-4))) + field("IFSC", esc(o.ifsc)) : ""}${o.gst ? field("GST no.", esc(o.gst)) : ""}</div>`).join("<hr />") : field("Organizer name", "—"))}
     ${missing.length
-      ? `<div class="notice warn"><b>Almost there.</b> Still needed:<ul class="miss-list">${missing.map((m) => `<li><button type="button" class="linkish" data-go-step="${m[2]}">${m[1]}</button></li>`).join("")}</ul></div>`
+      ? `<div class="notice warn miss"><b>Almost there</b><span>Still needed:</span><ul class="miss-list">${missing.map((m) => `<li><button type="button" class="linkish" data-go-step="${m[2]}">${m[1]}</button></li>`).join("")}</ul></div>`
       : `<p class="notice ready"><b>Ready to submit.</b> After you create the event, you'll choose its status.</p>`}
     <div class="nav"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="create" ${missing.length ? "disabled" : ""}>Create event</button></div>`;
   host.addEventListener("click", (e) => { const b = e.target.closest("[data-go-step]"); if (b) { saveCurrent(); location.hash = `#/create/${b.dataset.goStep}`; } });
@@ -2220,7 +2237,7 @@ function openFaqModal(existing, onSave) {
   const bad = (f) => f.q.trim() && !f.a.trim();
   const refresh = () => {
     const first = list.findIndex(bad);
-    $("#f-err").hidden = first < 0; $("#f-err").textContent = first < 0 ? "" : `FAQ ${first + 1}: add an answer.`;
+    $("#f-err").hidden = first < 0; $("#f-err").textContent = first < 0 ? "" : `FAQ ${first + 1}: add an answer`;
     $("#f-save").disabled = first >= 0;
   };
   paint(); refresh();
@@ -2270,7 +2287,7 @@ function openQuestionsModal(existing, onSave) {
   };
   const refresh = () => {
     const first = list.findIndex(bad);
-    $("#q-err").hidden = first < 0; $("#q-err").textContent = first < 0 ? "" : `Question ${first + 1}: add at least 2 choices.`;
+    $("#q-err").hidden = first < 0; $("#q-err").textContent = first < 0 ? "" : `Question ${first + 1}: add at least 2 choices`;
     $("#q-save").disabled = first >= 0;
   };
   paint(); refresh();
@@ -2356,11 +2373,11 @@ function openBulkModal(ev, existing, opts, onSave) {
   const problem = () => {
     for (let i = 0; i < r.tiers.length; i++) {
       const x = r.tiers[i], say = (t) => (r.tiers.length > 1 ? `Range ${i + 1}: ${t}` : t[0].toUpperCase() + t.slice(1));
-      if (x.from !== "" && !(n(x.from) >= 2)) return say("start at 2 tickets or more.");
-      if (!x.open && x.from !== "" && x.to !== "" && n(x.to) < n(x.from)) return say("the end can't be lower than the start.");
-      if (x.pct !== "" && !(n(x.pct) >= 1 && n(x.pct) <= 90)) return say("percentage off must be between 1 and 90.");
+      if (x.from !== "" && !(n(x.from) >= 2)) return say("start at 2 tickets or more");
+      if (!x.open && x.from !== "" && x.to !== "" && n(x.to) < n(x.from)) return say("the end can't be lower than the start");
+      if (x.pct !== "" && !(n(x.pct) >= 1 && n(x.pct) <= 90)) return say("percentage off must be between 1 and 90");
     }
-    return overlaps() ? "Two ranges cover the same tickets. Change one so they don't overlap." : "";
+    return overlaps() ? "Two ranges cover the same tickets. Change one so they don't overlap" : "";
   };
   const refresh = () => {
     const bad = problem();
@@ -2405,7 +2422,7 @@ function renderCoupons(id) {
   const events = load(), ev = events.find((e) => e.id === id);
   if (!ev) { location.hash = "#/"; return; }
   ev.coupons ??= [];
-  document.title = "Coupons — PeanutButterJelly.vip";
+  document.title = "Coupons — PeanutButterJelly.fun";
   let query = "";
   app.innerHTML = `
     <div class="sub-head">
@@ -2488,7 +2505,7 @@ function openCouponModal(ev, existing, onSave) {
     <div class="modal-head plain"><div><h3 class="cut">${existing ? "Edit coupon" : "New coupon"}</h3><p>Fill in the details to create a coupon</p></div><button type="button" class="modal-x" data-x aria-label="Close">×</button></div>
     <div class="modal-body">
       <p class="mini-title">Coupon details</p>
-      <div class="field" id="cf-code"><label for="cp-code">Coupon code <span class="req">*</span></label><input id="cp-code" class="box caps" type="text" maxlength="20" autocomplete="off" placeholder="E.g. DIWALI20" /><p class="err" id="cp-code-err">Use 3 to 20 letters or numbers.</p></div>
+      <div class="field" id="cf-code"><label for="cp-code">Coupon code <span class="req">*</span></label><input id="cp-code" class="box caps" type="text" maxlength="20" autocomplete="off" placeholder="E.g. DIWALI20" /><p class="err" id="cp-code-err">Use 3 to 20 letters or numbers</p></div>
       <div class="field"><label for="cp-max">Max uses <span class="req">*</span></label><input id="cp-max" class="box" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100 (how many times it can be used)" /></div>
       <div class="field"><span class="lab">Applies to</span><div id="cp-applies"></div></div>
       <p class="mini-title">Discount</p>
@@ -2529,7 +2546,7 @@ function openCouponModal(ev, existing, onSave) {
     $("#cp-val").placeholder = c.type === "pct" ? "e.g. 20" : "e.g. 100";
     $("#cp-on").classList.toggle("on", c.active); $("#cp-on").setAttribute("aria-checked", c.active);
     $("#cp-st-t").textContent = c.active ? "Active: coupon can be used" : "Paused: coupon can't be used";
-    const dup = taken(); $("#cf-code").classList.toggle("bad", dup); $("#cp-code-err").textContent = dup ? "This code already exists for this event." : "Use 3 to 20 letters or numbers.";
+    const dup = taken(); $("#cf-code").classList.toggle("bad", dup); $("#cp-code-err").textContent = dup ? "This code already exists for this event" : "Use 3 to 20 letters or numbers";
     $("#cp-save").disabled = !valid();
   };
   $("#cp-code").addEventListener("input", (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""); c.code = e.target.value; refresh(); });
@@ -2559,7 +2576,7 @@ const spark = (color, delay = 0, down = false) => {
 function renderSales(id) {
   const events = load(), ev = events.find((e) => e.id === id);
   if (!ev) { location.hash = "#/"; return; }
-  document.title = "Sales — PeanutButterJelly.vip";
+  document.title = "Sales — PeanutButterJelly.fun";
   let tab = "overview";
   const st = statusOf(ev), past = isPast(ev);
   const badge = past ? ["Event ended", "off"] : st === "published" ? ["Event live", "live"] : [STATUSES[st].label, st === "soldout" || st === "cancelled" ? "out" : st === "coming" ? "soon" : "off"];
@@ -2800,16 +2817,30 @@ async function drawMap(host) {
   svgEl.addEventListener("pointerup", end); svgEl.addEventListener("pointercancel", end);
 }
 
+/* ---------- Run the event's group chat ---------- */
+function renderChat(id, startTab = "", door = false) {
+  const ev = load().find((e) => e.id === id);
+  if (!ev) { location.hash = "#/"; return; }
+  const st = statusOf(ev), past = isPast(ev);
+  const badge = past ? ["Event ended", "off"] : st === "published" ? ["Event live", "live"] : [STATUSES[st].label, st === "soldout" || st === "cancelled" ? "out" : st === "coming" ? "soon" : "off"];
+  const k = { app, esc, toast, ic, dayLine, badge, ask };
+  if (door) renderCheckIn(k, ev); else renderHostChat(k, ev, startTab);
+  cutHeadings();
+}
+
 /* ---------- Routing ---------- */
 function route() {
   cutLetters.forEach((l) => l.dispose());
   cutLetters = [];
   const m = location.hash.match(/^#\/create\/(\d)$/);
-  const ev = location.hash.match(/^#\/event\/([^/]+)\/(coupons|sales)$/);
+  const ev = location.hash.match(/^#\/event\/([^/]+)\/(coupons|sales|chat|requests|checkin)$/);
   document.querySelector('[data-nav="list"]').classList.toggle("on", !m);
   if (ev) {
     draft = null;
-    if (ev[2] === "coupons") renderCoupons(ev[1]); else renderSales(ev[1]);
+    // Sponty plans are free, so they have no sales or coupons page: send people to the plan's requests instead
+    if ((ev[2] === "sales" || ev[2] === "coupons") && load().find((x) => x.id === ev[1])?.type === "guestlist") { location.hash = `#/event/${ev[1]}/requests`; return; }
+    if (ev[2] === "coupons") renderCoupons(ev[1]); else if (ev[2] === "chat" || ev[2] === "requests") renderChat(ev[1], ev[2] === "requests" ? "requests" : "");
+    else if (ev[2] === "checkin") renderChat(ev[1], "", true); else renderSales(ev[1]);
     window.scrollTo({ top: 0 });
   } else if (m) {
     const step = Math.min(+m[1], STEPS.length - 1);

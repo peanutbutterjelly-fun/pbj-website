@@ -568,8 +568,8 @@ function setupWindows(stage, sections, LOOP) {
         const d = Object.fromEntries(new FormData(f));
         if (d.company) { closeForm(); return; } // a hidden field only robots fill in
         const name = (d.name || "").trim(), email = (d.email || "").trim();
-        if (!name) { err.textContent = "Please add your name."; f.elements.name.focus(); return; }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { err.textContent = "Please add a valid email."; f.elements.email.focus(); return; }
+        if (!name) { err.textContent = "Please add your name"; f.elements.name.focus(); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { err.textContent = "Please add a valid email"; f.elements.email.focus(); return; }
         err.textContent = ""; go.disabled = true; go.textContent = "Sending\u2026";
         const answers = {};
         let link = (d.link || "").trim() || null;
@@ -581,7 +581,7 @@ function setupWindows(stage, sections, LOOP) {
           say("Saved. Thank you!");
         } else {
           go.disabled = false; go.textContent = "Send";
-          err.textContent = r.reason === "not-connected" ? "Saving is not connected yet, so nothing was saved." : "Could not send. Please try again.";
+          err.textContent = r.reason === "not-connected" ? "Saving is not connected yet, so nothing was saved" : "Could not send. Please try again";
         }
       });
       if (matchMedia("(pointer: fine)").matches && !navigator.maxTouchPoints) f.elements.name.focus({ preventScroll: true }); // on a phone, do not pop the keyboard up before they have even seen the form
@@ -630,14 +630,14 @@ function setupWindows(stage, sections, LOOP) {
         case "view": { const k = PAD_VIEW[val]; wrap.classList.toggle("hide-" + k); showPop(popFor || $('[data-menu="View"]'), menuItems("View")); break; }
         case "date": insert(new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })); break;
         case "bullet": insert("• "); break;
-        case "sign": insert("— sent from Mumbai, via PeanutButterJelly.vip"); break;
+        case "sign": insert("— sent from Mumbai, via PeanutButterJelly.fun"); break;
         case "bold": case "italic": case "underline": if (ensure()) { document.execCommand(a); syncMarks(); } break;
         case "justify": case "left": case "center": case "right": st.align = a === "center" ? "center" : a; applyLook(); break;
         case "set-font": st.font = +val; applyLook(); break;
         case "set-size": st.size = +val; applyLook(); break;
         case "set-case": st.kase = +val; applyLook(); break;
         case "help": dialog("Help topics", "Type your own lines under the listing. The listing text itself stays put: it can’t be deleted or changed.<br><br>Keys: Ctrl+B bold, Ctrl+I italic, Ctrl+U underline, Ctrl+Z undo, Ctrl+S save, Ctrl+F find, Esc closes."); break;
-        case "about": dialog("About PBJ Pad", "PBJ Pad is a tiny notepad on PeanutButterJelly.vip.<br>Mining hidden gems around you, from Mumbai."); break;
+        case "about": dialog("About PBJ Pad", "PBJ Pad is a tiny notepad on PeanutButterJelly.fun.<br>Mining hidden gems around you, from Mumbai."); break;
         case "dlgok": closeDlg(); break;
         case "signup": openForm("signup"); break;
         case "form": openForm("form"); break;

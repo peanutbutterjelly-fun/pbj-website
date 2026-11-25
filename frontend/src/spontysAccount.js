@@ -79,17 +79,17 @@ export function initAccount({ esc, toast, onProfile }) {
       if (profile.handle) body.handle = profile.handle;
       if (photoChanged && profile.photo?.startsWith("data:")) {
         try { profile = { ...profile, photo: await uploadAvatar(await dataUrlToBlob(profile.photo)) }; }
-        catch { return { ok: false, message: "The photo couldn't be saved just now. Everything else is kept; try the photo again in a bit." }; }
+        catch { return { ok: false, message: "The photo couldn't be saved just now. Everything else is kept; try the photo again in a bit" }; }
         body.avatar_url = profile.photo;
       }
       const res = await api("/api/me", { method: "PATCH", body: JSON.stringify(body) });
-      if (res.status === 409) return { ok: false, message: "That handle is taken. Try another one." };
+      if (res.status === 409) return { ok: false, message: "That handle is taken. Try another one" };
       if (res.status === 422) { const d = await say(res); return { ok: false, message: typeof d === "string" && d ? d : "Something in your profile isn't in a format we can save. Check the handle and the links." }; }
-      if (!res.ok) return { ok: false, message: "We couldn't save to your account just now. Your changes are kept on this device; try again in a bit." };
+      if (!res.ok) return { ok: false, message: "We couldn't save to your account just now. Your changes are kept on this device; try again in a bit" };
       write({ ...read(), ...fromRemote(await res.json()) });
       return { ok: true };
     } catch {
-      return { ok: false, message: "We couldn't reach the server. Your changes are kept on this device; try again in a bit." };
+      return { ok: false, message: "We couldn't reach the server. Your changes are kept on this device; try again in a bit" };
     }
   }
 

@@ -1,6 +1,6 @@
 # Inspiration
 
-Design ideas for PeanutButterJelly.vip, grouped by section of the site.
+Design ideas for PeanutButterJelly.fun, grouped by section of the site.
 Screenshots go in the `inspiration/` folder.
 
 To add an idea, copy the template below into the right section and fill it in.

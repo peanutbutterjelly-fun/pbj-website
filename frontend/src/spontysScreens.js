@@ -6,7 +6,6 @@ import { upcoming, priceNum, lookUp, searchPicks, words, stepOutside, STEPS } fr
 import { PEOPLE, BADGES, BADGE_ORDER, POSTS, PAST, personBy, hostedOf, attendedOf, byRef, isPast } from "./people.js";
 import { initEvents } from "./spontysEvents.js";
 import { initChats } from "./spontysChats.js";
-import { initConsole } from "./chatConsole.js";
 import { planState, planStates, requestPlan, chatIdForPlan, onChats as onChatChange } from "./chats.js";
 
 const LIKES = "pbj-sponty-likes", FOLLOW = "pbj-sponty-follow", JOINED = "pbj-sponty-in";
@@ -29,6 +28,7 @@ export const ICONS = {
   doc: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
   chat: '<path d="M4 5h11v8H9l-3 3v-3H4z"/><path d="M9 17h6l3 3v-3h2v-8h-4"/>',
   userplus: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M18 8v6M15 11h6"/>',
+  dots: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   chev: '<path d="m6 9 6 6 6-6"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -246,7 +246,7 @@ export function initScreens(k) {
   ];
 
   function renderFeed() {
-    document.title = "For you — PeanutButterJelly.vip";
+    document.title = "For you — PeanutButterJelly.fun";
     const ups = upcoming(), list = filt(ups), hl = chip ? [] : ups.slice(0, 3).filter((e) => !missedGone.has(e.title)), rest = list.filter((e) => !hl.includes(e));
     const fol = follows();
     const head = `<header class="fd-top"><button type="button" class="fd-city" data-cities aria-haspopup="dialog">Mum${ic("chev", "1em")}</button>
@@ -315,7 +315,7 @@ export function initScreens(k) {
   const NS = "http://www.w3.org/2000/svg", sv = (tag, at = {}, parent) => { const n = document.createElementNS(NS, tag); for (const k in at) n.setAttribute(k, at[k]); parent?.append(n); return n; };
 
   function renderSearch(q0 = "") {
-    document.title = "Ask FUN — PeanutButterJelly.vip";
+    document.title = "Ask FUN — PeanutButterJelly.fun";
     app.innerHTML = `<div class="fs" id="fs">
       <section class="fs-hero"><h1 class="cut">Ask FUN</h1><p class="sp-sub">the more you save, the more personal it gets</p>
         <div class="fs-rows">${ROWS.map((r) => `<div class="fs-row">${r.map((n) => `<button type="button" class="fd-idea" data-idea="${esc(IDEAS[n][1])}"><span class="e">${IDEAS[n][0]}</span>${esc(IDEAS[n][1])}</button>`).join("")}</div>`).join("")}</div></section>
@@ -477,8 +477,8 @@ export function initScreens(k) {
   const ptab = {};
   function renderPerson(slug) {
     const h = "@" + slug, pe = personBy(h);
-    if (!pe) { document.title = "Not found — PeanutButterJelly.vip"; app.innerHTML = `<a class="back" href="#/">← Back</a><section class="sp-card msg-empty"><h2>We couldn't find that person</h2><p class="sp-sub">They may have changed their handle.</p><a class="btn" href="#/">Back to the thread</a></section>`; return; }
-    document.title = `${pe.name} — PeanutButterJelly.vip`;
+    if (!pe) { document.title = "Not found — PeanutButterJelly.fun"; app.innerHTML = `<a class="back" href="#/">← Back</a><section class="sp-card msg-empty"><h2>We couldn't find that person</h2><p class="sp-sub">They may have changed their handle.</p><a class="btn" href="#/">Back to the thread</a></section>`; return; }
+    document.title = `${pe.name} — PeanutButterJelly.fun`;
     const hosted = hostedOf(pe), att = attendedOf(pe), up = hosted.filter((e) => !isPast(e)), past = hosted.filter(isPast);
     const posts = POSTS.filter((po) => po.by === h), view = ptab[h] || (posts.length ? "posts" : hosted.length ? "hosted" : "attended"), on = isF(h), plans = posts.filter((po) => po.plan);
     const sect = (t, rows) => rows.length ? `<h3 class="pe-h">${t}</h3><div class="fd-results">${rows.map(evRow).join("")}</div>` : "";
@@ -520,7 +520,6 @@ export function initScreens(k) {
 
   wire(app);
   const ch = initChats({ ...k, ic, KINDS, PAPER, openPeople });
-  const mg = initConsole({ ...k, ic, KINDS, PAPER });
   const ev = initEvents({ ...k, ic, when, PAPER, KINDS, bdg, fBtn, places, writePlaces, ch });
-  return { renderFeed, renderSearch, renderPerson, renderMessages: ch.renderMessages, renderChat: ch.renderChat, renderManageList: mg.renderList, renderManage: mg.renderManage, openPlus, ic, ev, ch };
+  return { renderFeed, renderSearch, renderPerson, renderMessages: ch.renderMessages, renderChat: ch.renderChat, openPlus, ic, ev, ch };
 }

@@ -1,10 +1,10 @@
-# PeanutButterJelly.vip: Session Summary (for starting a new chat)
+# PeanutButterJelly.fun: Session Summary (for starting a new chat)
 
 Read this first in a new chat, then `CLAUDE.md`, `PLAN.md` and `INSPIRATION.md`.
 
 ## Who and what
 - Owner: non-technical founder. Explain things in plain language, small steps, commit progress.
-- Site: PeanutButterJelly.vip, "Mining Hidden Gems Around You", Mumbai, playful PB&J brand.
+- Site: PeanutButterJelly.fun, "Mining Hidden Gems Around You", Mumbai, playful PB&J brand.
 - Desktop-first, but the phone version must look great too. We launch only when both are ready.
 - Pushing: the owner pushes via GitHub Desktop ("Push origin"). Terminal pushes fail on the GitHub login.
 

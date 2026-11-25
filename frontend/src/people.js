@@ -47,7 +47,7 @@ export const PAST = [
 
 // Each account. attended = ids from PAST (or titles from the Events lineup) they went to.
 export const PEOPLE = [
-  { handle: "@pbj", name: "PB&J HQ", badge: "exclusive", area: "Bandra West", joined: "Mar 2026", followers: 1280, following: 12, bio: "The team behind PeanutButterJelly.vip. We mine hidden gems around Mumbai and throw a few of our own.", attended: ["p4", "p6", "p9"] },
+  { handle: "@pbj", name: "PB&J HQ", badge: "exclusive", area: "Bandra West", joined: "Mar 2026", followers: 1280, following: 12, bio: "The team behind PeanutButterJelly.fun. We mine hidden gems around Mumbai and throw a few of our own.", attended: ["p4", "p6", "p9"] },
   { handle: "@clayandchai", name: "Clay & Chai Studio", badge: "exclusive", area: "Kala Ghoda", joined: "Apr 2026", followers: 640, following: 31, bio: "A courtyard studio in Kala Ghoda. Wobbly mugs, warm chai, no experience needed.", attended: ["p10", "p5"] },
   { handle: "@sunsetsessions", name: "Sunset Sessions", badge: "exclusive", area: "Bandra West", joined: "Apr 2026", followers: 920, following: 20, bio: "Live music on a rooftop above a bookshop. Grab a cushion, stay till the last song.", attended: ["p6", "p8"] },
   { handle: "@openmicmasala", name: "Open Mic Masala", badge: "pro", area: "Andheri West", joined: "May 2026", followers: 410, following: 44, bio: "Ten fresh comics, five minutes each, zero mercy. Every other Saturday.", attended: ["p5", "p17"] },

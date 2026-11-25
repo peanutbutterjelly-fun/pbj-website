@@ -170,7 +170,7 @@ function lightbox(src, name) {
 /* ---------- Profile ---------- */
 let tile = "all", pview = "saved";
 function renderProfile() {
-  document.title = "My Profile — PeanutButterJelly.vip";
+  document.title = "My Profile — PeanutButterJelly.fun";
   const p = profile(), list = places();
   const count = (k) => (k === "all" ? list.length : list.filter((x) => x.list === k).length);
   const shown = tile === "all" ? list : list.filter((x) => x.list === tile);
@@ -225,7 +225,7 @@ function renderProfile() {
 
 /* ---------- Edit profile ---------- */
 function renderEdit() {
-  document.title = "Edit profile — PeanutButterJelly.vip";
+  document.title = "Edit profile — PeanutButterJelly.fun";
   const p = profile();
   const field = (name, label, ph = "", type = "text") => `<label>${label}<input name="${name}" type="${type}" value="${esc(p[name])}" placeholder="${ph}" autocomplete="off" /></label>`;
   app.innerHTML = `<a class="back" href="#/profile">← Back to profile</a><div class="sp-bar"><h1 class="cut">Edit profile</h1></div>
@@ -274,7 +274,7 @@ function renderEdit() {
 
 /* ---------- Settings ---------- */
 function renderSettings() {
-  document.title = "Settings — PeanutButterJelly.vip";
+  document.title = "Settings — PeanutButterJelly.fun";
   const p = profile(), pr = prefs();
   const sw = (k, label, sub) => `<div class="sp-row"><div><b>${label}</b><p class="sp-sub">${sub}</p></div><button type="button" class="sp-switch" role="switch" aria-checked="${pr[k]}" aria-label="${label}" data-pref="${k}"></button></div>`;
   app.innerHTML = `<div class="sp-bar"><h1 class="cut">Settings</h1></div><div class="sp-list">
@@ -285,8 +285,8 @@ function renderSettings() {
     <h2 class="sp-group cut">Privacy</h2>
     ${sw("publicProfile", "Public profile", "Anyone with your link can see it")}${sw("showGoing", "Show events I'm going to", "Visible on your profile")}
     <h2 class="sp-group cut">Help</h2>
-    <a class="sp-link" href="mailto:hello@peanutbutterjelly.vip?subject=PB%26J%20feedback">Send feedback</a>
-    <a class="sp-link" href="mailto:hello@peanutbutterjelly.vip?subject=Contact%20PB%26J">Contact us</a>
+    <a class="sp-link" href="mailto:hello@peanutbutterjelly.fun?subject=PB%26J%20feedback">Send feedback</a>
+    <a class="sp-link" href="mailto:hello@peanutbutterjelly.fun?subject=Contact%20PB%26J">Contact us</a>
     <button class="sp-link" id="sp-legal" type="button">Legal</button>
     <button class="sp-link" id="sp-out" type="button">Sign out</button>
     <button class="sp-link danger" id="sp-del" type="button">Delete account</button></div>`;
@@ -303,7 +303,7 @@ function renderSettings() {
   app.querySelector("#sp-out").textContent = account.isSignedIn() ? "Account and sign out" : account.configured() ? "Sign in" : "Sign in (not connected yet)";
   const del = app.querySelector("#sp-del");
   del.addEventListener("click", () => {
-    if (account.isSignedIn()) { location.href = "mailto:hello@peanutbutterjelly.vip?subject=Delete%20my%20PB%26J%20account&body=Please%20delete%20my%20account%20(" + encodeURIComponent(account.email()) + ")."; return; } // until the server can do it itself
+    if (account.isSignedIn()) { location.href = "mailto:hello@peanutbutterjelly.fun?subject=Delete%20my%20PB%26J%20account&body=Please%20delete%20my%20account%20(" + encodeURIComponent(account.email()) + ")."; return; } // until the server can do it itself
     if (del.dataset.sure) { [PROFILE, PLACES, PREFS].forEach((k) => { try { localStorage.removeItem(k); } catch {} }); toast("Everything cleared"); location.hash = "#/profile"; route(); }
     else { del.dataset.sure = "1"; del.textContent = "Tap again to delete everything"; setTimeout(() => { delete del.dataset.sure; del.textContent = "Delete account"; }, 4000); }
   });
@@ -356,7 +356,7 @@ const refreshDock = () => {
 };
 const markDock = () => {
   dock.querySelector("[data-r='messages']")?.classList.toggle("has", unreadCount() > 0);
-  const h = location.hash, cur = h.startsWith("#/messages") || h.startsWith("#/chat/") || h.startsWith("#/manage") ? "messages" : h.startsWith("#/search") ? "search" : h.startsWith("#/profile") || h.startsWith("#/edit") || h.startsWith("#/settings") ? "profile" : "feed";
+  const h = location.hash, cur = h.startsWith("#/messages") || h.startsWith("#/chat/") ? "messages" : h.startsWith("#/search") ? "search" : h.startsWith("#/profile") || h.startsWith("#/edit") || h.startsWith("#/settings") ? "profile" : "feed";
   dock.querySelectorAll("[data-r]").forEach((a) => { a.classList.toggle("on", a.dataset.r === cur); a.toggleAttribute("aria-current", a.dataset.r === cur); });
 };
 document.body.append(dock);
@@ -368,14 +368,12 @@ function route() {
   app.classList.toggle("col", col);
   app.classList.toggle("wide", h.startsWith("#/search"));
   app.classList.toggle("pwide", h.startsWith("#/u/"));
-  app.classList.toggle("feedwide", !/^#\/(profile|edit|settings|messages|chat\/|manage|search|u\/|e\/|recap)/.test(h));
+  app.classList.toggle("feedwide", !/^#\/(profile|edit|settings|messages|chat\/|search|u\/|e\/|recap)/.test(h));
   if (h.startsWith("#/edit")) renderEdit();
   else if (h.startsWith("#/settings")) renderSettings();
   else if (h.startsWith("#/profile")) renderProfile();
   else if (h.startsWith("#/messages")) screens.renderMessages();
   else if (h.startsWith("#/chat/")) screens.renderChat(decodeURIComponent(h.slice(7).split("?")[0]));
-  else if (h.startsWith("#/manage/")) screens.renderManage(decodeURIComponent(h.slice(9).split("?")[0]));
-  else if (h === "#/manage") screens.renderManageList();
   else if (h.startsWith("#/e/")) screens.ev.renderEvent(decodeURIComponent(h.slice(4).split("?")[0]));
   else if (h.startsWith("#/recap")) screens.ev.renderRecapForm();
   else if (h.startsWith("#/u/")) screens.renderPerson(decodeURIComponent(h.slice(4).split("?")[0]));

@@ -1,8 +1,9 @@
 // PREVIEW ONLY: how a published event will look to the public. It reads the event from this browser (saved by the host dashboard),
 // so only you can see it for now. Once events live on the internet, this page reads them from there instead.
 const app = document.getElementById("app");
-import { guestPays, rupees, hasGst } from "./gst.js";
+import { guestPays, rupees, hasGst, gstParts } from "./gst.js";
 import { restoreDrafts } from "./devBackup.js";
+import { createCutLetter } from "./cutword.js";
 // While building, set this to true to show the yellow "Preview" bar at the top of the page; false shows the page as the public will see it.
 const SHOW_PREVIEW_NOTE = false;
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -157,7 +158,7 @@ function downloadIcs(e) {
   const c = calendarInfo(e);
   const esc2 = (t) => String(t).replace(/\\/g, "\\\\").replace(/[;,]/g, (x) => "\\" + x).replace(/\n/g, "\\n");
   const when = c.allDay ? [`DTSTART;VALUE=DATE:${c.s}`, `DTEND;VALUE=DATE:${c.e}`] : [`DTSTART;TZID=Asia/Kolkata:${c.s}`, `DTEND;TZID=Asia/Kolkata:${c.e}`];
-  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PeanutButterJelly.vip//Event//EN", "BEGIN:VEVENT", `UID:${e.id}@peanutbutterjelly.vip`, `DTSTAMP:${new Date().toISOString().replace(/[-:]|\.\d{3}/g, "")}`, ...when,
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PeanutButterJelly.fun//Event//EN", "BEGIN:VEVENT", `UID:${e.id}@peanutbutterjelly.fun`, `DTSTAMP:${new Date().toISOString().replace(/[-:]|\.\d{3}/g, "")}`, ...when,
     `SUMMARY:${esc2(e.title || "Event")}`, `LOCATION:${esc2(c.where)}`, `DESCRIPTION:${esc2(location.href)}`, "END:VEVENT", "END:VCALENDAR"].join("\r\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
@@ -198,7 +199,7 @@ function similar(e) {
 }
 
 function show(e) {
-  document.title = `${e.title || "Event"} — PeanutButterJelly.vip`;
+  document.title = `${e.title || "Event"} — PeanutButterJelly.fun`;
   const imgs = (e.images || []).filter(Boolean);
   const live = e.status === "published";
   // "Repeat this event": extra time slots the host added; guests pick one
@@ -240,14 +241,37 @@ function show(e) {
   // The best discount that applies to a line is used.
   const bulkRules = (e.bulk || []).filter((r) => r.active !== false && Array.isArray(r.tiers) && r.tiers.length);
   const rulesFor = (t) => bulkRules.filter((r) => r.appliesTo === t.id || r.appliesTo === "all");
-  const bulkInfo = (t) => { const rs = rulesFor(t); return rs.length ? `<small class="ep-bulkinfo">Bulk discount: ${rs[0].tiers.map((x) => `${x.open ? `${x.from} and above` : `${x.from}–${x.to}`}: ${x.pct}% off`).join(" · ")}</small>` : ""; };
+  const CHEV = '<svg class="tk-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  const INFO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.5"/><path d="M12 7.6v.1"/></svg>';
+  const infoBtn = (key, label) => `<button type="button" class="tk-i" data-pop="${key}" aria-label="${label}" aria-haspopup="dialog">${INFO}</button>`;
+  const bulkRows = (t) => { const rs = rulesFor(t); return rs.length ? rs[0].tiers.map((x) => `<p class="tk-row"><span>${x.open ? `${x.from} or more tickets` : x.from === x.to ? `${x.from} tickets` : `${x.from} to ${x.to} tickets`}</span><b>${x.pct}% off</b></p>`).join("") : ""; };
+  const gstRows = (t) => { const p = gstParts(t); return `<p class="tk-row"><span>Ticket price</span><b>${rupees(p.base)}</b></p><p class="tk-row"><span>GST${p.label ? ` (${esc(p.label)})` : ` (${p.pct}%)`}</span><b>${rupees(p.tax)}</b></p><p class="tk-row tot"><span>You pay</span><b>${rupees(p.total)}</b></p>`; };
+  // One pop-up in the middle of the page, used by every (i)
+  const popup = (title, note, rows) => {
+    const back = document.createElement("div"); back.className = "tk-modal-back";
+    back.innerHTML = `<div class="tk-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><button type="button" class="tk-x" aria-label="Close">×</button><h3 class="cut">${esc(title)}</h3>${note ? `<p class="tk-note">${esc(note)}</p>` : ""}<div class="tk-rows">${rows}</div></div>`;
+    document.body.append(back);
+    const letters = [], h = back.querySelector("h3"), text = h.textContent.trim(); // the same paper-cut lettering as the other headings
+    h.setAttribute("aria-label", text); h.textContent = "";
+    text.split(" ").forEach((word, i, all) => { const w = document.createElement("span"); w.className = "w"; w.setAttribute("aria-hidden", "true");
+      [...word].forEach((ch) => { const l = createCutLetter(ch, { fill: "var(--pop)", shadow: "var(--brown)" }); if (l) { letters.push(l); w.append(l.el); } else w.append(document.createTextNode(ch)); });
+      h.append(w); if (i < all.length - 1) h.append(" "); });
+    const close = () => { letters.forEach((l) => l.dispose()); document.removeEventListener("keydown", onKey); back.remove(); };
+    const onKey = (k) => { if (k.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    back.addEventListener("click", (k) => { if (k.target === back || k.target.closest(".tk-x")) close(); });
+    back.querySelector(".tk-x").focus();
+  };
   // a guest can take up to 10 of one ticket, or more when a bulk discount has higher bands, but never more than are on offer
   const maxOf = (t) => { const tiers = rulesFor(t).flatMap((r) => r.tiers), top = tiers.some((x) => x.open) ? Infinity : Math.max(10, ...tiers.map((x) => Number(x.to) || 0)); return Math.max(0, Math.min(top, Number(t.qty) || 10)); }; // an "and above" band lets a guest take everything on offer
   const note = (t) => {
     if (stateOf(t) === "closed") return "Sales closed";
-    const left = Number(t.qty), end = endAt(t, selSlot);
-    return [left > 0 && left <= 20 ? `${left} left${slotCount > 1 ? " for this time" : ""}` : "", end ? `Sales end ${endText(end)}` : ""].filter(Boolean).join(" · ");
+    const end = endAt(t, selSlot); // "N left" is a tag now, only when the last few are going (see lowLeft)
+    return end ? `Sales end ${endText(end)}` : "";
   };
+  const lowLeft = (t) => stateOf(t) !== "closed" && Number(t.qty) > 0 && Number(t.qty) <= 5; // only the last few tickets get a "left" tag
+  const TKI = { group: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3.2 2.7-5 6-5s6 1.8 6 5"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.8M18 14.3c1.9.6 3 2.2 3 4.7"/>', season: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>', ticket: '<path d="M3 9a2 2 0 0 1 0 6v2.5A1.5 1.5 0 0 0 4.5 19h15a1.5 1.5 0 0 0 1.5-1.5V15a2 2 0 0 1 0-6V6.5A1.5 1.5 0 0 0 19.5 5h-15A1.5 1.5 0 0 0 3 6.5z"/><path d="M14 5v2.5M14 11v2M14 16.5V19"/>' };
+  const tkIcon = (t) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${TKI[t.type] || TKI.ticket}</svg>`;
   const group = (t) => (t.type === "group" && Number(t.groupSize) > 1 ? ` · for ${Number(t.groupSize)}` : "");
 
   app.innerHTML = `
@@ -270,9 +294,13 @@ function show(e) {
           <div><dt>Entry</dt><dd>${entry(tickets, price)}</dd></div>
         </dl>
         ${tickets.length ? `<section class="ep-sec"><h2>Tickets</h2><ul class="ep-tickets" id="ep-tickets">${tickets.map((t, i) => {
-          return `<li data-i="${i}"><div><b>${esc(t.name)}${esc(group(t))}</b>${(t.tag || t.label1) ? `<i class="ep-tag">${esc(t.tag || t.label1)}</i>` : ""}${t.includes ? `<small class="ep-inc">${esc(t.includes)}</small>` : ""}<small class="ep-sale"></small>${bulkInfo(t)}<small class="ep-bulk" hidden></small><small class="ep-noslot" hidden>Not offered for the time you picked</small></div>
-            <span class="ep-price">${price(t)}${hasGst(t) ? "<small>incl. GST</small>" : ""}</span>
-            <span class="ep-step"><button type="button" data-d="-1" aria-label="One fewer ${esc(t.name)}">−</button><output aria-live="polite">0</output><button type="button" data-d="1" aria-label="One more ${esc(t.name)}">+</button></span></li>`;
+          return `<li class="tk" data-i="${i}">
+            <div class="tc-name"><span class="tc-ic" aria-hidden="true">${tkIcon(t)}</span><b>${esc(t.name)}${esc(group(t))}</b>${(t.tag || t.label1) ? `<i class="ep-tag">${esc(t.tag || t.label1)}</i>` : ""}${lowLeft(t) ? `<i class="ep-low">Only ${Number(t.qty)} left</i>` : ""}</div>
+            <div class="tc-price">${price(t)}</div>
+            <div class="tc-sub">${t.includes ? `<small class="ep-inc">${esc(t.includes)}</small>` : ""}<small class="ep-sale"></small><small class="ep-bulk" hidden></small><small class="ep-noslot" hidden>Not offered for the time you picked</small></div>
+            ${hasGst(t) ? `<div class="tc-gst">incl. GST${infoBtn("gst", "See the price breakdown")}</div>` : ""}
+            ${rulesFor(t).length ? `<div class="tc-save">Buy more, save more${infoBtn("bulk", "See the bulk discounts")}</div>` : ""}
+            <span class="ep-step tc-step"><button type="button" data-d="-1" aria-label="One fewer ${esc(t.name)}">−</button><output aria-live="polite">0</output><button type="button" data-d="1" aria-label="One more ${esc(t.name)}">+</button></span></li>`;
         }).join("")}</ul>
           <p class="ep-total" id="ep-total"><span>Total${tickets.some(hasGst) ? " (incl. GST)" : ""}</span><b>₹0</b></p>
           <p class="ep-savings" id="ep-savings" hidden></p>
@@ -280,7 +308,7 @@ function show(e) {
             const nm = "q" + i, lab = `<span class="ep-q-l">${esc(q.text)}${q.required ? ' <i aria-label="required">*</i>' : ""}</span>`;
             const choices = q.type === "yesno" ? ["Yes", "No"] : (q.options || []);
             const body = q.type === "short" ? `<input class="ep-q-in" type="text" maxlength="300" data-q="${i}" aria-label="${esc(q.text)}" />` : `<div class="ep-q-opts">${choices.map((c) => `<label><input type="${q.type === "many" ? "checkbox" : "radio"}" name="${nm}" value="${esc(c)}" data-q="${i}" /><span>${esc(c)}</span></label>`).join("")}</div>`;
-            return `<div class="ep-q" data-qi="${i}">${lab}${body}<p class="ep-q-err" hidden>Please answer this one.</p></div>`;
+            return `<div class="ep-q" data-qi="${i}">${lab}${body}<p class="ep-q-err" hidden>Please answer this one</p></div>`;
           }).join("")}</div>` : ""}
           <button class="btn" type="button" id="ep-buy">Pick a ticket</button>
           <p class="ep-msg" id="ep-msg" role="status" hidden></p></section>` : ""}
@@ -308,7 +336,7 @@ function show(e) {
   paintSave(savedList().includes(e.id));
   save.addEventListener("click", () => { const on = save.getAttribute("aria-pressed") !== "true"; setSaved(e.id, on); paintSave(on); toast(on ? "Saved" : "Removed from saved"); });
   app.querySelector("#ep-share").addEventListener("click", async () => {
-    const data = { title: e.title || "Event", text: `${e.title || "Event"} on PeanutButterJelly.vip`, url: location.href };
+    const data = { title: e.title || "Event", text: `${e.title || "Event"} on PeanutButterJelly.fun`, url: location.href };
     if (navigator.share) { try { await navigator.share(data); } catch { /* closed the share sheet */ } return; }
     try { await navigator.clipboard.writeText(location.href); toast("Link copied"); } catch { toast("Copy the link from the address bar"); }
   });
@@ -329,6 +357,8 @@ function show(e) {
 
   // ticket picker
   const list = app.querySelector("#ep-tickets");
+  list?.addEventListener("click", (ev) => { const b = ev.target.closest("[data-pop]"); if (!b) return; const t = tickets[+b.closest("li").dataset.i]; if (!t) return;
+    if (b.dataset.pop === "bulk") popup("Buy more, save more", "The more tickets you take in one order, the bigger the discount.", bulkRows(t)); else popup("Price breakdown", "", gstRows(t)); });
   if (list) {
     const picks = tickets.map(() => 0);
     const total = app.querySelector("#ep-total b"), buy = app.querySelector("#ep-buy"), msg = app.querySelector("#ep-msg");
@@ -381,10 +411,10 @@ function show(e) {
     buy.addEventListener("click", () => {
       msg.hidden = false;
       const miss = count() ? unanswered() : null;
-      if (miss) { msg.textContent = "Please answer the questions marked with a star."; miss.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+      if (miss) { msg.textContent = "Please answer the questions marked with a star"; miss.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
       msg.textContent = count()
         ? `Booking isn't switched on yet, so nothing has been booked. You picked ${picks.map((n, i) => (n ? `${n} × ${tickets[i].name}` : "")).filter(Boolean).join(", ")}.`
-        : "Pick at least one ticket first.";
+        : "Pick at least one ticket first";
     });
     onSlot = paint;
     paint();
