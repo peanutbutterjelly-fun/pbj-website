@@ -346,3 +346,4 @@
 .tk-modal .tk-row { padding: 0.55em 0; }
 .tk-modal .tk-note { font-size: 12px; }
 .ep-tickets { filter: drop-shadow(0 2px 3px rgba(70, 55, 33, 0.18)); }
+.ep-tickets li.tk .tc-name b { overflow-wrap: anywhere; }
