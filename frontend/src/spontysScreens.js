@@ -7,7 +7,7 @@ import { PEOPLE, BADGES, BADGE_ORDER, POSTS, PAST, personBy, hostedOf, attendedO
 import { initEvents } from "./spontysEvents.js";
 import { initChats } from "./spontysChats.js";
 import { planState, planStates, requestPlan, chatIdForPlan, onChats as onChatChange } from "./chats.js";
-import { PREFIX, read, write, evId, safeUrl } from "./spontysStore.js";
+import { PREFIX, read, write, evId, safeUrl, safeImg } from "./spontysStore.js";
 
 const FOLLOW = PREFIX + "follow";
 
@@ -80,6 +80,9 @@ export function initScreens(k) {
   const bdg = (b) => (badgeOf(b) ? `<span class="bd bd-${badgeOf(b)}">${esc(BADGES[badgeOf(b)].label)}</span>` : "");
   const isF = (h) => follows().includes(h);
   const fBtn = (h, cls = "") => `<button type="button" class="th-follow ${cls} ${isF(h) ? "on" : ""}" data-f="${esc(h)}" aria-pressed="${isF(h)}">${isF(h) ? "Following" : "Follow"}</button>`;
+  // A host's published event (src/realEvents.js): its photo if it has one, else the lineup's coloured tile
+  const listedRow = (e) => `<a class="fd-ev pe-ev" href="#/e/${esc(evId(e))}">${safeImg(e.photos?.[0]) ? `<span class="fd-thumb ph" style="background-image:url('${esc(safeImg(e.photos[0]))}')"></span>` : `<span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${e.paper === "jam" || e.paper === "brown" ? "var(--cream)" : "var(--brown)"}">${KINDS[e.kind] || "✨"}</span>`}
+    <span class="fd-ev-t"><b>${esc(e.title)}</b><em>${esc(e.category)}</em><small>${esc(e.area)} · ${esc(e.price)} · ${when(e)}</small></span><span class="pe-tag">New</span></a>`;
   const pastRow = (e) => `<a class="fd-ev pe-ev" href="#/e/${esc(evId(e))}"><span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${e.paper === "jam" || e.paper === "brown" ? "var(--cream)" : "var(--brown)"}">${KINDS[e.kind] || "✨"}</span>
     <span class="fd-ev-t"><b>${esc(e.title)}</b><em>${esc(e.category)} · past</em><small>${esc(e.area)} · ${esc(e.price)} · ${when(e)}${e.going ? ` · ${e.going} went` : ""}</small></span><span class="pe-tag">Past</span></a>`;
   /** One row for any event: the live ones can be saved with the heart, the past ones show how many went. */
@@ -259,6 +262,7 @@ export function initScreens(k) {
       <div class="fd-chips">${CHIPS.map(([n, c]) => `<button type="button" class="fd-chip ${chip === n ? "on" : ""}" data-chip="${n}" aria-pressed="${chip === n}"><i style="background:${c}"></i>${n}</button>`).join("")}</div>
       <div class="fd-cols"><div class="fd-main">
       ${chip ? "" : ch.updatesCard()}
+      ${!chip && ups.some((e) => e.real) ? `<h2 class="fd-h cut fd-listed">Just listed</h2><div class="fd-listed-list">${ups.filter((e) => e.real).slice(0, 4).map(listedRow).join("")}</div>` : ""}
       <h2 class="fd-h cut fd-new">${chip ? esc(chip) + " for you" : "New for you"}</h2>
       <div class="fd-feed a">${thread(posts.slice(0, 3)) || `<p class="sp-sub">Nothing matches that yet. Try another tag.</p>`}</div>
       <div class="fd-feed b">${thread(posts.slice(3))}</div>

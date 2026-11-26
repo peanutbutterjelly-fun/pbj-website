@@ -1196,3 +1196,6 @@ body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height
 .g-or { display: flex; align-items: center; gap: 0.8em; margin: 0.9em 0 0.6em; font-size: 0.85em; opacity: 0.7; }
 .g-or::before, .g-or::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.35; }
 @media (prefers-reduced-motion: reduce) { .g-btn { transition: none; } .g-btn:hover:not(:disabled) { transform: none; } }
+
+/* For you: hosts' newest published events (src/realEvents.js) */
+.fd-listed-list { display: grid; gap: 0.8em; margin: 0 0 2em; }

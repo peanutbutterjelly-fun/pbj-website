@@ -5,6 +5,7 @@ import { BADGES, BADGE_ORDER, badgeOf } from "./people.js";
 import { createCutLetter } from "./cutword.js";
 import { unreadCount } from "./chats.js";
 import { initAccount } from "./spontysAccount.js";
+import { loadRealEvents } from "./realEvents.js";
 import { PREFIX, read, write as store, clearAll, esc, safeImg } from "./spontysStore.js";
 const app = document.getElementById("app");
 const PROFILE = PREFIX + "profile", PLACES = PREFIX + "places", PREFS = PREFIX + "prefs";
@@ -389,3 +390,5 @@ window.addEventListener("resize", setHdr);
 window.addEventListener("hashchange", route);
 setHdr();
 route();
+// Hosts' published events arrive from the database a moment later: redraw the screens that list them (not Ask FUN, where someone may be typing)
+loadRealEvents().then((n) => { if (n && /^(#\/?(feed)?|#\/e\/db-.*|#\/profile.*|)$/.test(location.hash)) route(); });
