@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # Supabase secret key: admin access (e.g. managing users). Not used yet; never send it to the website.
     supabase_secret_key: str = ""
 
+    # The back office (staff-only admin screen) login. Only a scrambled fingerprint of the password lives here, never the
+    # password itself. To change it, set ADMIN_PASSWORD_HASH on Railway (make one with: python -m app.admin_auth).
+    admin_username: str = "pbj-admin"
+    admin_password_hash: str = "scrypt$16384$8$1$scmn1pv5PZnHWoonlMjaOA==$O8cXANz0jhxJ4yahVRwqjVYsv3wFpObayJ9RRUEHN90="
+
     @property
     def supabase_issuer(self) -> str:
         return self.supabase_url.rstrip("/") + "/auth/v1"

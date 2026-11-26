@@ -4,6 +4,7 @@ The events themselves are made, edited, published and cancelled by the host in t
 (public.events, see supabase/migrations/…_events.sql). This file only reads them:
   - status: guests can ask for a ticket only while it is "published". "coming" (bookings not open yet) and "soldout"
     (bookings closed) stay listed but take no new asks; the host can still accept requests that are waiting.
+  - hidden: staff took the event off the site (the back office, admin.py). It takes no asks and only its host sees it.
   - dates: nothing is given for an event whose last day (ends_on, else starts_on) has passed, in Mumbai time.
   - data.type: "guestlist" (a Sponty event) means the host approves each person, so asking makes a request.
     "exclusive" and "open" give the ticket at once.
@@ -31,7 +32,7 @@ LISTED = ("published", "coming", "soldout")  # on the Events page; the host can 
 TODAY = "(now() at time zone 'Asia/Kolkata')::date"
 
 FACTS = f"""select id, host_id, status, data->>'type' as type, data->'tickets' as tickets, left(coalesce(nullif(btrim(data->>'title'), ''), 'Event chat'), 120) as title,
-                   coalesce(coalesce(ends_on, starts_on) >= {TODAY}, false) as upcoming
+                   coalesce(coalesce(ends_on, starts_on) >= {TODAY}, false) as upcoming, hidden_at is not null as hidden
             from public.events where id = %s"""
 
 
@@ -104,7 +105,7 @@ def my_chat(db: Connection, event_id: str, user_id: UUID) -> UUID | None:
 def rsvp_state(event_id: EventId, db: Db, user: OptionalUser) -> dict:
     """For the event page: spots left, whether guests can ask now, and (when signed in) my ticket and chat."""
     ev = facts(db, event_id)
-    if ev is None or ev["status"] == "draft" and (user is None or user.id != ev["host_id"]):
+    if ev is None or (ev["status"] == "draft" or ev["hidden"]) and (user is None or user.id != ev["host_id"]):
         raise HTTPException(404, "Event not found")
     cap = free_spots(ev["tickets"])
     going = going_count(db, event_id)
@@ -126,7 +127,7 @@ def get_ticket(event_id: EventId, user: LoggedIn, db: Db, body: TicketIn | None 
     """Ask for a ticket. For a Sponty event this records a request the host accepts or declines; otherwise the ticket is
     given at once (while spots last). Safe to repeat."""
     ev = facts(db, event_id, lock=True)
-    if ev is None or ev["status"] == "draft":
+    if ev is None or ev["status"] == "draft" or ev["hidden"]:  # staff can take an event off the site (see admin.py)
         raise HTTPException(404, "Event not found")
     if ev["host_id"] == user.id:
         raise HTTPException(409, "You're the host of this one")
