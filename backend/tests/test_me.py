@@ -31,7 +31,7 @@ class FakeDb:
         self.profile = {"id": USER_ID, "full_name": None, "avatar_url": None, "city": "Mumbai", "role": "guest",
                         "phone": "+91 98200 00000", "host_kind": None, "link": None, "about": None, "wants_call": False,
                         "onboarded_at": None, "handle": None, "instagram": None, "youtube": None, "x_handle": None,
-                        "badge": "vibes", "birthday": "2002-09-21", "email": "private@example.com",
+                        "badge": "vibes", "birthday": "2002-09-21", "attended_visibility": "followers", "email": "private@example.com",
                         "created_at": None, "updated_at": None}
         self.last = None
         self.updates = []
