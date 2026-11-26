@@ -18,7 +18,7 @@ MUMBAI = timezone(timedelta(hours=5, minutes=30))  # India has one time zone and
 
 COLUMNS = (
     "id, full_name, avatar_url, city, role, phone, host_kind, link, about, wants_call, onboarded_at,"
-    " handle, instagram, youtube, x_handle, badge, birthday, created_at, updated_at"
+    " handle, instagram, youtube, x_handle, badge, birthday, attended_visibility, created_at, updated_at"
 )
 
 
@@ -40,13 +40,15 @@ class ProfileUpdate(BaseModel):
     # People pick these three themselves. "pro" and "exclusive" are given by the PB&J team only.
     badge: Literal["vibes", "sponty", "newbie"] | None = None
     birthday: date | None = None
+    # who can see the events this person went to ("I went"): everyone, only people they follow back... see activity.py
+    attended_visibility: Literal["public", "followers", "private"] | None = None
 
     @field_validator("handle")
     @classmethod
     def lower_handle(cls, value: str | None) -> str | None:
         return value.lower() if value else value
 
-    @field_validator("badge", "city")
+    @field_validator("badge", "city", "attended_visibility")
     @classmethod
     def not_empty(cls, value: str | None) -> str:
         # these always have a value in the database (sending null is a mistake, not "clear it")
