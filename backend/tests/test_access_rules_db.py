@@ -12,26 +12,30 @@ Refused = psycopg.errors.InsufficientPrivilege  # also what Postgres raises when
 
 
 MAIL = "@access-rules.test"  # every sign-up form these tests send, so they can be cleared away afterwards
+PEOPLE: list[uuid.UUID] = []  # everyone the current test signed up, removed when it ends
 
 
 @pytest.fixture
 def conn(pg):
     """A connection to the test database. Everyone and everything a test makes is removed afterwards
     (deleting a person takes their events, tickets and lists with them), so other test files never count it."""
+    PEOPLE.clear()
     with psycopg.connect(pg, autocommit=True) as c:
-        c.people = []
-        yield c
-        c.execute("reset role")
-        for uid in c.people:
-            c.execute("delete from storage.objects where name like %s", (f"{uid}/%",))
-        c.execute("delete from auth.users where id = any(%s)", (c.people,))
-        c.execute("delete from public.leads where email like %s", (f"%{MAIL}",))
+        try:
+            yield c
+        finally:
+            c.execute("reset role")
+            for uid in PEOPLE:
+                c.execute("delete from storage.objects where name like %s", (f"{uid}/%",))
+            c.execute("delete from auth.users where id = any(%s)", (PEOPLE,))
+            c.execute("delete from public.leads where email like %s", (f"%{MAIL}",))
+            PEOPLE.clear()
 
 
 def person(conn) -> uuid.UUID:
     uid = uuid.uuid4()
     conn.execute("insert into auth.users (id, email) values (%s, %s)", (uid, f"{uid}@x.com"))
-    conn.people.append(uid)
+    PEOPLE.append(uid)
     return uid
 
 
