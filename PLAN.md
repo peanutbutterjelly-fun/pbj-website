@@ -1,7 +1,7 @@
 # PBJ Teaser Website — Plan
 
 ## The Goal
-Build the skeleton of the full PeanutButterJelly.vip site (not a single page) so visitors get our vibe right away. Give them specific things to look forward to, so they stay excited instead of signing up and forgetting us. After signing up, people are pointed to our Instagram and told to watch for dates.
+Build the skeleton of the full PeanutButterJelly.fun site (not a single page) so visitors get our vibe right away. Give them specific things to look forward to, so they stay excited instead of signing up and forgetting us. After signing up, people are pointed to our Instagram and told to watch for dates.
 
 ## Who It's For
 **Guests:** 20–32-year-olds in Mumbai who spend ₹500–3,500 on a night out but find good small events only by luck.
@@ -70,7 +70,7 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Know Mo
 - [ ] 8. Sandwich mascot (now built from the owner's four photos: bread, jelly, peanut butter, bread; a real 3D sandwich wrapped in the photos (each photo cut into a solid slab and projected back on), so it stays 3D from every side; same scroll animation as the earlier 3D version: layout, drops, camera follow and 360-degree spin; click to wobble)
 - [ ] 9. Phone version rounds
 - [ ] Before launch: write an engineer guide (how to run the site, what each file does, what's unfinished), label the "version 1" point in GitHub, and have an engineer review it (optional short check-in earlier, once the main pages are built)
-- [ ] 10. Launch on PeanutButterJelly.vip (only when desktop and phone are both ready)
+- [ ] 10. Launch on PeanutButterJelly.fun (only when desktop and phone are both ready)
 
 ## Not Building Yet
 - Spin-off Events section (later, once we've handpicked and organised our own events)
@@ -91,7 +91,7 @@ Host and planner screen (built, demo view): `#/manage` lists the chats you run; 
 
 ## Rules decided by the owner (15 Nov 2026): who can do what
 - **Accounts.** Every host and every Sponty planner has their own account with us. Anyone with an account can list an event through the My Events dashboard. Only the **PBJ Exclusive** badge is decided by the PB&J team.
-- **Sponty plans are events** whose event type is "Sponty Event" in the My Events dashboard. Free tickets only; the ticket is the proof of RSVP.
+- **Sponty plans are events** whose event type is "Sponty Plan" in the My Events dashboard. Free tickets only; the ticket is the proof of RSVP.
 - **One-time identity check** by a third-party service is mandatory for planners who list a plan and for people who say "interested" or "I'm in" on a plan. Until a service is connected the team marks people verified by hand.
 - **The planner decides who joins**, even for a free spot. By default they approve each person (safety). They can switch on **auto-approval** (first come, first served) when they only care that someone comes. The requests and guest list live in the My Events dashboard on each Sponty event (a Requests page with Accept and Decline, and spots left).
 - **Browsing is open.** People can search and browse events without an account. An account is recommended (and needed for Sponty plans) so payments and bookings are easy to find. Paid events can be bought as a guest.

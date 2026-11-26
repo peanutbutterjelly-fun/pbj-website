@@ -222,7 +222,7 @@ h2 { max-width: 22ch; }
   max-width: 420px;
   min-height: 52px;
   padding: 0 1.25rem;
-  border: 3px solid var(--crust);
+  border: 1px solid var(--crust);
   border-radius: 999px;
   background: #fff;
   color: var(--ink);
@@ -556,7 +556,7 @@ html.intro .intro-swirl {
 
 /* ---------- Events: banner of posters, category bar, filters on the left, cards on the right ---------- */
 .ev-browse { padding: 0 0 5rem; }
-.ev-arrow { flex: none; width: 2.6em; height: 2.6em; border-radius: 50%; border: 2px solid var(--ink); background: var(--page); color: var(--ink); font: inherit; cursor: pointer; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.ev-arrow { flex: none; width: 2.6em; height: 2.6em; border-radius: 50%; border: 1px solid var(--ink); background: var(--page); color: var(--ink); font: inherit; cursor: pointer; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .ev-arrow:hover { transform: scale(1.12) rotate(-4deg); }
 .ev-arrow.sm { width: 2em; height: 2em; border: 0; background: none; }
 .ev-banner { position: relative; background: var(--brown); padding: calc(var(--u) * 2) clamp(1.5rem, 6vw, 6rem); display: flex; align-items: center; gap: 1rem; }
@@ -574,7 +574,7 @@ html.intro .intro-swirl {
 .ev-poster span { position: relative; margin-top: 0.6em; font-size: 0.75em; text-transform: uppercase; }
 .ev-cats { display: flex; align-items: center; padding: 0.4rem 1rem; background: color-mix(in srgb, var(--ink) 8%, var(--page)); }
 .ev-cats-track { display: flex; gap: 2em; overflow-x: auto; scrollbar-width: none; flex: 1; padding: 0.9em 0.5em; }
-.ev-cats-track button { flex: none; background: none; border: 0; font: inherit; font-size: 0.85em; text-transform: uppercase; color: var(--ink); cursor: pointer; padding: 0.3em 0; border-bottom: 3px solid transparent; }
+.ev-cats-track button { flex: none; background: none; border: 0; font: inherit; font-size: 0.85em; text-transform: uppercase; color: var(--ink); cursor: pointer; padding: 0.3em 0; border-bottom: 1px solid transparent; }
 .ev-cats-track button.on { border-bottom-color: var(--strawberry); color: var(--strawberry); }
 .ev-body { display: grid; grid-template-columns: 17em 1fr; gap: clamp(1.5rem, 3vw, 3rem); padding: 2.5rem clamp(1.5rem, 3vw, 3rem) 0; align-items: start; }
 .ev-filters { display: flex; flex-direction: column; gap: 0.9em; position: sticky; top: 1rem; }
@@ -905,7 +905,7 @@ html.intro .intro-swirl {
 .fname { margin: 0; font-family: var(--display); font-weight: 700; line-height: 1; font-size: 2.6em; display: flex; flex-wrap: wrap; column-gap: 0.28em; }
 .fword { display: inline-block; white-space: nowrap; }
 .frole { margin: 0; font-size: 0.75em; text-transform: uppercase; }
-.fbtn, .fclose { display: inline-flex; gap: 0.5em; align-items: center; margin-top: 0.3em; padding: 0.55em 1em; border: 2px solid #fff; border-radius: 999px; background: none; color: #fff; text-shadow: 0.06em 0.08em 0 var(--crust); font: inherit; font-size: 0.75em; text-transform: uppercase; cursor: pointer; transition: background 0.2s; }
+.fbtn, .fclose { display: inline-flex; gap: 0.5em; align-items: center; margin-top: 0.3em; padding: 0.55em 1em; border: 1px solid #fff; border-radius: 999px; background: none; color: #fff; text-shadow: 0.06em 0.08em 0 var(--crust); font: inherit; font-size: 0.75em; text-transform: uppercase; cursor: pointer; transition: background 0.2s; }
 .fbtn i, .fclose i { font-style: normal; }
 .fbtn:hover, .fclose:hover { background: rgba(255, 255, 255, 0.22); } /* the buttons only change shade on hover: they never move */
 .fbtn:focus-visible, .fclose:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
@@ -962,7 +962,7 @@ html.intro .intro-swirl {
 .jword { display: inline-block; white-space: nowrap; clip-path: inset(-0.1em -0.25em -0.1em -0.25em); }
 .jtext { margin: 0; font-size: 18px; line-height: 1.35; text-transform: uppercase; }
 .jdots { position: absolute; right: clamp(1.5rem, 6vw, 6rem); top: 50%; translate: 0 -50%; display: flex; flex-direction: column; gap: 0.8em; }
-.jdots i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--brown); transition: background 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.jdots i { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--brown); transition: background 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .jdots i.on { background: var(--strawberry); border-color: var(--strawberry); transform: scale(1.3); }
 @media (max-width: 991px) {
   .jstep { grid-template-columns: 1fr; row-gap: 0.8rem; padding-right: 0; }
@@ -1162,7 +1162,7 @@ html.intro .intro-swirl {
 
 /* ---- the window in the site's own look: rounded, cream, crust-brown title bar, a hard soft-brown shadow like the NEXT button ---- */
 .ev-win-wrap .ev-win { padding: 0 10px 10px 0; } /* (room for the shadow, so the opening animation does not cut it off) */
-.ev-win-wrap .ev-win-in { --chrome: var(--cream); --lite: var(--cream); --hi: var(--cream); --lo: rgba(70, 55, 33, 0.3); padding: 0; border: 2px solid var(--brown); border-radius: 18px; background: var(--cream); box-shadow: 8px 8px 0 var(--brown); }
+.ev-win-wrap .ev-win-in { --chrome: var(--cream); --lite: var(--cream); --hi: var(--cream); --lo: rgba(70, 55, 33, 0.3); padding: 0; border: 1px solid var(--brown); border-radius: 18px; background: var(--cream); box-shadow: 8px 8px 0 var(--brown); }
 .ev-win-wrap .ev-win-bar { gap: 6px; padding: 9px 10px 9px 14px; border-radius: 15px 15px 0 0; background: var(--crust); color: var(--cream); }
 .ev-win-wrap .ev-win-b { width: 26px; height: 26px; border: 0; border-radius: 8px; background: var(--cream); box-shadow: none; }
 .ev-win-wrap .ev-win-b:hover { background: var(--honey); }
@@ -1170,33 +1170,33 @@ html.intro .intro-swirl {
 .ev-win-wrap .ev-win-min u::before { left: 8px; bottom: 8px; width: 10px; }
 .ev-win-wrap .ev-win-max u::before { left: 8px; top: 7px; width: 10px; height: 10px; border-radius: 2px; }
 .ev-win-wrap .ev-win-x u::before, .ev-win-wrap .ev-win-x u::after { left: 12px; top: 6px; height: 13px; }
-.ev-win-wrap .ev-win-menu { padding: 6px 8px; border-bottom: 2px solid rgba(70, 55, 33, 0.15); }
+.ev-win-wrap .ev-win-menu { padding: 6px 8px; border-bottom: 1px solid rgba(70, 55, 33, 0.15); }
 .ev-win-wrap .ev-win-menu button { padding: 6px 10px; border-radius: 8px; }
 .ev-win-wrap .ev-win-menu button:hover, .ev-win-wrap .ev-win-menu button.is-open { background: var(--honey); color: var(--brown); }
-.ev-win-wrap .ev-win-tools, .ev-win-wrap .ev-win-fmt, .ev-win-wrap .ev-win-findbar { margin: 0; padding: 6px 10px; border-bottom: 2px solid rgba(70, 55, 33, 0.15); box-shadow: none; }
+.ev-win-wrap .ev-win-tools, .ev-win-wrap .ev-win-fmt, .ev-win-wrap .ev-win-findbar { margin: 0; padding: 6px 10px; border-bottom: 1px solid rgba(70, 55, 33, 0.15); box-shadow: none; }
 .ev-win-wrap .ev-win-ic, .ev-win-wrap .ev-win-fb { border-radius: 8px; box-shadow: none; }
 .ev-win-wrap .ev-win-ic:hover, .ev-win-wrap .ev-win-fb:hover { background: var(--honey); }
 .ev-win-wrap .ev-win-ic:active, .ev-win-wrap .ev-win-fb:active, .ev-win-wrap .ev-win-fb.is-on { background: var(--honey); box-shadow: none; }
-.ev-win-wrap .ev-win-sel { border-radius: 8px; border: 1.5px solid var(--brown); background: var(--cream); box-shadow: none; }
+.ev-win-wrap .ev-win-sel { border-radius: 8px; border: 1px solid var(--brown); background: var(--cream); box-shadow: none; }
 .ev-win-wrap .ev-win-sel b { background: none; box-shadow: none; }
-.ev-win-wrap .ev-win-findbar input { border: 1.5px solid var(--brown); border-radius: 8px; box-shadow: none; background: var(--cream); }
+.ev-win-wrap .ev-win-findbar input { border: 1px solid var(--brown); border-radius: 8px; box-shadow: none; background: var(--cream); }
 .ev-win-wrap .ev-win-findbar button { border-radius: 8px; background: var(--honey); box-shadow: none; }
 .ev-win-wrap .ev-win-card { margin: 0; border-radius: 0; background: var(--cream); box-shadow: none; padding: clamp(1rem, 2.2vw, 1.6rem) clamp(1.1rem, 2.4vw, 1.9rem); }
-.ev-win-wrap .ev-win-status { padding: 0; border-top: 2px solid rgba(70, 55, 33, 0.15); border-radius: 0 0 16px 16px; }
+.ev-win-wrap .ev-win-status { padding: 0; border-top: 1px solid rgba(70, 55, 33, 0.15); border-radius: 0 0 16px 16px; }
 .ev-win-wrap .ev-win-status span { padding: 8px 14px; box-shadow: none; }
 .ev-win-wrap .ev-win-status span:last-child { margin-right: 22px; }
-.ev-win-wrap .ev-win-pop { padding: 6px; border: 2px solid var(--brown); border-radius: 14px; background: var(--cream); box-shadow: 4px 4px 0 var(--brown); }
+.ev-win-wrap .ev-win-pop { padding: 6px; border: 1px solid var(--brown); border-radius: 14px; background: var(--cream); box-shadow: 4px 4px 0 var(--brown); }
 .ev-win-wrap .ev-win-pop button { border-radius: 8px; padding: 8px 10px 8px 4px; }
 .ev-win-wrap .ev-win-pop button:hover { background: var(--honey); color: var(--brown); }
 .ev-win-wrap .ev-win-pop hr { border-top: 1px solid rgba(70, 55, 33, 0.25); border-bottom: 0; }
 .ev-win-wrap .ev-win-dlg { border-radius: 16px; }
-.ev-win-wrap .ev-win-dlg-in { padding: 0; border: 2px solid var(--brown); border-radius: 16px; background: var(--cream); box-shadow: 5px 5px 0 var(--brown); }
+.ev-win-wrap .ev-win-dlg-in { padding: 0; border: 1px solid var(--brown); border-radius: 16px; background: var(--cream); box-shadow: 5px 5px 0 var(--brown); }
 .ev-win-wrap .ev-win-dlg-bar { border-radius: 13px 13px 0 0; padding: 8px 12px; }
 .ev-win-wrap .ev-win-dlg-in > button { border-radius: 10px; background: var(--honey); box-shadow: 4px 4px 0 var(--brown); }
 .ev-win-wrap .ev-win-size { right: 8px; bottom: 6px; opacity: 0.5; }
 .ev-win-card::-webkit-scrollbar { width: 12px; }
 .ev-win-card::-webkit-scrollbar-track { background: transparent; }
-.ev-win-card::-webkit-scrollbar-thumb { background: var(--brown); border: 3px solid var(--cream); border-radius: 8px; box-shadow: none; }
+.ev-win-card::-webkit-scrollbar-thumb { background: var(--brown); border: 1px solid var(--cream); border-radius: 8px; box-shadow: none; }
 .ev-win-card::-webkit-scrollbar-button { display: none; }
 
 /* softer: a thin faint edge and a gentle blurred shadow instead of a thick hard one */
@@ -1211,15 +1211,15 @@ html.intro .intro-swirl {
 
 /* no shadow on the window at all: just a thin edge */
 .ev-win-wrap .ev-win { width: min(720px, 100%); padding: 0; }
-.ev-win-wrap .ev-win-in { box-shadow: none; border: 1.5px solid rgba(70, 55, 33, 0.45); }
-.ev-win-wrap .ev-win-pop, .ev-win-wrap .ev-win-dlg-in { box-shadow: none; border: 1.5px solid rgba(70, 55, 33, 0.45); }
+.ev-win-wrap .ev-win-in { box-shadow: none; border: 1px solid rgba(70, 55, 33, 0.45); }
+.ev-win-wrap .ev-win-pop, .ev-win-wrap .ev-win-dlg-in { box-shadow: none; border: 1px solid rgba(70, 55, 33, 0.45); }
 .ev-win-wrap .ev-win-size { right: 8px; bottom: 6px; }
 
 /* a slimmer, lighter scroll bar in the window */
 .ev-win-card { scrollbar-width: thin; scrollbar-color: rgba(70, 55, 33, 0.3) transparent; }
 .ev-win-card::-webkit-scrollbar { width: 9px; }
 .ev-win-card::-webkit-scrollbar-track { background: transparent; }
-.ev-win-card::-webkit-scrollbar-thumb { min-height: 40px; background: rgba(70, 55, 33, 0.28); background-clip: padding-box; border: 2px solid transparent; border-radius: 8px; }
+.ev-win-card::-webkit-scrollbar-thumb { min-height: 40px; background: rgba(70, 55, 33, 0.28); background-clip: padding-box; border: 1px solid transparent; border-radius: 8px; }
 .ev-win-card::-webkit-scrollbar-thumb:hover { background: rgba(70, 55, 33, 0.45); background-clip: padding-box; }
 /* the scroll bar in a faint crust brown */
 .ev-win-card { scrollbar-color: rgba(138, 75, 30, 0.42) transparent; }
@@ -1245,7 +1245,7 @@ html.intro .intro-swirl {
 .ev-win-form-body .hint { margin: 0; font: 400 13px / 1.4 var(--mono); }
 .ev-win-form-body label { display: flex; flex-direction: column; gap: 6px; font: 400 12px / 1.2 var(--mono); }
 .ev-win-form-body label small { opacity: 0.65; }
-.ev-win-form-body input, .ev-win-form-body textarea { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1.5px solid rgba(70, 55, 33, 0.45); border-radius: 10px; background: var(--cream); color: var(--brown); font: 400 15px / 1.3 var(--mono); text-transform: none; outline: none; resize: vertical; }
+.ev-win-form-body input, .ev-win-form-body textarea { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid rgba(70, 55, 33, 0.45); border-radius: 10px; background: var(--cream); color: var(--brown); font: 400 15px / 1.3 var(--mono); text-transform: none; outline: none; resize: vertical; }
 .ev-win-form-body input:focus, .ev-win-form-body textarea:focus { border-color: var(--brown); box-shadow: 0 0 0 2px var(--honey); }
 .ev-win-form-body .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .ev-win-form-body .err { min-height: 1.2em; margin: 0; color: var(--jam, #C2184F); font: 700 12px / 1.3 var(--mono); }
@@ -1265,7 +1265,7 @@ html.intro .intro-swirl {
 .ev-win-form-body fieldset.pick legend { padding: 0; margin-bottom: 8px; font: 400 12px / 1.2 var(--mono); }
 .ev-win-form-body fieldset.pick label { display: block; position: relative; }
 .ev-win-form-body fieldset.pick label input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-.ev-win-form-body fieldset.pick span { display: block; padding: 10px 14px; border: 1.5px solid rgba(70, 55, 33, 0.45); border-radius: 999px; font: 400 13px / 1.1 var(--mono); }
+.ev-win-form-body fieldset.pick span { display: block; padding: 10px 14px; border: 1px solid rgba(70, 55, 33, 0.45); border-radius: 999px; font: 400 13px / 1.1 var(--mono); }
 .ev-win-form-body fieldset.pick label input:checked + span { background: var(--honey); border-color: var(--brown); }
 .ev-win-form-body fieldset.pick label input:focus-visible + span { box-shadow: 0 0 0 2px var(--honey); }
 
@@ -1398,6 +1398,73 @@ a.acct-btn { display: grid; place-items: center; text-align: center; text-decora
 .acct-msg[data-tone="bad"] { color: var(--strawberry); }
 .acct-form[hidden], .acct-in[hidden], .acct-msg[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .acct-btn { transition: none; } .acct-btn:hover:not(:disabled) { transform: none; } }
+
+/* Sign-in box: lined up on one left edge and dressed like the site's own buttons and boxes */
+.tb-acct { width: 17em; padding: 1em 0.8em 0.9em; }
+.tb-acct .tb-head { margin: 0 0 0.9em 0.2em; }
+.acct-form, .acct-in { gap: 0.8em; padding: 0 0.2em 0.5em; }
+.acct-form label { margin: 0 0 -0.4em 0.1em; font-size: 0.7em; opacity: 0.75; }
+.acct-form input { padding: 0.85em 1.1em; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: color-mix(in srgb, #fff 55%, var(--page)); }
+.acct-form input::placeholder { text-transform: uppercase; opacity: 0.45; }
+.acct-form input:focus { outline: none; border-color: var(--brown); box-shadow: 0 0 0 4px rgba(255, 227, 134, 0.45); }
+.acct-btn { min-height: 48px; margin-top: 0.2em; background: var(--strawberry); color: var(--bread); box-shadow: 0 5px 0 var(--grape); transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s; }
+.acct-btn:hover:not(:disabled) { transform: translateY(-2px) rotate(-1deg); box-shadow: 0 7px 0 var(--grape); }
+.acct-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--grape); }
+.acct-quiet { background: var(--peanut); color: var(--brown); box-shadow: 0 5px 0 var(--brown); }
+.acct-quiet:hover:not(:disabled) { box-shadow: 0 7px 0 var(--brown); }
+.acct-quiet:active:not(:disabled) { box-shadow: 0 2px 0 var(--brown); }
+.acct-note { margin: 0.3em 0.1em 0; font-size: 0.65em; line-height: 1.4; opacity: 0.7; }
+.acct-name, .acct-mail, .acct-msg { margin-left: 0.1em; margin-right: 0.1em; }
+@media (prefers-reduced-motion: reduce) { .acct-btn:hover:not(:disabled), .acct-btn:active:not(:disabled) { transform: none; } }
+.tb-acct .tb-head { margin: 0 0 1em 0.32em; }
+.acct-form label { margin: 0 0 -0.4em 0; font-size: 0.7em; opacity: 1; }
+.acct-note { margin: 0.3em 0 0; }
+.acct-name, .acct-mail, .acct-msg { margin-left: 0; margin-right: 0; }
+
+/* Sign-in box, calmer: small text, an empty email box, and a flat button that stays still (hover only darkens it) */
+.acct-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* still read out by screen readers, just not shown */
+.tb-acct .tb-head { margin-bottom: 0.8em; }
+.acct-form input { font-size: 12px; padding: 0.8em 1em; }
+.acct-btn, .acct-quiet { box-shadow: none; font-size: 0.7em; min-height: 44px; transition: background-color 0.15s; }
+.acct-btn:hover:not(:disabled), .acct-btn:active:not(:disabled) { transform: none; box-shadow: none; background: color-mix(in srgb, var(--strawberry) 88%, #000); }
+.acct-quiet:hover:not(:disabled), .acct-quiet:active:not(:disabled) { background: color-mix(in srgb, var(--peanut) 88%, #000); }
+.acct-note { font-size: 0.6em; }
+@media (pointer: coarse) { .acct-form input { font-size: 16px; } } /* phones zoom in on anything smaller */
+
+/* Sign-in: "Your email" is shown again, and the button is a small arrow beside the empty box */
+.acct-form label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; margin: 0 0 -0.3em 0; font-size: 0.7em; }
+.acct-row { display: flex; gap: 0.5em; align-items: stretch; }
+.acct-row input { flex: 1; min-width: 0; }
+.acct-go { flex: none; width: 44px; min-height: 44px; margin: 0; padding: 0; display: grid; place-items: center; border-radius: 14px; }
+.acct-go svg { width: 1.3em; height: 1.3em; }
+
+/* "Your email" is the sign-in box's heading, in paper-cut lettering like the site's titles */
+.acct-form .acct-title { font-size: 1.7em; line-height: 1; font-weight: 700; text-transform: uppercase; margin: 0 0 0.2em; opacity: 1; }
+.acct-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.acct-cut { display: inline-block; }
+.tb-acct .tb-head[hidden] { display: none; }
+
+/* Sign in opens in the middle of the screen, over a soft dim. Tapping the dim (or Escape) closes it. */
+.tb-layer .tb-pop.tb-acct { position: fixed; top: 50%; left: 50% !important; translate: -50% -50%; width: 19em; transform-origin: center; }
+.tb-layer:has(.tb-acct:not([hidden]))::before { content: ""; position: fixed; inset: 0; background: rgba(70, 55, 33, 0.35); pointer-events: auto; }
+@media (max-width: 767px) { .tb-layer .tb-pop.tb-acct { top: 50%; width: calc(100vw - 2.4rem); } }
+/* A bit bigger on computers */
+@media (min-width: 768px) {
+  .tb-layer .tb-pop.tb-acct { font-size: 1.3em; padding: 1.3em 1.1em 1.1em; }
+  .tb-acct .acct-form input { font-size: 15px; }
+  .tb-acct .acct-go { width: 52px; min-height: 52px; }
+}
+
+/* The sign-in arrow button wears the same look as the buttons on the events dashboard: yellow, small corners, brown offset shadow */
+.acct-go { background: var(--peanut); color: var(--brown); border-radius: 8px; box-shadow: 5px 5px 0 var(--brown); margin-right: 5px; }
+.acct-go:hover:not(:disabled), .acct-btn.acct-go:hover:not(:disabled) { background: #ffd95c; transform: none; box-shadow: 5px 5px 0 var(--brown); }
+.acct-go:active:not(:disabled), .acct-btn.acct-go:active:not(:disabled) { background: #ffd95c; transform: translate(2px, 2px); box-shadow: 3px 3px 0 var(--brown); }
+/* "Your email" inside the box reads like the site's subtext: Chivo Mono capitals in soft brown */
+.acct-form input::placeholder { color: var(--ink); opacity: 0.65; font-weight: 400; font-size: 0.85em; text-transform: uppercase; letter-spacing: normal; }
+
+/* Outlined "!" on error lines */
+.ev-win-form-body .err::before { content: ""; display: inline-block; vertical-align: -0.25em; width: 1.2em; height: 1.2em; margin-right: 0.45em; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9.5'/%3E%3Cpath d='M12 7v6'/%3E%3Cpath d='M12 16.6v.1'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9.5'/%3E%3Cpath d='M12 7v6'/%3E%3Cpath d='M12 16.6v.1'/%3E%3C/svg%3E") center / contain no-repeat; }
+.ev-win-form-body .err:empty::before { display: none; }
 
 /* "Continue with Google" (auth.js googleButtonHtml), hidden until Google sign-in is switched on in Supabase */
 .g-wrap[hidden] { display: none; }

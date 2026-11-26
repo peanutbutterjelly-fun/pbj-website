@@ -1,7 +1,7 @@
-# PeanutButterJelly.vip — Project Notes
+# PeanutButterJelly.fun — Project Notes
 
 ## Brand
-- **Name:** PeanutButterJelly.vip (short form: PB&J)
+- **Name:** PeanutButterJelly.fun (short form: PB&J)
 - **Tagline:** "Mining Hidden Gems Around You"
 - **Audience & place:** Built for Mumbai. Content, examples, and copy should feel local to Mumbai.
 

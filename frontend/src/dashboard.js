@@ -1,4 +1,6 @@
 import { createCutLetter } from "./cutword.js";
+import { restoreDrafts, backupDrafts } from "./devBackup.js";
+import { renderHostChat, renderCheckIn, syncEventChat } from "./hostChat.js";
 import { welcomeGate, profileForm } from "./welcome.js";
 import { signOut } from "./auth.js";
 import { shrinkImage, uploadImage, blobToDataUrl, imageMessage, photoLinks, removeImages } from "./images.js";
@@ -23,7 +25,7 @@ const BUILT = 8; // every step exists now
 
 // Commission and payout lines are placeholders until the owner decides PBJ's real terms
 const TYPES = [
-  { id: "guestlist", icon: "📋", name: "Sponty Event", desc: "Entry only for the guests you approve and admit.", commission: "Free (excl. listing fee)", payout: "N/A" },
+  { id: "guestlist", icon: "📋", name: "Sponty Plan", desc: "Entry only for the guests you approve and admit.", commission: "Free (excl. listing fee)", payout: "N/A" },
   { id: "exclusive", icon: "🔒", name: "Exclusive event", desc: "Tickets are available only on PBJ and no other platform.", commission: "To be set by PBJ", payout: "To be set by PBJ" },
   { id: "open", icon: "🌐", name: "Non-exclusive event", desc: "Tickets are available on multiple platforms.", commission: "To be set by PBJ", payout: "To be set by PBJ" },
 ];
@@ -53,8 +55,11 @@ let syncing = null, again = false, retry = null;
 const localLoad = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
 const load = () => (online ? JSON.parse(JSON.stringify(online)) : localLoad());
 const save = (list) => {
+  const prev = load();
+  // when an event's time, place or status changes, its group chat gets a notice (src/hostChat.js)
+  list.forEach((e) => { try { syncEventChat(prev.find((o) => o.id === e.id), e, dayLine); } catch { /* the notice is a nice-to-have; the save still goes ahead */ } });
   if (online) { online = JSON.parse(JSON.stringify(list)); sync(); return; }
-  try { localStorage.setItem(STORE, JSON.stringify(list)); } catch { toast("Couldn't save: too many or too large images. Remove a few."); }
+  try { localStorage.setItem(STORE, JSON.stringify(list)); backupDrafts(list); } catch { toast("Couldn't save: too many or too large images. Remove a few."); }
 };
 const newId = () => "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const unsaved = () => !!online && (online.some((e) => synced.get(e.id) !== JSON.stringify(e)) || [...synced.keys()].some((id) => !online.some((e) => e.id === id)));
@@ -139,14 +144,15 @@ function toast(msg) {
 function ask({ title, message = "", input, ok = "OK", cancel }) {
   return new Promise((resolve) => {
     const back = document.createElement("div");
-    back.className = "modal-back";
+    back.className = "modal-back centered";
     back.innerHTML = `<div class="modal small" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-      <div class="modal-head"><div><h3>${esc(title)}</h3></div><button type="button" class="modal-x" data-no aria-label="Close">×</button></div>
+      <div class="modal-head"><div><h3 class="cut">${esc(title)}</h3></div><button type="button" class="modal-x" data-no aria-label="Close">×</button></div>
       <div class="modal-body">${message ? `<p class="ask-msg">${esc(message)}</p>` : ""}${input ? `<input class="box" id="ask-in" type="text" placeholder="${esc(input.placeholder || "")}" />` : ""}</div>
       <div class="modal-foot"><button type="button" class="btn ghost" ${cancel ? "data-alt" : "data-no"}>${esc(cancel || "Cancel")}</button><button type="button" class="btn ask-ok" data-yes>${esc(ok)}</button></div></div>`;
     document.body.append(back);
     const field = back.querySelector("#ask-in");
-    const done = (v) => { document.removeEventListener("keydown", onKey); back.remove(); resolve(v); };
+    const headLetters = cutHeadings(back);
+    const done = (v) => { headLetters.forEach((l) => l.dispose()); document.removeEventListener("keydown", onKey); back.remove(); resolve(v); };
     const yes = () => done(field ? field.value.trim() || null : true);
     const onKey = (e) => { if (e.key === "Escape") done(null); if (e.key === "Enter" && field) { e.preventDefault(); yes(); } };
     document.addEventListener("keydown", onKey);
@@ -156,6 +162,37 @@ function ask({ title, message = "", input, ok = "OK", cancel }) {
     (field || back.querySelector("[data-yes]")).focus();
   });
 }
+
+// Small "Information" popup with just a close button (opened by the (i) icons)
+function info(text, title = "Information") {
+  const back = document.createElement("div");
+  back.className = "modal-back centered";
+  back.innerHTML = `<div class="modal small" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="modal-head"><div><h3 class="cut">${esc(title)}</h3></div><button type="button" class="modal-x" aria-label="Close">×</button></div>
+    <div class="modal-body"><p class="ask-msg">${esc(text)}</p></div></div>`;
+  document.body.append(back);
+  const headLetters = cutHeadings(back);
+  const done = () => { headLetters.forEach((l) => l.dispose()); document.removeEventListener("keydown", onKey); back.remove(); };
+  const onKey = (e) => { if (e.key === "Escape") done(); };
+  document.addEventListener("keydown", onKey);
+  back.addEventListener("click", (e) => { if (e.target === back || e.target.closest(".modal-x")) done(); });
+  back.querySelector(".modal-x").focus();
+}
+
+// The little (i) buttons: tap one to read what that field is for. Text is written for PB&J hosts.
+const LINK_HOST = "peanutbutterjelly.fun"; // where the custom event links live
+const COMMISSION_PCT = 5, COMMISSION_GST_PCT = 18; // change here if the commission changes
+const INFO_TEXT = {
+  "faq": "Answer the questions guests often ask before they book, like parking, what to carry, refreshments or the cancellation and refund policy. They show on your event page.",
+  "link": "Your event's very own short link. Easy to share, easy to remember.",
+  "gq": "Collect important details from the guests who book your event. Only you can see the answers.",
+  "tk-types": "Add as many ticket types as you need, like Early Bird, General or VIP. Each one gets its own price and number of spots.",
+  "tk-name": "Give your ticket a name guests will recognise, like Early Bird or Couple Entry, so they know exactly what they're getting.",
+  "tk-qty": "How many spots you're offering for this ticket type. Keep it in line with what your venue can hold. If your event has more than one time slot, this number is for each slot.",
+  "tk-price": `The price one guest pays for this ticket, before GST.\n\nPB&J commission: ${COMMISSION_PCT}% of your price\nGST on commission: ${COMMISSION_GST_PCT}% of that\n\nExample: on a ₹1,000 ticket, the commission is ₹${1000 * COMMISSION_PCT / 100} plus ₹${Math.round(1000 * COMMISSION_PCT / 100 * COMMISSION_GST_PCT) / 100} GST.\n\nFree and RSVP tickets cost nothing. Payout timing is set by PB&J.`,
+};
+const infoBtn = (key) => `<button type="button" class="info-btn" data-info="${key}" aria-label="What is this?"><svg viewBox="0 0 24 24" width="1.2em" height="1.2em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>`;
+const onInfo = (root) => root.addEventListener("click", (e) => { const b = e.target.closest("[data-info]"); if (b && INFO_TEXT[b.dataset.info]) { e.preventDefault(); e.stopPropagation(); info(INFO_TEXT[b.dataset.info]); } });
 
 /* ---------- Paper-cut headings: the same hand-cut wobbling lettering as the website's headlines (see cutword.js) ---------- */
 let cutLetters = [];
@@ -218,6 +255,7 @@ const iconSvg = {
   chev: '<path d="m6 9 6 6 6-6"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
   check: '<path d="m5 12 5 5 9-10"/>',
+  chat: '<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/>',
   flip: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
 };
 const ic = (name, size = "1.3em") => svg(iconSvg[name], size);
@@ -234,7 +272,7 @@ function qrPlaceholder(seed) {
 }
 
 function renderList() {
-  document.title = "My events — PeanutButterJelly.vip";
+  document.title = "My events — PeanutButterJelly.fun";
   const events = load();
   let tab = "all", query = "", openMenu = null;
   const flipped = new Set(); // tickets currently turned over to show the QR side
@@ -255,7 +293,7 @@ function renderList() {
     const no = `PBJ-${String(e.id).replace(/\W/g, "").slice(-6).toUpperCase()}`;
     return `<article class="ev-card ticket ${past ? "past" : ""} ${flipped.has(e.id) ? "flipped" : ""}" data-id="${e.id}"><div class="tk">
       <div class="tk-face front"><div class="tk-bgw"><div class="tk-edge"></div><div class="tk-bg"></div></div>
-      <div class="tk-stub img" ${img ? `style="background-image:url(${img})"` : ""}>${img ? "" : `<span>${esc((e.title || "?").trim().slice(0, 1).toUpperCase())}</span>`}${past ? '<i class="ev-past">Past</i>' : ""}<button type="button" class="flip" data-act="flip" aria-label="Turn the ticket over to see its QR code" title="Show QR code">${ic("flip", "1.2em")}</button></div>
+      <div class="tk-stub img" ${img ? `style="background-image:url(${img});${e.focus?.[imgKey(img)] ? `background-position:${e.focus[imgKey(img)]}` : ""}"` : ""}>${img ? "" : `<span>${esc((e.title || "?").trim().slice(0, 1).toUpperCase())}</span>`}${past ? '<i class="ev-past">Past</i>' : ""}<button type="button" class="flip" data-act="flip" aria-label="Turn the ticket over to see its QR code" title="Show QR code">${ic("flip", "1.2em")}</button></div>
       <div class="ev-main">
         <div class="ev-top"><div><h3>${esc(e.title || "Untitled event")}</h3><p class="ev-date">${ic("cal", "1.1em")}${dayLine(e)}</p></div>
           <div class="ev-ctl">
@@ -267,13 +305,16 @@ function renderList() {
               <div class="st-menu small" ${kebab ? "" : "hidden"}><button type="button" data-act="dup"><span><b>Duplicate</b></span></button><button type="button" data-act="del" class="dangerous"><span><b>Delete</b></span></button></div></div>
           </div></div>
         <div class="ev-tags"><span class="tag dark1">${esc(typeClash(e) ? "Fix event type" : TYPE_SHORT[e.type] || "No type")}</span>${(e.tickets || []).length ? `<span class="tag ${paid ? "dark2" : "free"}">${paid ? "Paid" : "Free"}</span>` : ""}${!done ? `<span class="tag soft">Step ${Math.min(e.step ?? 0, STEPS.length - 1) + 1} of ${STEPS.length}</span>` : ""}${past ? '<span class="tag soft">Past</span>' : ""}</div>
-        <div class="sold">${ic("ticket", "1.2em")}<b>0</b> sold</div>
+        ${e.type === "guestlist" ? "" : `<div class="sold">${ic("ticket", "1.2em")}<b>0</b> sold</div>`}
         ${done ? `<div class="ev-link">${ic("link", "1.1em")}<span>${eventLink(e)}</span><button type="button" data-act="copy">${ic("copy", "1.1em")}Copy</button></div>` : ""}
         <div class="ev-actions">
           ${past ? "" : `<button type="button" class="act primary" data-act="edit">${ic("edit")}${done ? "Edit" : "Continue"}</button>`}
           <button type="button" class="act" data-act="view">${ic("eye")}View event</button>
-          <button type="button" class="act outline" data-act="sales">${ic("chart")}View sales</button>
-          ${past ? "" : `<button type="button" class="act" data-act="coupons">${ic("tag")}Coupons</button>`}
+          ${e.type === "guestlist" ? "" : `<button type="button" class="act outline" data-act="sales">${ic("chart")}View sales</button>`}
+          ${done ? `<button type="button" class="act" data-act="chat">${ic("chat")}Run chat</button>` : ""}
+          ${done && e.type === "guestlist" ? `<button type="button" class="act" data-act="requests">${ic("check")}Requests</button>` : ""}
+          ${done && !past ? `<button type="button" class="act" data-act="checkin">${ic("ticket")}Check-in</button>` : ""}
+          ${past || e.type === "guestlist" ? "" : `<button type="button" class="act" data-act="coupons">${ic("tag")}Coupons</button>`}
         </div></div></div>
       <div class="tk-face tk-back"><div class="tk-bgw"><div class="tk-edge"></div><div class="tk-bg dark"></div></div>
         <div class="tk-stub qrside">${qrPlaceholder(e.id)}<span class="qr-cap">Admit one</span><small>QR code coming soon</small></div>
@@ -312,6 +353,9 @@ function renderList() {
     else if (what === "flip") { const art = act.closest(".ev-card"); if (art.classList.toggle("flipped")) flipped.add(e.id); else flipped.delete(e.id); }
     else if (what === "coupons") location.hash = `#/event/${e.id}/coupons`;
     else if (what === "sales") location.hash = `#/event/${e.id}/sales`;
+    else if (what === "chat") location.hash = `#/event/${e.id}/chat`;
+    else if (what === "requests") location.hash = `#/event/${e.id}/requests`;
+    else if (what === "checkin") location.hash = `#/event/${e.id}/checkin`;
     else if (what === "soon") toast(`${act.dataset.what} comes later`);
     else if (what === "copy") { try { await navigator.clipboard.writeText(location.origin + eventPath(e)); toast("Link copied"); } catch { toast(eventLink(e)); } }
     else if (what === "dup") { const c = JSON.parse(JSON.stringify(e)); c.id = newId(); c.title = `${e.title || "Untitled event"} (copy)`; c.status = "draft"; c.submitted = false; c.step = 1; events.unshift(c); save(events); openMenu = null; paint(); toast("Event duplicated as a draft"); }
@@ -367,7 +411,7 @@ function persist(step) {
 
 function renderCreate(step) {
   if (!draft) draft = { id: newId(), status: "draft", type: "", tickets: [], title: "", description: "", terms: DEFAULT_TERMS, category: "", subs: [], city: "", venueStatus: "", images: [], youtube: "", step: 0 };
-  document.title = "Create an event — PeanutButterJelly.vip";
+  document.title = "Create an event — PeanutButterJelly.fun";
   app.innerHTML = `
     <button class="back" type="button" data-back>‹ Back to your events</button>
     <div class="create-head"><h1 class="cut">Create an event</h1><p>Share your event with the PBJ community.</p></div>
@@ -391,8 +435,23 @@ function renderCreate(step) {
   else if (step === 6) stepOrganizer(host);
   else if (step === 7) stepReview(host);
   else stepComing(host, step);
+  addSaveDraft(host);
   cutHeadings();
   window.scrollTo({ top: 0 });
+}
+
+// Every step gets a "Save draft" button so nothing typed is lost (steps 4 to 6 already have their own)
+function addSaveDraft(host) {
+  const nav = host.querySelector(".nav");
+  if (!nav || nav.querySelector("#save, #done")) return;
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "btn"; b.id = "save"; b.textContent = "Save draft";
+  nav.classList.remove("single"); nav.classList.add("three");
+  nav.append(b);
+  b.addEventListener("click", () => {
+    if (!draft.type) { toast("Pick an event type first, then save your draft"); return; }
+    saveCurrent(); toast("Draft saved"); draft = null; location.hash = "#/";
+  });
 }
 
 function stepType(host) {
@@ -407,7 +466,7 @@ function stepType(host) {
       </button>`).join("")}
     </div>
     <p class="notice"><b>Important:</b> Commission is charged on the gross value of the ticket price you list. Please make sure all pricing is accurate to avoid penalties or limits on listing tickets on PBJ.</p>
-    <p class="err" id="err" style="display:none">Pick an event type to continue.</p>
+    <p class="err" id="err" style="display:none">Pick an event type to continue</p>
     <div class="nav single"><button class="btn dark" type="button" id="next">Next</button></div>`;
   host.querySelectorAll(".type").forEach((b) => b.addEventListener("click", () => {
     draft.type = b.dataset.type;
@@ -441,7 +500,8 @@ const TOOLS = [
   ["outdent", ico('<path d="M3 6h18M11 12h10M11 18h10M6 9l-3 3 3 3"/>'), "Outdent"], "|",
   ["insertUnorderedList", ico('<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'), "Bullet list"],
   ["insertOrderedList", ico('<path d="M10 6h11M10 12h11M10 18h11M3.5 5l1.5-1v4M3 13.5h2.5L3 17h2.5"/>'), "Numbered list"], "|",
-  ["formatBlock", "select:style"], ["fontName", "select:font"], ["fontSize", "select:size"], "|",
+  ["formatBlock", "select:style"], ["fontName", "select:font"], ["fontSize", "select:size"], ["caseText", "select:case"], ["lineHeight", "select:lh"],
+  ["paraSpace", ico('<path d="M4 4h16M4 20h16M12 8v8M9 11l3-3 3 3M9 13l3 3 3-3"/>'), "Add space after paragraphs"], "|",
   ["foreColor", "color:A", "Text colour", "#463721"], ["hiliteColor", "color:bg", "Highlight colour", "#ffe386"], "|",
   ["createLink", ico('<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>'), "Add link"],
   ["unlink", ico('<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/><path d="M3 3l18 18"/>'), "Remove link"],
@@ -451,6 +511,122 @@ const TOOLS = [
   ["removeFormat", ico('<path d="m7 21-4-4a2 2 0 0 1 0-3L14 3a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3L11 21H7z"/><path d="M8 11l6 6"/>'), "Clear formatting"],
   ["source", ico('<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>'), "Show HTML"],
 ];
+
+// A short key for a picture, so what the host chose to show on the card survives re-ordering
+const imgKey = (src) => { let h = 5381; for (let i = 0; i < src.length; i += 7) h = ((h << 5) + h + src.charCodeAt(i)) | 0; return src.length + ":" + (h >>> 0).toString(36); };
+
+// Crop and adjust an image: drag to move, slide to zoom, pick the frame shape. Apply saves the cropped picture.
+function openCropModal(src, onDone) {
+  const SHAPES = [["4:5", 4 / 5, "Portrait"], ["1:1", 1, "Square"], ["16:9", 16 / 9, "Wide"]];
+  let ratio = SHAPES[0][1], zoom = 1, ox = 0, oy = 0, fw = 0, fh = 0, nw = 0, nh = 0, s0 = 1;
+  const back = document.createElement("div");
+  back.className = "modal-back";
+  back.innerHTML = `<div class="modal small crop-modal" role="dialog" aria-modal="true" aria-label="Crop image">
+    <div class="modal-head"><div><h3 class="cut">Crop image</h3></div><button type="button" class="modal-x" data-no aria-label="Close">×</button></div>
+    <div class="modal-body">
+      <p class="crop-step" id="crop-step">Step 1 of 2 · Crop</p>
+      <div id="crop-one">
+        <div class="status-chips crop-shapes" role="radiogroup" aria-label="Frame shape">${SHAPES.map(([k, , n], i) => `<button type="button" role="radio" data-shape="${i}" aria-checked="${i === 0}" class="${i === 0 ? "on" : ""}">${n} <small>${k}</small></button>`).join("")}</div>
+        <div class="crop-frame" id="crop-frame"><img alt="" id="crop-img" draggable="false" /></div>
+        <p class="hint crop-hint">Drag the picture to move it.</p>
+        <label class="crop-zoom"><span>Zoom</span><input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1" aria-label="Zoom" /></label>
+      </div>
+      <div id="crop-two" hidden>
+        <p class="crop-ask">How it shows on your dashboard card</p>
+        <div class="crop-frame crop-focus" id="focus-frame"><img alt="" id="focus-img" draggable="false" /></div>
+        <p class="hint crop-hint">Your card shows a wide strip. Drag to choose which part of the picture it keeps.</p>
+      </div>
+    </div>
+    <div class="modal-foot" id="crop-foot-one"><button type="button" class="btn ghost" id="crop-reset">Reset</button><button type="button" class="btn ghost" data-no>Cancel</button><button type="button" class="btn" id="crop-next">Next</button></div>
+    <div class="modal-foot" id="crop-foot-two" hidden><button type="button" class="btn ghost" id="crop-back">Back</button><button type="button" class="btn" id="crop-ok">Apply</button></div></div>`;
+  document.body.append(back);
+  document.body.style.overflow = "hidden";
+  const headLetters = cutHeadings(back);
+  const $ = (q) => back.querySelector(q);
+  const frame = $("#crop-frame"), im = $("#crop-img");
+  const scale = () => s0 * zoom;
+  const clamp = () => { const sc = scale(); ox = Math.min(0, Math.max(fw - nw * sc, ox)); oy = Math.min(0, Math.max(fh - nh * sc, oy)); };
+  const paint = () => { clamp(); const sc = scale(); im.style.width = nw * sc + "px"; im.style.height = nh * sc + "px"; im.style.left = ox + "px"; im.style.top = oy + "px"; };
+  const layout = (keepCentre) => {
+    // keep whatever is in the middle of the frame in the middle when the shape or zoom changes
+    let cx = nw / 2, cy = nh / 2;
+    if (keepCentre && fw) { const sc = scale(); cx = (fw / 2 - ox) / sc; cy = (fh / 2 - oy) / sc; }
+    const body = $(".modal-body"), cs = getComputedStyle(body);
+    fw = Math.floor(Math.min(340, body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))); fh = fw / ratio;
+    frame.style.width = fw + "px"; frame.style.height = fh + "px";
+    s0 = Math.max(fw / nw, fh / nh);
+    const sc = scale(); ox = fw / 2 - cx * sc; oy = fh / 2 - cy * sc;
+    paint();
+  };
+  const close = () => { headLetters.forEach((l) => l.dispose()); back.remove(); document.body.style.overflow = ""; document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  back.querySelectorAll("[data-no]").forEach((b) => b.addEventListener("click", close));
+  im.onload = () => { nw = im.naturalWidth; nh = im.naturalHeight; layout(false); };
+  im.src = src;
+
+  let drag = null;
+  frame.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, ox, oy }; frame.setPointerCapture(e.pointerId); frame.classList.add("grab"); });
+  frame.addEventListener("pointermove", (e) => { if (!drag) return; ox = drag.ox + e.clientX - drag.x; oy = drag.oy + e.clientY - drag.y; paint(); });
+  const end = () => { drag = null; frame.classList.remove("grab"); };
+  frame.addEventListener("pointerup", end); frame.addEventListener("pointercancel", end);
+  $("#crop-zoom").addEventListener("input", (e) => { const centre = [(fw / 2 - ox) / scale(), (fh / 2 - oy) / scale()]; zoom = +e.target.value; const sc = scale(); ox = fw / 2 - centre[0] * sc; oy = fh / 2 - centre[1] * sc; paint(); });
+  back.querySelectorAll("[data-shape]").forEach((b) => b.addEventListener("click", () => {
+    ratio = SHAPES[+b.dataset.shape][1];
+    back.querySelectorAll("[data-shape]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", on); });
+    layout(true);
+  }));
+  $("#crop-reset").addEventListener("click", () => {
+    zoom = 1; $("#crop-zoom").value = 1; ratio = SHAPES[0][1];
+    back.querySelectorAll("[data-shape]").forEach((x) => { const on = x.dataset.shape === "0"; x.classList.toggle("on", on); x.setAttribute("aria-checked", on); });
+    layout(false);
+  });
+  // Bake the crop into a picture (never bigger than the original)
+  const bake = () => {
+    const sc = scale(), W = Math.max(200, Math.min(1200, Math.round(fw / sc))), H = Math.round(W / ratio); // never bigger than the picture itself
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    g.drawImage(im, -ox / sc, -oy / sc, fw / sc, fh / sc, 0, 0, W, H);
+    try { return c.toDataURL("image/jpeg", 0.85); } catch { return ""; }
+  };
+
+  // Step 2: choose which part of the cropped picture the dashboard card keeps (the card is a wide strip)
+  const CARD_RATIO = 2;
+  const ff = $("#focus-frame"), fi = $("#focus-img");
+  let baked = "", gw = 0, gh = 0, iw = 0, ih = 0, gs = 1, gx = 0, gy = 0, fdrag = null;
+  const fclamp = () => { gx = Math.min(0, Math.max(gw - iw * gs, gx)); gy = Math.min(0, Math.max(gh - ih * gs, gy)); };
+  const fpaint = () => { fclamp(); fi.style.width = iw * gs + "px"; fi.style.height = ih * gs + "px"; fi.style.left = gx + "px"; fi.style.top = gy + "px"; };
+  const pct = (off, boxSize, imgSize) => (boxSize - imgSize === 0 ? 50 : Math.round((off / (boxSize - imgSize)) * 100));
+  const showStep = (n) => {
+    $("#crop-one").hidden = n !== 1; $("#crop-two").hidden = n !== 2;
+    $("#crop-foot-one").hidden = n !== 1; $("#crop-foot-two").hidden = n !== 2;
+    $("#crop-step").textContent = n === 1 ? "Step 1 of 2 · Crop" : "Step 2 of 2 · Dashboard card";
+  };
+  $("#crop-next").addEventListener("click", () => {
+    baked = bake();
+    if (!baked) { toast("Couldn't crop this image"); return; }
+    showStep(2);
+    fi.onload = () => {
+      iw = fi.naturalWidth; ih = fi.naturalHeight;
+      gw = fw; gh = Math.round(gw / CARD_RATIO);
+      ff.style.width = gw + "px"; ff.style.height = gh + "px";
+      gs = Math.max(gw / iw, gh / ih);
+      gx = (gw - iw * gs) / 2; gy = (gh - ih * gs) / 2; // starts centred
+      fpaint();
+    };
+    fi.src = baked;
+  });
+  ff.addEventListener("pointerdown", (e) => { fdrag = { x: e.clientX, y: e.clientY, gx, gy }; ff.setPointerCapture(e.pointerId); ff.classList.add("grab"); });
+  ff.addEventListener("pointermove", (e) => { if (!fdrag) return; gx = fdrag.gx + e.clientX - fdrag.x; gy = fdrag.gy + e.clientY - fdrag.y; fpaint(); });
+  const fend = () => { fdrag = null; ff.classList.remove("grab"); };
+  ff.addEventListener("pointerup", fend); ff.addEventListener("pointercancel", fend);
+  $("#crop-back").addEventListener("click", () => showStep(1));
+  $("#crop-ok").addEventListener("click", () => {
+    const focus = `${pct(gx, gw, iw * gs)}% ${pct(gy, gh, ih * gs)}%`;
+    close(); onDone(baked, focus);
+  });
+  $("#crop-next").focus();
+}
 
 // Pasted or typed HTML never keeps scripts or event handlers
 function clean(html) {
@@ -480,20 +656,68 @@ function readImage(file, done, maxWidth = 1200, kind = "events") {
 function editor({ html, placeholder, tall }) {
   const wrap = document.createElement("div");
   wrap.className = "box rte";
+  // On a phone only the everyday tools show; "More" opens the rest (every other tool has the class "more")
+  const CORE = new Set(["undo", "redo", "bold", "italic", "underline", "insertUnorderedList", "insertOrderedList", "createLink"]);
   const tool = (t) => {
-    if (t === "|") return '<span class="sep"></span>';
+    if (t === "|") return '<span class="sep more"></span>';
     const [cmd, face, title, init] = t;
-    if (face.startsWith("select:")) return `<div class="tb-dd" data-dd="${face.slice(7)}"></div>`;
-    if (face.startsWith("color:")) return `<label class="colour" title="${title}"><span class="${face === "color:A" ? "cA" : "cBg"}" aria-hidden="true">A</span><input type="color" value="${init}" data-cmd="${cmd}" aria-label="${title}" /></label>`;
-    return `<button type="button" data-cmd="${cmd}" title="${title}" aria-label="${title}">${face}</button>`;
+    const more = CORE.has(cmd) ? "" : " more";
+    if (face.startsWith("select:")) return `<div class="tb-dd${more}" data-dd="${face.slice(7)}"></div>`;
+    if (face.startsWith("color:")) return `<label class="colour${more}" title="${title}"><span class="${face === "color:A" ? "cA" : "cBg"}" aria-hidden="true">A</span><input type="color" value="${init}" data-cmd="${cmd}" aria-label="${title}" /></label>`;
+    return `<button type="button" class="${more.trim()}" data-cmd="${cmd}" title="${title}" aria-label="${title}">${face}</button>`;
   };
-  wrap.innerHTML = `<div class="rte-bar" role="toolbar">${TOOLS.map(tool).join("")}</div>
+  wrap.innerHTML = `<div class="rte-bar" role="toolbar">${TOOLS.map(tool).join("")}<button type="button" class="rte-more" aria-expanded="false">More tools</button></div>
     <div class="rte-body ${tall ? "tall" : ""}" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="${placeholder}"></div>
     <textarea class="rte-src box ${tall ? "tall" : ""}" hidden spellcheck="false" aria-label="HTML"></textarea>
     <input type="file" accept="image/png,image/jpeg,image/webp" hidden />`;
   const body = wrap.querySelector(".rte-body"), src = wrap.querySelector(".rte-src"), file = wrap.querySelector("input[type=file]");
   body.innerHTML = html;
   const changed = () => body.dispatchEvent(new Event("input"));
+
+  // Undo and redo: the browser's own undo breaks when text is changed by code (case, spacing, paste, source view),
+  // so the editor keeps its own list of snapshots. Ctrl/Cmd+Z, Shift+Z or Y, and the toolbar buttons all use it.
+  const caretOffsets = () => {
+    const sel = getSelection();
+    if (!sel.rangeCount || !body.contains(sel.anchorNode)) return null;
+    const r = sel.getRangeAt(0), pre = document.createRange();
+    pre.selectNodeContents(body); pre.setEnd(r.startContainer, r.startOffset);
+    const st = pre.toString().length;
+    return { st, en: st + r.toString().length };
+  };
+  const setOffsets = (o) => {
+    if (!o) return;
+    const find = (off) => { const w = document.createTreeWalker(body, NodeFilter.SHOW_TEXT); let n, acc = 0, lastN = null; while ((n = w.nextNode())) { lastN = n; if (acc + n.data.length >= off) return [n, off - acc]; acc += n.data.length; } return lastN ? [lastN, lastN.data.length] : [body, 0]; };
+    const [sn, so] = find(o.st), [en, eo] = find(o.en), r = document.createRange();
+    r.setStart(sn, so); r.setEnd(en, eo);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  };
+  const hist = [{ html: body.innerHTML, c: null }];
+  let hi = 0, timer = 0, restoring = false;
+  const record = () => {
+    clearTimeout(timer); timer = 0;
+    const h = body.innerHTML;
+    if (h === hist[hi].html) return;
+    hist.splice(hi + 1); hist.push({ html: h, c: caretOffsets() });
+    if (hist.length > 200) hist.shift();
+    hi = hist.length - 1;
+  };
+  body.addEventListener("input", () => { if (restoring) return; clearTimeout(timer); timer = setTimeout(record, 350); }); // typing is saved in short bursts
+  const flush = () => { if (timer) record(); };
+  const go = (d) => {
+    flush();
+    const j = hi + d;
+    if (j < 0 || j >= hist.length) return;
+    hi = j; restoring = true; body.innerHTML = hist[hi].html; restoring = false;
+    body.focus(); setOffsets(hist[hi].c || { st: Infinity, en: Infinity }); changed(); // no remembered cursor: put it at the end
+    const now = getSelection(); // the old remembered selection points into replaced text, so remember the new one
+    saved = now.rangeCount && body.contains(now.anchorNode) ? now.getRangeAt(0).cloneRange() : null;
+  };
+  body.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === "z") { e.preventDefault(); go(e.shiftKey ? 1 : -1); }
+    else if (k === "y") { e.preventDefault(); go(1); }
+  });
 
   // Remember where the cursor or selection was, since the dropdowns and colour pickers take focus away
   let saved = null;
@@ -505,9 +729,10 @@ function editor({ html, placeholder, tall }) {
     body.focus();
     if (saved) { const sel = getSelection(); sel.removeAllRanges(); sel.addRange(saved); }
   };
-  const run = (cmd, val = null) => { restore(); document.execCommand("styleWithCSS", false, cmd === "hiliteColor" || cmd === "foreColor"); document.execCommand(cmd, false, val); changed(); };
+  const run = (cmd, val = null) => { flush(); restore(); document.execCommand("styleWithCSS", false, cmd === "hiliteColor" || cmd === "foreColor"); document.execCommand(cmd, false, val); changed(); };
 
   wrap.querySelector(".rte-bar").addEventListener("mousedown", (e) => { if (e.target.closest("button")) e.preventDefault(); }); // keep the text selected
+  wrap.querySelector(".rte-more").addEventListener("click", (e) => { const bar = wrap.querySelector(".rte-bar"), on = bar.classList.toggle("open"); e.currentTarget.setAttribute("aria-expanded", on); e.currentTarget.textContent = on ? "Fewer tools" : "More tools"; });
   wrap.querySelectorAll("button[data-cmd]").forEach((b) => b.addEventListener("click", async () => {
     const cmd = b.dataset.cmd;
     if (cmd === "createLink") { const url = await ask({ title: "Add a link", input: { placeholder: "https://…" }, ok: "Add link" }); if (url) run(cmd, /^(https?:|mailto:)/.test(url) ? url : "https://" + url); }
@@ -523,13 +748,72 @@ function editor({ html, placeholder, tall }) {
       else { body.innerHTML = clean(src.value); src.hidden = true; body.hidden = false; changed(); }
       b.classList.toggle("active", on);
       wrap.querySelectorAll(".rte-bar > :not([data-cmd=source])").forEach((x) => { x.style.opacity = on ? 0.35 : ""; x.style.pointerEvents = on ? "none" : ""; });
-    } else run(cmd);
+    } else if (cmd === "paraSpace") paraSpace();
+    else if (cmd === "undo") go(-1);
+    else if (cmd === "redo") go(1);
+    else run(cmd);
   }));
+  // Change the case of the selected text: UPPERCASE, lowercase, Title Case or Sentence case
+  const CASES = {
+    "UPPERCASE": (t) => t.toUpperCase(),
+    "lowercase": (t) => t.toLowerCase(),
+    "Title Case": (t) => t.toLowerCase().replace(/(^|[^\p{L}\p{N}'’])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()),
+    "Sentence case": (t) => t.toLowerCase().replace(/(^\s*|[.!?]\s+|\n\s*)(\p{L})/gu, (m, a, b) => a + b.toUpperCase()), // every new line starts a sentence
+  };
+  const changeCase = (fn) => {
+    flush(); restore();
+    const sel = getSelection();
+    if (!sel.rangeCount || !body.contains(sel.anchorNode)) { toast("Select some text first"); return; }
+    if (sel.isCollapsed) { // just a cursor: change the whole line it is in
+      const at = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+      const line = at && at.closest("li, p, div, h1, h2, h3, h4, blockquote");
+      if (!line || line === body || !body.contains(line)) { toast("Select some text first"); return; }
+      const r = document.createRange(); r.selectNodeContents(line); sel.removeAllRanges(); sel.addRange(r);
+    }
+    const range = sel.getRangeAt(0), nodes = [];
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!range.intersectsNode(n)) continue;
+      const from = n === range.startContainer ? range.startOffset : 0, to = n === range.endContainer ? range.endOffset : n.data.length;
+      if (to > from) nodes.push({ n, from, to });
+    }
+    const keep = { sc: range.startContainer, so: range.startOffset, ec: range.endContainer, eo: range.endOffset };
+    // Join the pieces with a line break wherever a new line (bullet, paragraph) starts, so each line is treated as its own
+    const blockOf = (n) => n.parentElement && n.parentElement.closest("li, p, div, h1, h2, h3, h4, blockquote");
+    const cut = nodes.map((x, k) => k > 0 && blockOf(x.n) !== blockOf(nodes[k - 1].n));
+    const whole = nodes.map((x, k) => (cut[k] ? "\n" : "") + x.n.data.slice(x.from, x.to)).join(""), out = fn(whole);
+    let i = 0;
+    const even = out.length === whole.length; // case changes keep the length, so the result can be handed back piece by piece
+    nodes.forEach((x, k) => { if (cut[k]) i += 1; const len = x.to - x.from, piece = even ? out.slice(i, i + len) : fn(x.n.data.slice(x.from, x.to)); i += len; x.n.data = x.n.data.slice(0, x.from) + piece + x.n.data.slice(x.to); });
+    // Rewriting text makes the browser pull the end of the selection back to the start of each changed piece, which would drop
+    // the last lines from the selection. Put the selection back exactly as it was, so another change still covers all of it.
+    const back = document.createRange();
+    back.setStart(keep.sc, Math.min(keep.so, keep.sc.nodeType === 3 ? keep.sc.data.length : keep.sc.childNodes.length));
+    back.setEnd(keep.ec, Math.min(keep.eo, keep.ec.nodeType === 3 ? keep.ec.data.length : keep.ec.childNodes.length));
+    sel.removeAllRanges(); sel.addRange(back); saved = back.cloneRange();
+    changed();
+  };
+  // Line spacing and space after paragraphs work on every block (paragraph, list item, heading) the selection touches
+  const blocksInSelection = () => {
+    flush(); restore();
+    const sel = getSelection();
+    if (!sel.rangeCount || !body.contains(sel.anchorNode)) return [];
+    const pick = () => [...body.querySelectorAll("p, div, li, h1, h2, h3, h4, blockquote")].filter((b) => !b.querySelector("p, div, li, h1, h2, h3, h4, blockquote, ul, ol") && sel.getRangeAt(0).intersectsNode(b));
+    let blocks = pick();
+    if (!blocks.length) { document.execCommand("formatBlock", false, "p"); blocks = pick(); }
+    return blocks;
+  };
+  const lineSpacing = (v) => { const bs = blocksInSelection(); if (!bs.length) { toast("Click in your text first"); return; } bs.forEach((b) => { b.style.lineHeight = v === "1.5" ? "" : v; }); changed(); };
+  const paraSpace = () => { const bs = blocksInSelection(); if (!bs.length) { toast("Click in your text first"); return; } const on = bs.some((b) => b.style.marginBottom !== "1em"); bs.forEach((b) => { b.style.marginBottom = on ? "1em" : ""; }); changed(); };
+
   // Style, font and size are dropdown lists (same look as the other dropdowns on this page)
   const dd = (name) => wrap.querySelector(`[data-dd="${name}"]`);
   dropdown(dd("style"), STYLES.map(([, n]) => n), "Default", (n) => run("formatBlock", STYLES.find(([, x]) => x === n)[0]));
   dropdown(dd("font"), FONTS, "Default", (f) => run("fontName", f === "Default" ? "Chivo Mono" : f));
   dropdown(dd("size"), ["1", "2", "3", "4", "5", "6", "7"], "3", (n) => run("fontSize", n));
+  const resetLabel = (root, text) => { const l = root.querySelector(".tl"); l.textContent = text; l.classList.remove("ph"); };
+  dropdown(dd("case"), Object.keys(CASES), "Aa Case", (n) => { changeCase(CASES[n]); resetLabel(dd("case"), "Aa Case"); });
+  dropdown(dd("lh"), ["Tight (1)", "Snug (1.15)", "Normal (1.5)", "Relaxed (1.8)", "Double (2)", "Airy (2.5)"], "Line spacing", (n) => { lineSpacing(n.match(/\(([\d.]+)\)/)[1]); resetLabel(dd("lh"), "Line spacing"); });
   wrap.querySelectorAll("input[type=color]").forEach((c) => c.addEventListener("input", () => run(c.dataset.cmd, c.value)));
   file.addEventListener("change", () => {
     if (file.files[0]) readImage(file.files[0], (data) => run("insertImage", data));
@@ -553,24 +837,32 @@ function stepBasic(host) {
       <label for="title">Event title <span class="req">*</span></label>
       <input id="title" class="box" type="text" maxlength="120" placeholder="e.g. Sunday Linocut Social at Kala Ghoda" />
       <p class="hint">Make it catchy and descriptive</p>
-      <p class="err">Give your event a title.</p>
+      <p class="err">Give your event a title</p>
     </div>
     <div class="field" id="f-desc">
-      <span class="lab">Description <span class="req">*</span> <span style="font-weight:400;opacity:.55;text-transform:none">Tell attendees what to expect</span></span>
+      <span class="lab">Description <span class="req">*</span> <span style="font-weight:400;opacity:.55">Tell attendees what to expect</span></span>
       <div class="slot"></div>
       <p class="hint count"><span id="c-desc">0</span>/3500</p>
-      <p class="err">Tell attendees a little about the event.</p>
+      <p class="err">Tell attendees a little about the event</p>
     </div>
     <div class="field" id="f-terms">
       <span class="lab">Terms &amp; conditions <span class="opt">Optional</span></span>
       <div class="slot"></div>
       <p class="hint count"><span id="c-terms">0</span>/10000</p>
     </div>
+    <div class="field" id="f-faq">
+      <span class="lab">FAQs ${infoBtn("faq")} <span class="opt">Optional</span></span>
+      <button type="button" class="disc-toggle gq-toggle" id="faq-toggle"><span id="faq-label">Add FAQs</span><b id="faq-sign" aria-hidden="true">+</b></button>
+    </div>
+    <div class="field" id="f-gq">
+      <span class="lab">Guest questions ${infoBtn("gq")} <span class="opt">Optional</span></span>
+      <button type="button" class="disc-toggle gq-toggle" id="gq-toggle"><span id="gq-label">Add guest questions</span><b id="gq-sign" aria-hidden="true">+</b></button>
+    </div>
     <div class="nav"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button></div>`;
 
   const title = host.querySelector("#title");
   title.value = draft.title;
-  const desc = editor({ html: draft.description, placeholder: "Tell attendees what to expect", max: 3500 });
+  const desc = editor({ html: draft.description, placeholder: "Spill the tea!\n\nThe vibe: what's this event all about?\nThe plan: what actually happens?\nThe takeaway: why should people show up?\n\nBe descriptive and punchy!", max: 3500 });
   const terms = editor({ html: draft.terms, placeholder: "Add your terms and conditions", max: 10000, tall: true });
   host.querySelector("#f-desc .slot").append(desc.wrap);
   host.querySelector("#f-terms .slot").append(terms.wrap);
@@ -587,6 +879,23 @@ function stepBasic(host) {
   counter(desc, host.querySelector("#c-desc"), 3500);
   counter(terms, host.querySelector("#c-terms"), 10000);
 
+  const paintGq = () => {
+    const n = (draft.questions || []).length;
+    host.querySelector("#gq-label").textContent = n ? `${n} guest question${n === 1 ? "" : "s"}` : "Add guest questions";
+    const sg = host.querySelector("#gq-sign"); sg.textContent = n ? "Edit" : "+"; sg.classList.toggle("word", !!n);
+  };
+  const paintFaq = () => {
+    const n = (draft.faqs || []).length;
+    host.querySelector("#faq-label").textContent = n ? `${n} FAQ${n === 1 ? "" : "s"}` : "Add FAQs";
+    const sg = host.querySelector("#faq-sign"); sg.textContent = n ? "Edit" : "+"; sg.classList.toggle("word", !!n);
+  };
+  paintFaq();
+  onInfo(host.querySelector("#f-faq"));
+  host.querySelector("#faq-toggle").addEventListener("click", () => openFaqModal(draft.faqs || [], (list) => { draft.faqs = list; paintFaq(); persist(1); }));
+  paintGq();
+  onInfo(host.querySelector("#f-gq"));
+  host.querySelector("#gq-toggle").addEventListener("click", () => openQuestionsModal(draft.questions || [], (list) => { draft.questions = list; paintGq(); persist(1); }));
+
   const collect = () => {
     draft.title = title.value.trim();
     draft.description = desc.body.innerHTML.trim();
@@ -601,7 +910,7 @@ function stepBasic(host) {
     const badDesc = !dLen || dLen > 3500;
     host.querySelector("#f-title").classList.toggle("bad", badTitle);
     host.querySelector("#f-desc").classList.toggle("bad", badDesc);
-    host.querySelector("#f-desc .err").textContent = dLen > 3500 ? "That's over 3500 characters. Please trim it." : "Tell attendees a little about the event.";
+    host.querySelector("#f-desc .err").textContent = dLen > 3500 ? "That's over 3500 characters. Please trim it" : "Tell attendees a little about the event";
     if (tLen > 10000) { toast("Terms are over 10000 characters"); return; }
     if (badTitle || badDesc) { host.querySelector(".bad")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     persist(2);
@@ -612,16 +921,78 @@ function stepBasic(host) {
 
 /* ---------- Step 2: Event details ---------- */
 const CATEGORIES = {
-  "Music": ["Live gig", "DJ night", "Open mic", "Classical & jazz", "Indie", "Hip-hop", "Devotional & folk", "Karaoke"],
-  "Comedy": ["Stand-up", "Improv", "Open mic comedy", "Storytelling"],
-  "Art & craft": ["Pottery", "Painting", "Printmaking", "Crochet & textiles", "Calligraphy", "Photography walk", "Sketching", "Jewellery making"],
-  "Food & drink": ["Tasting", "Supper club", "Cooking class", "Coffee & chai", "Cocktails", "Street food walk", "Baking"],
-  "Nightlife": ["Club night", "Rooftop party", "Themed party", "Silent disco", "Day party"],
-  "Theatre & film": ["Play", "Screening", "Poetry & spoken word", "Dance", "Book reading"],
-  "Wellness & sport": ["Yoga", "Run club", "Breathwork", "Sound bath", "Cycling", "Trek & outdoors", "Dance fitness"],
-  "Games & hobbies": ["Board games", "Quiz night", "Gaming", "Chess", "Trivia", "Book club"],
-  "Markets & pop-ups": ["Flea market", "Pop-up shop", "Thrift swap", "Art fair", "Zine fair"],
-  "Community": ["Meetup", "Workshop", "Talk", "Networking", "Volunteering"],
+  // Each category has plenty of sub categories: the words people actually search for
+  "Music": ["Live gig", "DJ night", "Open mic", "Classical & jazz", "Indie", "Hip-hop", "Devotional & folk", "Karaoke", "Acoustic session", "Ghazal & qawwali", "Rock & metal", "Electronic", "Bollywood night", "Jam session", "Vinyl listening"],
+  "Comedy": ["Stand-up", "Improv", "Open mic comedy", "Storytelling", "Roast night", "Sketch comedy", "Hindi stand-up", "Crowd work", "Comedy & dinner", "Newbie night", "Bilingual comedy", "Late-night laughs"],
+  "Art & Culture": ["Gallery walk", "Exhibition opening", "Heritage walk", "Museum night", "Art talk", "Street art tour", "Photography show", "Sculpture", "Folk art", "Cultural evening", "Indie film art", "Zine launch", "Artist studio visit"],
+  "Art & craft": ["Pottery", "Painting", "Printmaking", "Crochet & textiles", "Calligraphy", "Photography walk", "Sketching", "Jewellery making", "Linocut", "Candle making", "Embroidery", "Macrame", "Resin art", "Block printing", "Journaling"],
+  "Creative Meetup": ["Sketch meetup", "Writers circle", "Designers meetup", "Makers night", "Illustrators hangout", "Creative co-working", "Show and tell", "Portfolio review", "Collab jam", "Open studio", "Craft and chat", "Zine making"],
+  "Open Mic": ["Singers", "Poets", "Comedians", "Storytellers", "Musicians jam", "Spoken word", "Beginners welcome", "Acoustic open mic", "Hindi open mic", "Rap cypher", "Instrument swap", "Sign up on the night"],
+  "Poetry": ["Spoken word", "Slam poetry", "Hindi kavita", "Urdu shayari", "Poetry reading", "Open verse", "Book launch", "Haiku", "Ghazal evening", "Words & wine", "Marathi kavita", "Poetry workshop"],
+  "Food & drink": ["Tasting", "Supper club", "Cooking class", "Coffee & chai", "Cocktails", "Street food walk", "Baking", "Wine tasting", "Beer tasting", "Whisky night", "Brunch", "Potluck", "Dessert crawl", "Vegan eats", "Regional thali"],
+  "Supper Club": ["Home dinner", "Chef-led dinner", "Pop-up kitchen", "Multi-course meal", "Communal table", "Themed dinner", "Regional cuisine", "Rooftop dinner", "Vegetarian dinner", "Dinner with strangers", "Farm-to-table", "BYOB dinner"],
+  "Chef's Table": ["Tasting menu", "Meet the chef", "Live kitchen", "Wine pairing", "Seasonal menu", "Fine dining", "Omakase", "Chef collab", "Kitchen counter", "Degustation", "Limited seats", "Dessert course"],
+  "Coffee": ["Cupping", "Latte art", "Brew workshop", "Specialty coffee", "Coffee & books", "Filter coffee", "Cold brew", "Barista basics", "Coffee crawl", "Chai vs coffee", "Roastery visit", "Coffee & conversation"],
+  "Movie": ["Indie screening", "Classic film", "Short films", "Documentary", "Outdoor cinema", "Silent film", "Director Q&A", "Film club", "Bollywood retro", "Horror night", "Anime night", "Rooftop movie"],
+  "Theatre": ["Play", "Monologue", "Musical", "Street play", "Improv theatre", "Drama workshop", "Staged reading", "Puppet show", "Mime", "Backstage tour", "Hindi natak", "Marathi theatre"],
+  "Dance": ["Salsa", "Bachata", "Hip-hop dance", "Bollywood dance", "Contemporary", "Kathak", "Garba", "Swing", "Dance social", "Beginner class", "Freestyle jam", "Zumba", "Tango", "Ecstatic dance"],
+  "Nightlife": ["Club night", "Rooftop party", "Themed party", "Silent disco", "Day party", "Techno", "House music", "Pub crawl", "Live DJ", "Ladies night", "Neon night", "After-party", "Karaoke night"],
+  "Party": ["House party", "Rooftop party", "Pool party", "Beach party", "Birthday bash", "Theme party", "Costume party", "Festive party", "New Year's Eve", "Holi party", "Garden party", "Glow party", "College party"],
+  "Pet Meetup": ["Dog meetup", "Puppy playdate", "Cat cafe", "Adoption drive", "Pet photoshoot", "Dog training", "Pet-friendly brunch", "Walk with dogs", "Rescue stories", "Pet parents", "Doggy yoga", "Breed meetup"],
+  "Networking": ["Founders mixer", "Startup meetup", "Career circle", "Freelancers meetup", "Women in business", "Creators connect", "Industry mixer", "Coffee roulette", "Speed networking", "Mentor hour", "Investor meet", "Alumni meet"],
+  "Social Mixer": ["Meet new people", "New in town", "Ice-breaker games", "Speed friending", "Solo-friendly", "Wine & mingle", "Rooftop mixer", "Expat meetup", "Weekend hangout", "Friends of friends", "Intro-friendly", "Mixer & music"],
+  "Dating / Singles Mixer": ["Speed dating", "Singles night", "Blind date", "Date night", "Matchmaking", "Dating game night", "Queer mixer", "30+ singles", "Coffee date", "Love & wine", "Compatibility games", "Meet your match"],
+  "Community Meetup": ["Neighbourhood meetup", "Local group", "Book swap", "Clean-up drive", "Volunteer meetup", "Community dinner", "Interest group", "Skill share", "Town hall", "Cultural meet", "Student meetup", "Weekend gathering"],
+  "Outdoor": ["Beach clean-up", "Sunrise walk", "Picnic", "Sunset watch", "Bird watching", "Trek", "Nature walk", "Kayaking", "Stargazing", "Cycling ride", "Fort visit", "Monsoon walk", "Mangrove walk"],
+  "Camping": ["Overnight camp", "Lakeside camping", "Bonfire night", "Tent stay", "Glamping", "Beginner camping", "Stargazing camp", "Weekend getaway", "Campfire stories", "Trek & camp", "Family camping", "Monsoon camping"],
+  "Fitness": ["HIIT", "Bootcamp", "Strength training", "Cardio", "Calisthenics", "Pilates", "CrossFit", "Boxing", "Functional training", "Zumba", "Mobility", "Outdoor workout", "Beginner fitness"],
+  "Run Club": ["Morning run", "5K", "10K", "Half marathon prep", "Beginner runners", "Sea-link run", "Trail run", "Pace groups", "Run & brunch", "Night run", "Charity run", "Sunday long run"],
+  "Sports": ["Football", "Cricket", "Box cricket", "Badminton", "Tennis", "Basketball", "Volleyball", "Pickleball", "Table tennis", "Swimming", "Frisbee", "Skating", "Padel", "Turf game"],
+  "Board Games": ["Strategy games", "Party games", "Card games", "Catan", "Beginner friendly", "Cooperative games", "Tabletop RPG", "Dungeons & Dragons", "Chess night", "Ludo & carrom", "Game cafe", "Tournament", "Mystery games"],
+  "Gaming": ["Console night", "PC LAN", "Mobile esports", "FIFA tournament", "Valorant", "Retro arcade", "Co-op games", "Game jam", "Cosplay gaming", "Speedrun", "Fighting games", "VR gaming", "Casual play"],
+  "Quiz & Trivia": ["Pub quiz", "Movie quiz", "Music quiz", "General knowledge", "Bollywood trivia", "Team quiz", "Sports quiz", "Harry Potter quiz", "History quiz", "Picture round", "Quizzing league", "Beginner quiz"],
+  "Books & Reading": ["Book club", "Silent reading", "Author talk", "Book swap", "Poetry & prose", "Library night", "Comics & manga", "Reading marathon", "Writers workshop", "Book launch", "Fiction circle", "Non-fiction club"],
+  "Workshop": ["Hands-on class", "Beginner workshop", "Weekend workshop", "Skill session", "DIY workshop", "Creative workshop", "Kids workshop", "Corporate workshop", "Photography workshop", "Writing workshop", "Cooking workshop", "Craft workshop", "Learn something new"],
+  "Wellness": ["Yoga", "Breathwork", "Sound bath", "Meditation", "Reiki", "Ice bath", "Sauna", "Journaling circle", "Mindfulness", "Ayurveda", "Self-care Sunday", "Stretch & restore", "Digital detox", "Mental health circle"],
+  "Spirituality": ["Kirtan", "Satsang", "Meditation retreat", "Gita study", "Sufi evening", "Full moon circle", "Tarot", "Astrology", "Chanting", "Silent retreat", "Temple walk", "Interfaith dialogue"],
+  "Pop-up": ["Pop-up shop", "Pop-up dinner", "Pop-up cafe", "Brand launch", "Designer pop-up", "Limited-time store", "Pop-up bar", "Capsule collection", "Home-brand showcase", "Collab pop-up", "Sample sale", "Studio sale"],
+  "Market": ["Flea market", "Thrift swap", "Art fair", "Zine fair", "Farmers market", "Night market", "Handmade market", "Vintage market", "Craft bazaar", "Plant market", "Christmas market", "Book market", "Food bazaar"],
+  "Fashion & Thrift": ["Clothes swap", "Thrift pop-up", "Fashion show", "Upcycling", "Styling session", "Vintage fashion", "Sustainable fashion", "Designer sale", "Sneaker meet", "Textile talk", "Saree swap", "Jewellery showcase"],
+  "Masterclass": ["Chef masterclass", "Photography masterclass", "Music masterclass", "Acting masterclass", "Writing masterclass", "Business masterclass", "Design masterclass", "Cocktail masterclass", "Art masterclass", "Film masterclass", "Expert-led", "Limited seats"],
+  "Talk / Panel": ["Fireside chat", "Panel discussion", "TED-style talk", "Q&A session", "Founder story", "Author conversation", "Expert talk", "Debate", "Open forum", "Industry talk", "Lecture", "Podcast live", "Storytelling talk"],
+  "Bar Lectures": ["Science at the bar", "History over drinks", "Philosophy pub talk", "Economics & beer", "Space talk", "Psychology night", "Mythology & mocktails", "Art history", "Tech talk at the bar", "Wine & knowledge", "Law & liquor", "Cocktails & curiosity"],
+  "Tech & Startups": ["Hackathon", "Demo day", "AI meetup", "Founders circle", "Product talk", "Coding night", "Design & tech", "Pitch night", "Web3 meetup", "Open source", "No-code", "Startup mixer"],
+  "Treks & Travel": ["Day trek", "Sunrise trek", "Monsoon trek", "Weekend getaway", "Backpackers meetup", "Travel stories", "Road trip", "Fort trek", "Waterfall trek", "Solo travellers", "Heritage trail", "Photo walk"],
+  "Festival": ["Music festival", "Food festival", "Film festival", "Literature festival", "Cultural fest", "Art festival", "Street festival", "Diwali", "Ganesh Chaturthi", "Holi", "Navratri", "Comedy fest"],
+  "Kids & Family": ["Kids workshop", "Storytime", "Family day", "Teen meetup", "Craft for kids", "Parent circle", "Puppet show", "Science for kids", "Kids' cooking", "Playdate", "Family picnic", "Holiday camp"],
+  "Volunteering": ["Beach clean-up", "Tree planting", "Food drive", "Animal shelter", "Teach & mentor", "Blood donation", "Charity run", "Fundraiser", "Community kitchen", "Donation drive", "Cleanliness drive", "Skill volunteering"],
+  "Language Exchange": ["Hindi practice", "English conversation", "French meetup", "Spanish meetup", "Japanese meetup", "German meetup", "Marathi practice", "Tamil practice", "Polyglot night", "Conversation cafe", "Beginner friendly", "Tandem partners"],
+  // Festive, seasonal and out-of-the-box plans
+  "Potluck": ["Bring a dish", "Themed potluck", "Vegetarian potluck", "Rooftop potluck", "Regional potluck", "Dessert potluck", "Dinner with strangers", "Recipe swap", "Brunch potluck", "Festival potluck", "Office potluck", "Park picnic potluck", "Games & potluck"],
+  "Diwali Parties": ["Diwali card party", "Teen patti night", "Rangoli workshop", "Diya painting", "Diwali brunch", "Ethnic wear party", "Diwali mela", "Sweets & mithai tasting", "Lantern night", "Firecracker-free Diwali", "Diwali potluck", "Rooftop Diwali", "Friends & family Diwali", "Diwali pop-up"],
+  "Halloween": ["Costume party", "Horror movie night", "Haunted walk", "Pumpkin carving", "Spooky supper", "Zombie run", "Ghost stories", "Scary escape room", "Witches' night", "Halloween rave", "Trick-or-treat for kids", "Face painting", "Monster mash", "Haunted house"],
+  "Christmas & Winter": ["Christmas market", "Carol night", "Secret Santa", "Cookie baking", "Plum cake workshop", "Tree decorating", "Winter picnic", "Christmas brunch", "Midnight mass walk", "Ugly sweater party", "Hot chocolate night", "Gift swap", "Christmas pop-up"],
+  "New Year's Eve": ["Countdown party", "Rooftop NYE", "Beach NYE", "Beach bonfire", "House party NYE", "Dinner & midnight", "Live DJ NYE", "Silent disco NYE", "Sunrise on 1 January", "Resolution workshop", "Fireworks view", "NYE brunch", "Couples NYE"],
+  "Holi": ["Holi colours party", "Organic colours", "Rain dance", "Thandai & gujiya", "Holi music", "Holi mela", "Dhol & DJ", "Holi brunch", "Holi for kids", "Holi pool party", "Holi in the park", "Phoolon ki Holi"],
+  "Navratri & Garba": ["Garba night", "Dandiya raas", "Navratri pass", "Traditional wear contest", "Garba classes", "Navratri fast food", "Folk music", "Dandiya for families", "Rooftop garba", "Couples garba", "Navratri pop-up", "Chaniya choli market"],
+  "Ganesh Chaturthi": ["Eco-friendly Ganesh", "Clay idol making", "Visarjan walk", "Aarti evenings", "Modak making", "Pandal hopping", "Cultural programme", "Dhol-tasha", "Rangoli contest", "Community Ganpati", "Ganesh decoration workshop", "Mumbai pandal tour"],
+  "Eid & Iftar": ["Iftar dinner", "Community iftar", "Eid mela", "Eid brunch", "Mehendi night", "Chaand raat", "Biryani festival", "Qawwali night", "Ramzan food walk", "Eid gifting market", "Sheer khurma tasting", "Charity iftar"],
+  "Valentine's & Galentine's": ["Couples dinner", "Galentine's brunch", "Singles' night out", "Love letter workshop", "Pottery date", "Date night", "Paint & sip", "Couples dance class", "Anti-Valentine's party", "Flower arranging", "Sunset date", "Speed friending"],
+  "Pride & Queer": ["Pride party", "Drag night", "Queer open mic", "Pride march", "Queer film screening", "Ballroom", "Safe space meetup", "Queer art show", "Rainbow brunch", "Allies meetup", "Support circle", "Drag brunch"],
+  "Rave & Underground": ["Warehouse rave", "Techno night", "Secret location", "Afterhours", "Psytrance", "Bass music", "B2B DJ set", "Silent rave", "Sunrise set", "Underground house", "Lights & lasers", "Daytime rave", "Vinyl only"],
+  "Monsoon Plans": ["Monsoon trek", "Chai & pakoda", "Rain walk", "Monsoon music", "Waterfall visit", "Rain photography", "Monsoon picnic", "Poetry in the rain", "Rainy day board games", "Monsoon drive", "Rooftop in the rain", "Mumbai rains walk"],
+  "Sunset & Rooftop": ["Sunset session", "Rooftop picnic", "Golden hour", "Sundowner", "Rooftop music", "Terrace dinner", "Skyline views", "Sunset yoga", "Rooftop cinema", "Beach sunset", "Marine Drive walk", "Rooftop mixer"],
+  "Murder Mystery": ["Whodunit dinner", "Detective night", "Clue-style game", "Live-action mystery", "Murder at the party", "Noir night", "Team sleuthing", "Roleplay evening", "Costume mystery", "Cold case", "Mystery brunch", "Spy night"],
+  "Escape Rooms & Puzzles": ["Escape room", "Puzzle night", "Treasure hunt", "Scavenger hunt", "Riddle walk", "Jigsaw meetup", "Lock-in challenge", "City quest", "Mystery box", "Brain teasers", "Team challenge", "Cipher game"],
+  "Cosplay & Anime": ["Anime screening", "Cosplay meetup", "Manga swap", "Comic con", "K-pop night", "Fan art", "J-pop night", "Anime quiz", "Cosplay contest", "Collectibles fair", "Fandom meetup", "Studio Ghibli night"],
+  "Street Art & Graffiti": ["Graffiti walk", "Mural painting", "Spray-paint workshop", "Street art tour", "Live painting", "Stencil art", "Wall jam", "Artist meet", "Poster art", "Urban sketching", "Colaba art walk", "Bandra street art"],
+  "Tattoo & Body Art": ["Flash day", "Henna art", "Tattoo convention", "Temporary tattoos", "Piercing day", "Mehendi workshop", "Body painting", "Tattoo artist meet", "Stick & poke", "Design your own", "Glitter bar", "Face painting"],
+  "Vinyl & Record Fair": ["Vinyl swap", "Record listening", "Crate digging", "DJ vinyl set", "Retro music night", "Cassette culture", "Hi-fi listening", "Turntable workshop", "Album listening party", "Collectors meet", "Old Bollywood vinyl", "Jazz records"],
+  "Photography": ["Photo walk", "Portrait shoot", "Street photography", "Film camera meet", "Night photography", "Mobile photography", "Photo exhibition", "Photo editing", "Golden hour shoot", "Polaroid party", "Darkroom", "Wedding photography talk"],
+  "Wine & Beer": ["Wine tasting", "Beer tasting", "Craft beer", "Natural wine", "Cider night", "Brewery tour", "Vineyard visit", "Cheese & wine", "Cocktail class", "Mocktail workshop", "Whisky & cigars", "Sake & Soju", "Gin night"],
+  "Sustainability": ["Upcycling workshop", "Clothes swap", "Zero-waste living", "Composting", "Urban gardening", "Plant swap", "Beach clean-up", "Bring-your-own-bottle", "Repair cafe", "Eco market", "Thrift haul", "Climate talk"],
+  "Plant & Garden": ["Terrarium workshop", "Plant swap", "Succulent party", "Urban gardening", "Bonsai", "Flower arranging", "Seed library", "Plant market", "Garden brunch", "Herb gardening", "Kokedama", "Botanical walk"],
+  "Mehfil & Culture Nights": ["Mushaira", "Dastangoi", "Qawwali night", "Ghazal evening", "Classical concert", "Sufi night", "Kathak recital", "Folk night", "Kavi sammelan", "Baithak", "Tabla jugalbandi", "Thumri evening"]
 };
 const CITIES = ["Mumbai", "Navi Mumbai", "Thane", "Pune", "Delhi", "New Delhi", "Gurugram", "Noida", "Bengaluru", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Jaipur", "Goa", "Chandigarh", "Lucknow", "Indore", "Kochi", "Surat", "Nagpur", "Nashik", "Vadodara", "Bhopal", "Coimbatore", "Mysuru", "Udaipur", "Dehradun", "Rishikesh"];
 const MAX_IMAGES = 10, MAX_MB = 20;
@@ -640,7 +1011,7 @@ function stepDetails(host) {
           <ul id="catlist" role="listbox"></ul>
         </div>
       </div>
-      <p class="err">Pick a category.</p>
+      <p class="err">Pick a category</p>
     </div>
     <div class="field" id="f-subs">
       <span class="lab">Sub categories <span class="req">*</span> (up to 5)</span>
@@ -656,7 +1027,7 @@ function stepDetails(host) {
         </div>
       </div>
       <p class="hint count" id="subcount"></p>
-      <p class="err">Pick at least one sub category.</p>
+      <p class="err">Pick at least one sub category</p>
     </div>
     <div class="two">
       <div class="field" id="f-city">
@@ -666,7 +1037,7 @@ function stepDetails(host) {
           <ul class="combo-list" id="city-list" role="listbox" hidden></ul>
         </div>
         <p class="hint">Type 3 or more letters to search</p>
-        <p class="err">Choose a city from the list.</p>
+        <p class="err">Choose a city from the list</p>
       </div>
       <div class="field">
         <label for="venue">Venue</label>
@@ -689,9 +1060,17 @@ function stepDetails(host) {
           </div>
         </div>
         <p class="hint" id="pickaddr" hidden></p>
-        <p class="err">Choose the venue.</p>
+        <p class="err">Choose the venue</p>
+      </div>
+      <div class="field tg-field">
+        <span class="lab" aria-hidden="true">&nbsp;</span>
+        <div class="tg-row" id="tg-row">
+          <button type="button" class="tg-pill" id="tg-women" aria-pressed="false"><span>Women only</span><b aria-hidden="true">+</b></button>
+          <button type="button" class="tg-pill" id="tg-hide" aria-pressed="false"><span>Hide location until booking</span><b aria-hidden="true">+</b></button>
+        </div>
       </div>
     </div>
+    <p class="notice info tg-note" id="tg-note" hidden>For women-only events, guests can see the exact location only after booking.</p>
     <div class="field">
       <span class="lab">Event cover image</span>
       <p class="notice bad-note"><b>Important:</b> Cover images must not contain logos or branding of other ticketing platforms or competitors.</p>
@@ -705,12 +1084,17 @@ function stepDetails(host) {
         <input type="file" id="files" accept="image/png,image/jpeg,image/webp" multiple hidden />
       </label>
       <div class="thumbs" id="thumbs"></div>
-      <p class="err">Add at least one image.</p>
+      <p class="err">Add at least one image</p>
     </div>
     <div class="field">
       <label for="yt">YouTube video <span class="opt">Optional</span></label>
       <input id="yt" class="box" type="url" placeholder="Enter YouTube video URL (e.g. https://www.youtube.com/watch?v=…)" />
-      <p class="err" id="yt-err" style="display:none">That doesn't look like a YouTube link.</p>
+      <p class="err" id="yt-err" style="display:none">That doesn't look like a YouTube link</p>
+    </div>
+    <div class="field" id="f-link">
+      <span class="lab">Custom event link <span class="opt">Optional</span> ${infoBtn("link")}</span>
+      <div class="box link-box"><span class="link-pre">${LINK_HOST}/e/</span><input id="slug" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="yourevent" aria-label="Custom event link" /></div>
+      <p class="err" id="slug-err">Use at least 3 letters or numbers</p>
     </div>
     <div class="nav"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button></div>`;
 
@@ -883,7 +1267,7 @@ function stepDetails(host) {
   // Images: drag and drop or click; shrunk before saving so a draft stays small
   const drop = $("#drop"), files = $("#files"), thumbs = $("#thumbs");
   const paintThumbs = () => {
-    thumbs.innerHTML = draft.images.map((src, i) => `<figure class="thumb"><img src="${src}" alt="Event image ${i + 1}" /><button type="button" data-rm="${i}" aria-label="Remove image ${i + 1}">×</button>${i === 0 ? "<figcaption>Cover</figcaption>" : src ? `<button type="button" class="mk" data-cover="${i}">Make cover</button>` : ""}</figure>`).join("");
+    thumbs.innerHTML = draft.images.map((src, i) => `<figure class="thumb"><img src="${src}" alt="Event image ${i + 1}" /><button type="button" data-rm="${i}" aria-label="Remove image ${i + 1}">${ico('<path d="M6 6l12 12M18 6L6 18"/>')}</button>${src ? `<button type="button" class="crop" data-crop="${i}" aria-label="Crop image ${i + 1}" title="Crop and adjust">${ico('<path d="M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2"/>')}</button>` : ""}${i === 0 ? "<figcaption>Cover</figcaption>" : src ? `<button type="button" class="mk" data-cover="${i}">Make cover</button>` : ""}</figure>`).join("");
   };
   paintThumbs();
   const add = (fileList) => {
@@ -908,9 +1292,33 @@ function stepDetails(host) {
   thumbs.addEventListener("click", (e) => {
     const c = e.target.closest("[data-cover]");
     if (c) { const [img] = draft.images.splice(+c.dataset.cover, 1); draft.images.unshift(img); paintThumbs(); return; }
+    const k = e.target.closest("[data-crop]");
+    if (k) { const i = +k.dataset.crop; openCropModal(draft.images[i], (data, focus) => { draft.images[i] = data; (draft.focus ??= {})[imgKey(data)] = focus; paintThumbs(); }); return; }
     const b = e.target.closest("[data-rm]"); if (b) { draft.images.splice(+b.dataset.rm, 1); paintThumbs(); }
   });
 
+  // Women only / hide location pills
+  const paintTg = () => {
+    const w = !!draft.womenOnly, h = w || !!draft.hideLocation;
+    [["#tg-women", w], ["#tg-hide", h]].forEach(([q, on]) => { const b = $(q); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); b.querySelector("b").textContent = on ? "−" : "+"; });
+    $("#tg-hide").disabled = w; // women-only events always hide the location until booking
+    $("#tg-note").hidden = !w;
+  };
+  paintTg();
+  $("#tg-women").addEventListener("click", () => { draft.womenOnly = !draft.womenOnly; paintTg(); });
+  $("#tg-hide").addEventListener("click", () => { draft.hideLocation = !draft.hideLocation; paintTg(); });
+  // Custom event link
+  const slug = $("#slug");
+  slug.value = draft.slug || "";
+  onInfo($("#f-link"));
+  const slugProblem = (v) => !v ? "" : v.length < 3 ? "Use at least 3 letters or numbers" : load().some((x) => x.id !== draft.id && x.slug === v) ? "That link is already taken. Try another" : "";
+  slug.addEventListener("input", () => {
+    const v = slug.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-{2,}/g, "-").slice(0, 40);
+    if (v !== slug.value) slug.value = v;
+    draft.slug = v.replace(/^-|-$/g, "");
+    $("#f-link").classList.remove("bad");
+  });
+  slug.addEventListener("blur", () => { slug.value = draft.slug || ""; });
   const yt = $("#yt");
   yt.value = draft.youtube;
   yt.addEventListener("input", () => { draft.youtube = yt.value.trim(); $("#yt-err").style.display = "none"; });
@@ -921,6 +1329,8 @@ function stepDetails(host) {
     draft.images = draft.images.filter(Boolean);
     const checks = [["#f-cat", !!draft.category], ["#f-subs", draft.subs.length > 0], ["#f-city", !!draft.city], ["#f-media", draft.images.length > 0], ["#f-pick", draft.venueStatus !== "Decided" || !!draft.venue]];
     checks.forEach(([q, ok]) => $(q).classList.toggle("bad", !ok));
+    const slugMsg = slugProblem(draft.slug || "");
+    $("#f-link").classList.toggle("bad", !!slugMsg); $("#slug-err").textContent = slugMsg || "Use at least 3 letters or numbers";
     const badYt = draft.youtube && !youtubeEmbed(draft.youtube);
     $("#yt-err").style.display = badYt ? "block" : "none";
     const first = host.querySelector(".bad") || (badYt && $("#yt"));
@@ -956,12 +1366,12 @@ function stepSchedule(host) {
         <div class="cal" id="cal" role="dialog" aria-label="Choose dates" hidden></div>
       </div>
       <p class="hint">Pick the first and last day. For one day, tap it twice.</p>
-      <p class="err">Pick at least one date.</p>
+      <p class="err">Pick at least one date</p>
     </div>
     <div class="field" id="f-start">
       <span class="lab">Start time <span class="req">*</span></span>
       ${timeSelects("st")}
-      <p class="err">Choose the start time.</p>
+      <p class="err">Choose the start time</p>
     </div>
     <div class="field" id="f-end">
       <div class="lab-row"><span class="lab">End time</span>
@@ -969,8 +1379,62 @@ function stepSchedule(host) {
       <p class="hint" id="end-hint">Showing start time only. Tick the box to add an end time.</p>
       <div id="end-wrap" hidden>${timeSelects("en")}</div>
     </div>
+    <div class="switch-row repeat-row">
+      <div><b>Repeat this event <button type="button" class="info-btn" id="rep-info" aria-label="About repeating an event"><svg viewBox="0 0 24 24" width="1.2em" height="1.2em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button></b></div>
+      <button type="button" class="switch" id="rep-on" role="switch" aria-label="Repeat this event"><i></i></button>
+    </div>
+    <div class="field" id="rep-wrap" hidden></div>
     <div class="nav"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button></div>`;
   const $ = (q) => host.querySelector(q);
+
+  // Repeat this event: off by default; when on, guests can pick between the event time (Slot 1) and up to 3 more slots
+  draft.repeat = { on: false, slots: [], ...(draft.repeat?.slots ? draft.repeat : {}) };
+  const MAX_EXTRA = 3;
+  const blank = () => ({ from: "", to: "", st: { h: "", m: "" }, en: { h: "", m: "" } });
+  draft.repeat.slots = draft.repeat.slots.map((t) => ({ ...blank(), ...t, st: t.st || { h: "", m: "" }, en: t.en || { h: "", m: "" } }));
+  const trash = '<svg viewBox="0 0 24 24" width="1.2em" height="1.2em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+  const timeBlock = (i, key, lab) => `<div class="slot-time"><span class="lab">${lab}</span><div class="time-row"><div data-t="${i}-${key}-h"></div><div data-t="${i}-${key}-m"></div></div></div>`;
+  // Slot 1 mirrors the event's own dates and times, so it follows them as they change
+  const refreshSum = () => {
+    const el = $(".slot-sum"); if (!el) return;
+    const d = draft.dateFrom ? (draft.dateTo && draft.dateTo !== draft.dateFrom ? `${prettyDate(draft.dateFrom)} → ${prettyDate(draft.dateTo)}` : prettyDate(draft.dateFrom)) : "No date picked yet";
+    const t = draft.start.h && draft.start.m ? `${hm(draft.start)}${draft.showEnd && draft.end.h && draft.end.m ? ` – ${hm(draft.end)}` : ""}` : "No time picked yet";
+    el.innerHTML = `<span>${d}</span><span>${t}</span>`;
+  };
+  const paintRepeat = () => {
+    const r = draft.repeat;
+    $("#rep-on").classList.toggle("on", r.on); $("#rep-on").setAttribute("aria-checked", r.on);
+    $("#rep-wrap").hidden = !r.on;
+    if (!r.on) return;
+    const first = `<div class="time-slot slot-first"><div class="slot-head"><b>Slot 1</b><span class="slot-tag">The event above</span></div>
+      <div class="slot-sum"></div></div>`;
+    const extra = r.slots.map((t, i) => `<div class="time-slot" data-i="${i}"><div class="slot-head"><b>Slot ${i + 2}</b>
+        <button type="button" class="btn small ghost slot-del" data-del="${i}" aria-label="Remove slot ${i + 2}">${trash}</button></div>
+      <div class="field"><span class="lab">Dates</span><div data-rp="${i}"></div></div>
+      <div class="slot-times">${timeBlock(i, "st", "Start time")}${timeBlock(i, "en", "End time")}</div></div>`).join("");
+    $("#rep-wrap").innerHTML = first + extra +
+      `<div class="add-row slot-add-row"><button type="button" class="btn small" id="slot-add" ${r.slots.length >= MAX_EXTRA ? "disabled" : ""}>+ Add slot</button></div>
+       <p class="hint">Add up to ${MAX_EXTRA} more times (the event time above is the first). Guests pick one of the times to book.</p>`;
+    refreshSum();
+    r.slots.forEach((t, i) => {
+      rangePicker($(`[data-rp="${i}"]`), t, () => {}, { min: draft.dateFrom || "" });
+      [["st", "h", HOURS, "HH"], ["st", "m", MINUTES, "MM"], ["en", "h", HOURS, "HH"], ["en", "m", MINUTES, "MM"]].forEach(([key, k, opts, ph]) =>
+        dropdown($(`[data-t="${i}-${key}-${k}"]`), opts, t[key][k], (v) => { t[key][k] = v; }, ph));
+    });
+  };
+  paintRepeat();
+  $("#rep-info").addEventListener("click", () => info("Create multiple sessions under a single experience. Attendees can choose the slot they'd like to book."));
+  $("#rep-on").addEventListener("click", () => {
+    const r = draft.repeat; r.on = !r.on;
+    if (r.on && !r.slots.length) r.slots.push(blank());
+    paintRepeat();
+  });
+  $("#rep-wrap").addEventListener("click", (e) => {
+    const r = draft.repeat;
+    if (e.target.closest("#slot-add") && r.slots.length < MAX_EXTRA) { r.slots.push(blank()); paintRepeat(); }
+    const del = e.target.closest("[data-del]");
+    if (del) { r.slots.splice(+del.dataset.del, 1); paintRepeat(); }
+  });
 
   // Calendar: pick a first and last day (the same day twice for a one-day event); days before today are greyed out
   const cal = $("#cal"), btn = $("#datebtn");
@@ -981,6 +1445,7 @@ function stepSchedule(host) {
     const { dateFrom: f, dateTo: t } = draft;
     $("#datelabel").textContent = f ? (t && t !== f ? `${prettyDate(f)} – ${prettyDate(t)}` : prettyDate(f)) : "Select dates…";
     $("#datelabel").classList.toggle("ph", !f);
+    refreshSum();
   };
   const paintCal = () => {
     const first = view.getDay(); // Sunday first
@@ -1039,7 +1504,7 @@ function stepSchedule(host) {
       label();
       btn.addEventListener("click", () => setOpen(pop.hidden));
       btn.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
-      ul.addEventListener("click", (e) => { const li = e.target.closest("[data-v]"); if (!li) return; t[k] = li.dataset.v; label(); setOpen(false); $("#f-start").classList.remove("bad"); });
+      ul.addEventListener("click", (e) => { const li = e.target.closest("[data-v]"); if (!li) return; t[k] = li.dataset.v; label(); setOpen(false); refreshSum(); $("#f-start").classList.remove("bad"); });
       const outside = (e) => { if (!host.isConnected) { document.removeEventListener("click", outside); return; } if (!pop.hidden && !e.composedPath().includes(pop.parentElement)) setOpen(false); };
       document.addEventListener("click", outside);
     });
@@ -1047,7 +1512,7 @@ function stepSchedule(host) {
   bind("st", draft.start); bind("en", draft.end);
   const showEnd = () => { $("#end-wrap").hidden = !draft.showEnd; $("#end-hint").hidden = draft.showEnd; $("#showend").checked = draft.showEnd; };
   showEnd();
-  $("#showend").addEventListener("change", (e) => { draft.showEnd = e.target.checked; showEnd(); });
+  $("#showend").addEventListener("change", (e) => { draft.showEnd = e.target.checked; showEnd(); refreshSum(); });
 
   saveCurrent = () => persist(3);
   $("#prev").addEventListener("click", () => { saveCurrent(); location.hash = "#/create/2"; });
@@ -1061,6 +1526,8 @@ function stepSchedule(host) {
     if (draft.showEnd && !(draft.end.h && draft.end.m)) { toast("Choose the end time, or untick Show end time"); return; }
     const bad = host.querySelector(".bad");
     if (bad) { bad.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    draft.repeat.slots = draft.repeat.slots.filter((t) => t.from && t.st.h && t.st.m);
+    if (!draft.repeat.slots.length) draft.repeat.on = false;
     persist(4);
     location.hash = "#/create/4";
   });
@@ -1069,7 +1536,7 @@ function stepSchedule(host) {
 /* ---------- Step 4: Tickets ---------- */
 const tIco = (d) => `<svg viewBox="0 0 24 24" width="2.6em" height="2.6em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const TICKET_TYPES = [
-  { id: "guest", name: "Guest Ticket", desc: "Perfect for casual guests attending your event or sponty events. Free tickets / RSVP only.", icon: tIco('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>') },
+  { id: "guest", name: "Guest Ticket", desc: "Perfect for Sponty plans or special guests attending your event.", icon: tIco('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>') },
   { id: "single", name: "Single Ticket", desc: "Standard ticket for one individual attendee with full event access.", icon: tIco('<path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 1 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M13 5v3M13 11v2M13 16v3"/>') },
   { id: "group", name: "Group Ticket", desc: "Discounted package for groups. Purchase multiple tickets at once for better pricing.", icon: tIco('<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a7 7 0 0 1 4 6"/>') },
   { id: "season", name: "Season Pass", desc: "Reserved seating for a group. Comes with reserved table and premium experience.", icon: tIco('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>') },
@@ -1098,7 +1565,7 @@ function dropdown(root, options, value, onChange, ph = "") {
 }
 
 // A date-range calendar for the ticket window (same look as the Schedule step's): state = { from, to }
-function rangePicker(root, state, onChange, { min = "", max = "" } = {}) {
+function rangePicker(root, state, onChange, { min = "", max = "", single = false } = {}) {
   root.classList.add("combo");
   root.innerHTML = `<button type="button" class="box datebtn" aria-haspopup="dialog" aria-expanded="false"><span class="tl"></span>
       <svg viewBox="0 0 24 24" width="1.6em" height="1.6em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
@@ -1107,7 +1574,7 @@ function rangePicker(root, state, onChange, { min = "", max = "" } = {}) {
   const lo = min && min > today ? min : today; // days before this, or after `max`, can't be picked
   const startView = () => { const d = state.from ? new Date(state.from + "T00:00") : new Date(lo + "T00:00"); return new Date(d.getFullYear(), d.getMonth(), 1); };
   let view = startView();
-  const label = () => { const l = root.querySelector(".tl"); l.textContent = state.from ? `${prettyDate(state.from)} → ${prettyDate(state.to || state.from)}` : "Select dates…"; l.classList.toggle("ph", !state.from); };
+  const label = () => { const l = root.querySelector(".tl"); l.textContent = state.from ? (single ? prettyDate(state.from) : `${prettyDate(state.from)} → ${prettyDate(state.to || state.from)}`) : (single ? "Select date…" : "Select dates…"); l.classList.toggle("ph", !state.from); };
   const paint = () => {
     const first = view.getDay(), days = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
     const f = state.from, end = state.to || f;
@@ -1137,6 +1604,7 @@ function rangePicker(root, state, onChange, { min = "", max = "" } = {}) {
     if (m && !m.disabled) { view = new Date(view.getFullYear(), view.getMonth() + +m.dataset.m, 1); paint(); }
     else if (d) {
       const v = d.dataset.d;
+      if (single) { state.from = v; state.to = v; label(); setOpen(false); onChange(); return; } // one tap picks the day
       if (!state.from || state.to) { state.from = v; state.to = ""; } else if (v < state.from) state.from = v; else state.to = v;
       label(); paint(); onChange();
     } else if (e.target.closest("[data-clear]")) { state.from = ""; state.to = ""; label(); paint(); onChange(); }
@@ -1148,11 +1616,13 @@ function rangePicker(root, state, onChange, { min = "", max = "" } = {}) {
 
 // The "fill in the required fields" window for one ticket
 function openTicketModal(type, existing, onSave) {
-  const t = existing ? { saleFrom: "", saleTo: "", label1: "", label2: "", enabled: true, status: "Live", ...existing, saleSt: { h: "", m: "", ...existing.saleSt }, saleEn: { h: "", m: "", ...existing.saleEn } } : { id: newId(), type: type.id, name: type.name, paid: type.id !== "guest", qty: "", order: type.id === "group" || type.id === "season" ? "group" : "single", groupSize: "", price: "", gst: "No GST", saleFrom: draft.dateFrom || "", saleTo: draft.dateTo || draft.dateFrom || "", saleSt: { ...(draft.start || { h: "", m: "" }) }, saleEn: draft.showEnd ? { ...draft.end } : { h: "", m: "" }, label1: "", label2: "", enabled: true, status: "Live" };
+  const t = existing ? { saleFrom: "", saleTo: "", tag: "", includes: "", enabled: true, status: "Live", ...existing, saleSt: { h: "", m: "", ...existing.saleSt }, saleEn: { h: "", m: "", ...existing.saleEn } } : { id: newId(), type: type.id, name: type.name, paid: type.id !== "guest", qty: "", order: type.id === "group" || type.id === "season" ? "group" : "single", groupSize: "", price: "", gst: "No GST", saleEnd: { mode: "start", date: "", h: "", m: "" }, tag: "", includes: "", enabled: true, status: "Live" };
   if (/^\d+(\.\d+)?%$/.test(t.gst)) t.gst += " IGST"; // tickets saved before the GST list was updated
-  // Sales run within the event dates picked in the Schedule step
+  // Sales open when the event is published and close at a time the host chooses (see the Sale period settings)
   const evFrom = draft.dateFrom || "", evTo = draft.dateTo || draft.dateFrom || "";
-  if (evFrom && (!t.saleFrom || t.saleFrom < evFrom || (t.saleTo || t.saleFrom) > evTo)) { t.saleFrom = evFrom; t.saleTo = evTo; }
+  t.tag = t.tag || t.label1 || ""; t.includes = t.includes || t.label2 || ""; delete t.label1; delete t.label2; // the old two labels became a Tag and a What's included line
+  t.saleEnd = { mode: "start", date: "", h: "", m: "", ...(t.saleEnd || {}) }; // older tickets had fixed sale dates: they now follow the new setting
+
   const back = document.createElement("div");
   back.className = "modal-back";
   back.innerHTML = `<div class="modal coupon-modal" role="dialog" aria-modal="true" aria-label="${esc(type.name)}">
@@ -1160,54 +1630,97 @@ function openTicketModal(type, existing, onSave) {
     <div class="modal-body">
       <div class="seg" role="tablist"><button type="button" data-paid="1">Paid</button><button type="button" data-paid="0">✓ RSVP / Free</button></div>
       <div class="two tight">
-        <div class="field"><label for="tk-name">Name <span class="req">*</span></label><input id="tk-name" class="box" type="text" maxlength="60" /></div>
-        <div class="field"><label for="tk-qty">Quantity <span class="req">*</span></label><input id="tk-qty" class="box" type="number" min="1" step="1" inputmode="numeric" placeholder="0" /></div>
+        <div class="field"><label for="tk-name">Name <span class="req">*</span> ${infoBtn("tk-name")}</label><input id="tk-name" class="box" type="text" maxlength="60" /></div>
+        <div class="field"><label for="tk-qty">Quantity <span class="req">*</span> <span class="opt-note" id="qty-per" hidden>per slot</span> ${infoBtn("tk-qty")}</label><input id="tk-qty" class="box" type="number" min="1" step="1" inputmode="numeric" placeholder="0" /></div>
+      </div>
+      <div class="field" id="slots-wrap" hidden><div class="slots-head"><span class="lab">Available for <span class="req">*</span></span><span class="slots-sum" id="slots-hint"></span></div>
+        <div class="slot-chips" id="tk-slots" role="group" aria-label="Time slots"></div></div>
+      <div class="two tight">
+        <div class="field"><label for="tk-tag">Tag <span class="opt-note">optional</span></label><input id="tk-tag" class="box" type="text" maxlength="20" placeholder="e.g. Early Bird" /></div>
+        <div class="field"><label for="tk-inc">What's included <span class="opt-note">optional</span></label><input id="tk-inc" class="box" type="text" maxlength="60" placeholder="e.g. Dinner + a drink" /></div>
       </div>
       <div id="pricing">
         <p class="mini-title">Pricing</p>
         <span class="lab">Order type</span>
         <div class="order"><button type="button" data-order="single"><svg viewBox="0 0 24 24" width="1.6em" height="1.6em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Single</button><button type="button" data-order="group"><svg viewBox="0 0 24 24" width="1.6em" height="1.6em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a7 7 0 0 1 4 6"/></svg>Group</button></div>
-        <div class="field" id="gs-wrap" hidden><label for="tk-gs">People per group <span class="req">*</span></label><input id="tk-gs" class="box" type="number" min="2" step="1" inputmode="numeric" placeholder="e.g. 4" /></div>
+        <div class="field" id="gs-wrap" hidden><label for="tk-gs">People per group <span class="req">*</span></label><input id="tk-gs" class="box" type="number" min="2" step="1" inputmode="numeric" placeholder="e.g. 4" /><button type="button" class="bk-add gs-add" id="gs-add">Add another group size +</button></div>
         <div class="two tight">
-          <div class="field"><label for="tk-price">Price <span class="req">*</span></label><div class="money"><span>₹</span><input id="tk-price" class="box" type="number" min="0" step="any" inputmode="decimal" placeholder="0" /></div></div>
+          <div class="field"><label for="tk-price">Price <span class="req">*</span> ${infoBtn("tk-price")}</label><div class="money"><span>₹</span><input id="tk-price" class="box" type="number" min="0" step="any" inputmode="decimal" placeholder="0" /></div></div>
           <div class="field"><span class="lab">GST</span><div id="tk-gst"></div></div>
         </div>
         <div class="pays"><span>Customer pays</span><b id="pays"></b></div>
+        <button type="button" class="disc-toggle" id="disc-toggle" aria-expanded="false"><span>Add ticket discount</span><b id="disc-sign" aria-hidden="true">+</b></button>
+        <div id="disc" class="disc-box" hidden>
+          <div class="field" id="df-code"><label for="dc-code">Discount code <span class="req">*</span></label><input id="dc-code" class="box caps" type="text" maxlength="20" autocomplete="off" placeholder="E.g. EARLY20" /><p class="err" id="dc-code-err">Use 3 to 20 letters or numbers</p></div>
+          <div class="field"><span class="lab">Discount value <span class="req">*</span></span>
+            <div class="disc"><div class="seg" role="tablist"><button type="button" data-dtype="pct">% PCT</button><button type="button" data-dtype="inr">₹ INR</button></div><input id="dc-val" class="box" type="number" min="1" step="any" inputmode="decimal" placeholder="e.g. 20" /></div></div>
+          <div class="field"><label for="dc-max">Max users <span class="req">*</span></label><input id="dc-max" class="box" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 50 (how many people can use it)" /></div>
+          <p class="hint" id="dc-hint">Works on this ticket for all your event dates. Change dates and more later in Coupons.</p>
+        </div>
+        <button type="button" class="disc-toggle bulk-toggle" id="bulk-toggle"><span id="bulk-label">Add bulk discount</span><b id="bulk-sign" aria-hidden="true">+</b></button>
+        <div class="bulk-sum" id="bulk-sum" hidden><span id="bulk-tiers"></span><button type="button" class="link-btn" id="bulk-rm">Remove</button></div>
       </div>
       <button type="button" class="opt-toggle" id="opt-toggle" aria-expanded="false"><span class="ot-l"><svg viewBox="0 0 24 24" width="1.3em" height="1.3em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>Optional settings</span><svg viewBox="0 0 24 24" width="1.4em" height="1.4em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
       <div id="opt" hidden>
         <p class="mini-title">Sale period</p>
-        <div class="field"><span class="lab">Sale dates</span><div id="sale-dates"></div></div>
-        <div class="two tight">
-          <div class="field"><span class="lab">Start time</span><div class="time-row"><div id="ss-h"></div><div id="ss-m"></div></div></div>
-          <div class="field"><span class="lab">End time</span><div class="time-row"><div id="se-h"></div><div id="se-m"></div></div></div>
-        </div>
-        <p class="mini-title">Display labels</p>
-        <div class="two tight">
-          <div class="field"><label for="tk-l1">Primary label</label><input id="tk-l1" class="box" type="text" maxlength="30" placeholder="e.g. Early Bird" /><p class="hint">Shown during purchase &amp; on email</p></div>
-          <div class="field"><label for="tk-l2">Secondary label</label><input id="tk-l2" class="box" type="text" maxlength="30" placeholder="e.g. Includes Dinner" /><p class="hint">Shown on ticket slab</p></div>
-        </div>
+        <p class="sale-open">Sales open as soon as you publish this event.</p>
+        <div class="field"><span class="lab">Sales end</span><div id="sale-mode"></div>
+          <div id="sale-custom" class="sale-row" hidden><div id="sale-date"></div><div id="se-h"></div><div id="se-m"></div></div>
+          <p class="hint" id="sale-hint"></p></div>
         <p class="mini-title">Visibility &amp; status</p>
         <div class="switch-row"><div><b>Enable ticket</b><span>Available for purchase when enabled</span></div><button type="button" class="switch" id="tk-on" role="switch" aria-checked="true" aria-label="Enable ticket"><i></i></button></div>
         <div class="field"><span class="lab">Ticket status</span>
           <div class="status-chips"><button type="button" data-status="Live"><i class="dot live"></i>Live</button><button type="button" data-status="Coming Soon"><i class="dot soon"></i>Coming Soon</button><button type="button" data-status="Sold Out"><i class="dot out"></i>Sold Out</button></div></div>
       </div>
     </div>
-    <div class="modal-foot"><button type="button" class="btn ghost" data-x>Cancel</button><button type="button" class="btn" id="tk-save">✓ Save ticket</button></div>
+    <div class="modal-foot tk-foot"><p class="tk-need" id="tk-need" role="status" hidden></p><button type="button" class="btn ghost" data-x>Cancel</button><button type="button" class="btn" id="tk-save">✓ Save ticket</button></div>
   </div>`;
   document.body.append(back);
   document.body.style.overflow = "hidden";
   const headLetters = cutHeadings(back);
+  onInfo(back);
   const $ = (q) => back.querySelector(q);
   // Guest tickets are RSVP / free only: no Paid option
   if (type.id === "guest") { t.paid = false; $(".seg").classList.add("single"); $(".seg").innerHTML = '<span>✓ RSVP / Free</span>'; }
-  $("#tk-name").value = t.name; $("#tk-qty").value = t.qty; $("#tk-price").value = t.price; $("#tk-gs").value = t.groupSize; $("#tk-l1").value = t.label1; $("#tk-l2").value = t.label2;
+  $("#tk-name").value = t.name; $("#tk-qty").value = t.qty; $("#tk-price").value = t.price; $("#tk-gs").value = t.groupSize; $("#tk-tag").value = t.tag; $("#tk-inc").value = t.includes;
   dropdown($("#tk-gst"), GST_OPTIONS, t.gst, (v) => { t.gst = v; refresh(); });
 
+  // Optional discount for this ticket: it is saved as a normal coupon (Coupons page) that applies to this ticket only
+  const mine = (draft.coupons || []).find((x) => x.appliesTo === t.id);
+  const dsc = { on: !!mine, code: mine ? mine.code : "", type: mine ? mine.type : "pct", value: mine ? mine.value : "", max: mine ? mine.max : "" };
+  const dcTaken = () => (draft.coupons || []).some((x) => x !== mine && x.code.toLowerCase() === dsc.code.trim().toLowerCase());
+  const dcValueOk = () => (dsc.type === "pct" ? +dsc.value >= 1 && +dsc.value <= 100 : +dsc.value > 0);
+  const dcOk = () => !dsc.on || (/^[A-Z0-9_-]{3,20}$/.test(dsc.code.trim()) && !dcTaken() && dcValueOk() && +dsc.max >= 1 && !!evFrom);
+  // Optional bulk discount for this ticket (kept here until the ticket is saved, then stored with the event)
+  const myBulk = (draft.bulk || []).find((x) => x.appliesTo === t.id);
+  let bulk = myBulk ? { ...myBulk, tiers: myBulk.tiers.map((x) => ({ ...x })) } : null;
+  const paintBulk = () => {
+    $("#bulk-label").textContent = bulk ? "Bulk discount" : "Add bulk discount";
+    $("#bulk-sign").textContent = bulk ? "Edit" : "+"; $("#bulk-sign").classList.toggle("word", !!bulk);
+    $("#bulk-sum").hidden = !bulk;
+    if (bulk) $("#bulk-tiers").innerHTML = tierChips(bulk.tiers);
+  };
+  $("#bulk-toggle").addEventListener("click", () => openBulkModal(draft, bulk, { lockTo: t.id, lockName: () => t.name }, (r) => { bulk = { ...r, appliesTo: t.id }; paintBulk(); }));
+  $("#bulk-rm").addEventListener("click", () => { bulk = null; paintBulk(); });
+  paintBulk();
+  // What is still missing, in plain words (the same checks as valid())
+  const needs = () => {
+    const l = [];
+    if (!t.name.trim()) l.push("a name");
+    if (!(+t.qty >= 1)) l.push("a quantity");
+    if (!t.paid) return l;
+    if (t.order === "group" && !(+t.groupSize >= 2)) l.push("the people per group");
+    if (!(+t.price > 0)) l.push("a price");
+    if (!dcOk()) l.push("the ticket discount details");
+    if (t.saleEnd.mode === "custom" && !saleEndAt()) l.push("the date and time sales end");
+    return l;
+  };
   const valid = () => {
     if (!t.name.trim() || !(+t.qty >= 1)) return false;
     if (!t.paid) return true;
     if (!(+t.price > 0)) return false;
+    if (!dcOk()) return false;
+    if (t.saleEnd.mode === "custom" && !saleEndAt()) return false;
     return t.order !== "group" || +t.groupSize >= 2;
   };
   const refresh = () => {
@@ -1215,15 +1728,84 @@ function openTicketModal(type, existing, onSave) {
     back.querySelectorAll("[data-order]").forEach((b) => b.classList.toggle("on", b.dataset.order === t.order));
     $("#pricing").hidden = !t.paid;
     $("#gs-wrap").hidden = t.order !== "group";
-    $("#pays").textContent = rupees(+t.price * (1 + gstRate(t.gst)) || 0) + (t.order === "group" && t.paid ? (+t.groupSize >= 2 ? ` for ${t.groupSize} people` : " per group") : "");
+    $("#pays").innerHTML = rupees(+t.price * (1 + gstRate(t.gst)) || 0) + (t.order === "group" && t.paid ? ` <small>${+t.groupSize >= 2 ? `for ${t.groupSize} people` : "per group"}</small>` : "");
+    $("#disc").hidden = !dsc.on; $("#disc-toggle").setAttribute("aria-expanded", dsc.on); $("#disc-sign").textContent = dsc.on ? "−" : "+";
+    back.querySelectorAll("[data-dtype]").forEach((b) => b.classList.toggle("on", b.dataset.dtype === dsc.type));
+    $("#dc-val").placeholder = dsc.type === "pct" ? "e.g. 20" : "e.g. 100";
+    const dup = dsc.on && dcTaken(); $("#df-code").classList.toggle("bad", dup); $("#dc-code-err").textContent = dup ? "This code is already used for this event" : "Use 3 to 20 letters or numbers";
+    $("#dc-hint").textContent = evFrom ? "Works on this ticket for all your event dates. Change dates and more later in Coupons." : "Pick your event dates in the Schedule step first, so the discount knows when it's valid.";
     $("#tk-save").disabled = !valid();
+    $("#gs-add").disabled = !valid();
+    const nd = needs(); // say what is stopping Save, instead of just greying it out
+    $("#tk-need").hidden = !nd.length;
+    $("#tk-need").textContent = nd.length ? `To save, add ${nd.length > 1 ? nd.slice(0, -1).join(", ") + " and " + nd[nd.length - 1] : nd[0]}` : "";
+    paintSlots();
   };
+  // Time slots: when the event has more than one, choose which slots this ticket is sold for (quantity counts per slot)
+  const slotsInfo = eventSlots(draft), nSlots = slotsInfo.length;
+  t.slots = t.slots ?? "all";
+  const paintSlots = () => {
+    $("#slots-wrap").hidden = nSlots < 2; $("#qty-per").hidden = nSlots < 2;
+    if (nSlots < 2) return;
+    const sel = ticketSlotIdx(t, nSlots), allOn = sel.length === nSlots;
+    $("#tk-slots").innerHTML = `<button type="button" class="slot-chip ${allOn ? "on" : ""}" data-slot="all" aria-pressed="${allOn}">All slots</button>` + slotsInfo.map((sl, i) => `<button type="button" class="slot-chip ${!allOn && sel.includes(i) ? "on" : ""}" data-slot="${i}" aria-pressed="${!allOn && sel.includes(i)}">${esc(slotName(sl, i))}</button>`).join("");
+    $("#slots-hint").textContent = +t.qty > 0 ? `${t.qty} per slot × ${sel.length} = ${+t.qty * sel.length} tickets` : "Quantity is per slot";
+  };
+  $("#tk-slots").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-slot]"); if (!b) return;
+    if (b.dataset.slot === "all") t.slots = "all";
+    else {
+      const i = +b.dataset.slot; let cur = Array.isArray(t.slots) ? t.slots.filter((j) => j < nSlots) : [];
+      cur = t.slots === "all" || !cur.length ? [i] : cur.includes(i) ? cur.filter((j) => j !== i) : [...cur, i].sort((p, q) => p - q);
+      if (!cur.length) return; // at least one slot
+      t.slots = cur.length === nSlots ? "all" : cur;
+    }
+    paintSlots();
+  });
   const bindInput = (q, key) => $(q).addEventListener("input", (e) => { t[key] = e.target.value; refresh(); });
-  bindInput("#tk-name", "name"); bindInput("#tk-qty", "qty"); bindInput("#tk-price", "price"); bindInput("#tk-gs", "groupSize"); bindInput("#tk-l1", "label1"); bindInput("#tk-l2", "label2");
-  const saleState = { get from() { return t.saleFrom; }, set from(v) { t.saleFrom = v; }, get to() { return t.saleTo; }, set to(v) { t.saleTo = v; } };
-  rangePicker($("#sale-dates"), saleState, () => {}, { min: evFrom, max: evTo });
-  dropdown($("#ss-h"), HOURS, t.saleSt.h, (v) => { t.saleSt.h = v; }, "HH"); dropdown($("#ss-m"), MINUTES, t.saleSt.m, (v) => { t.saleSt.m = v; }, "MM");
-  dropdown($("#se-h"), HOURS, t.saleEn.h, (v) => { t.saleEn.h = v; }, "HH"); dropdown($("#se-m"), MINUTES, t.saleEn.m, (v) => { t.saleEn.m = v; }, "MM");
+  bindInput("#tk-name", "name"); bindInput("#tk-qty", "qty"); bindInput("#tk-price", "price"); bindInput("#tk-gs", "groupSize"); bindInput("#tk-tag", "tag"); bindInput("#tk-inc", "includes");
+  $("#dc-code").value = dsc.code; $("#dc-val").value = dsc.value; $("#dc-max").value = dsc.max;
+  $("#disc-toggle").addEventListener("click", () => { dsc.on = !dsc.on; refresh(); if (dsc.on) $("#dc-code").focus(); });
+  $("#dc-code").addEventListener("input", (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""); dsc.code = e.target.value; refresh(); });
+  $("#dc-val").addEventListener("input", (e) => { dsc.value = e.target.value; refresh(); });
+  $("#dc-max").addEventListener("input", (e) => { dsc.max = e.target.value; refresh(); });
+  back.querySelectorAll("[data-dtype]").forEach((b) => b.addEventListener("click", () => { dsc.type = b.dataset.dtype; refresh(); }));
+  // A group ticket still called "Group Ticket" (or "Group of N") is named after its size, so several sizes stay easy to tell apart
+  $("#tk-gs").addEventListener("input", (e) => {
+    if (/^group( ticket| of \d+)?$/i.test(t.name.trim()) && +e.target.value >= 2) { t.name = `Group of ${+e.target.value}`; $("#tk-name").value = t.name; refresh(); }
+  });
+  // When the host first goes to type a price and no bank account is added yet, remind them. Asked once per ticket window,
+  // and again for the next ticket, until an organizer with bank details exists.
+  let askedBank = false;
+  $("#tk-price").addEventListener("focus", () => {
+    if (askedBank || !t.paid || (draft.organizers || []).some((o) => o.account)) return;
+    askedBank = true; $("#tk-price").blur();
+    bankReminder(() => close(), () => { const p = $("#tk-price"); p.focus(); p.select(); }); // "Add bank details" leaves this window; closing puts the cursor back in Price
+  });
+  // Tapping into Price with the starting 0 in it selects it, so typing replaces it
+  $("#tk-price").addEventListener("focus", (e) => { if (["", "0"].includes(e.target.value)) e.target.select(); });
+  // Sales end: when the event starts, a set time before it, or a custom date and time
+  const SALE_MODES = [["start", "When the event starts"], ["1h", "1 hour before the event"], ["24h", "24 hours before the event"], ["custom", "A custom date and time"]];
+  const eventStartAt = () => (draft.dateFrom && draft.start && draft.start.h && draft.start.m ? new Date(`${draft.dateFrom}T${draft.start.h}:${draft.start.m}`) : null);
+  const fmtAt = (d) => `${d.getDate()} ${SHORT[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const saleEndAt = () => { // when sales close, or null if it can't be worked out yet
+    const m = t.saleEnd.mode;
+    if (m === "custom") return t.saleEnd.date && t.saleEnd.h && t.saleEnd.m ? new Date(`${t.saleEnd.date}T${t.saleEnd.h}:${t.saleEnd.m}`) : null;
+    const st = eventStartAt(); if (!st) return null;
+    return new Date(st.getTime() - (m === "24h" ? 24 : m === "1h" ? 1 : 0) * 3600e3);
+  };
+  const paintSale = () => {
+    $("#sale-custom").hidden = t.saleEnd.mode !== "custom";
+    $("#sale-hint").classList.toggle("need", t.saleEnd.mode === "custom" && !saleEndAt());
+    const at = saleEndAt();
+    $("#sale-hint").textContent = t.saleEnd.mode === "custom" ? (at ? `Sales close on ${fmtAt(at)}.` : "Pick the date and time sales should close.") : at ? `Sales close on ${fmtAt(at)}${nSlots > 1 ? " for Slot 1, and the same time before each other slot" : ""}.` : "Set your event date and time in the Schedule step to see exactly when sales close.";
+  };
+  const saleDay = { get from() { return t.saleEnd.date; }, set from(v) { t.saleEnd.date = v; }, get to() { return t.saleEnd.date; }, set to(v) { t.saleEnd.date = v; } };
+  const todayIso = iso(new Date());
+  rangePicker($("#sale-date"), saleDay, () => { paintSale(); refresh(); }, { min: todayIso, max: slotsInfo[slotsInfo.length - 1].to || evTo || "", single: true }); // up to the last slot's day
+  dropdown($("#sale-mode"), SALE_MODES.map(([, n]) => n), SALE_MODES.find(([k]) => k === t.saleEnd.mode)[1], (n) => { t.saleEnd.mode = SALE_MODES.find(([, x]) => x === n)[0]; paintSale(); refresh(); });
+  dropdown($("#se-h"), HOURS, t.saleEnd.h, (v) => { t.saleEnd.h = v; paintSale(); refresh(); }, "HH"); dropdown($("#se-m"), MINUTES, t.saleEnd.m, (v) => { t.saleEnd.m = v; paintSale(); refresh(); }, "MM");
+  paintSale();
   const sw = $("#tk-on");
   const paintOpt = () => {
     sw.setAttribute("aria-checked", t.enabled); sw.classList.toggle("on", t.enabled);
@@ -1239,7 +1821,28 @@ function openTicketModal(type, existing, onSave) {
   const onKey = (e) => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
   back.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", close));
-  $("#tk-save").addEventListener("click", () => { if (!valid()) return; t.name = t.name.trim(); onSave(t); close(); });
+  const commit = () => {
+    t.name = t.name.trim();
+    const endAt = saleEndAt(); t.saleEndAt = endAt ? `${endAt.getFullYear()}-${String(endAt.getMonth() + 1).padStart(2, "0")}-${String(endAt.getDate()).padStart(2, "0")}T${String(endAt.getHours()).padStart(2, "0")}:${String(endAt.getMinutes()).padStart(2, "0")}` : ""; // read by the public event page
+    draft.coupons ??= [];
+    if (t.paid && dsc.on) {
+      const base = { code: dsc.code.trim(), type: dsc.type, value: dsc.value, max: dsc.max, appliesTo: t.id };
+      if (mine) Object.assign(mine, base);
+      else draft.coupons.unshift({ id: newId(), ...base, from: evFrom, to: evTo || evFrom, st: { h: "00", m: "00" }, en: { h: "23", m: "55" }, active: true, used: 0 });
+    } else if (mine) { draft.coupons = draft.coupons.filter((x) => x !== mine); toast("Ticket discount removed"); }
+    draft.bulk ??= [];
+    draft.bulk = draft.bulk.filter((x) => x.appliesTo !== t.id);
+    if (t.paid && bulk) draft.bulk.push({ ...bulk, appliesTo: t.id });
+    onSave(t); close();
+  };
+  $("#tk-save").addEventListener("click", () => { if (valid()) commit(); });
+  // "Add another group size": save this group ticket, then open a fresh Group ticket window for the next size
+  $("#gs-add").addEventListener("click", () => {
+    if (!valid()) return;
+    const saved = t.name.trim();
+    commit(); toast(`${saved} saved. Add the next group size.`);
+    openTicketModal(type, null, onSave);
+  });
   refresh();
   $("#tk-name").focus();
 }
@@ -1248,7 +1851,7 @@ function stepTickets(host) {
   draft.tickets ??= []; delete draft.ticketTypes;
   host.innerHTML = `
     <h2 class="section-title cut">Tickets</h2>
-    <p class="section-sub">Select ticket type</p>
+    <p class="section-sub">Select ticket type ${infoBtn("tk-types")}</p>
     <div id="typenote"></div>
     <div class="tickets" role="group" aria-label="Ticket types">
       ${TICKET_TYPES.map((t) => `<button type="button" class="tkt" data-t="${t.id}">
@@ -1256,14 +1859,16 @@ function stepTickets(host) {
         <span class="tkt-ico">${t.icon}</span><h3 class="cut">${t.name}</h3><p>${t.desc}</p></button>`).join("")}
     </div>
     <div class="made" id="made"></div>
+    <p class="err bk-err" id="tk-next-err" role="alert" hidden>Add at least one ticket to continue</p>
     <div class="nav three"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button><button class="btn" type="button" id="save">Save draft</button></div>`;
   cutHeadings();
+  onInfo(host);
   const next = host.querySelector("#next"), made = host.querySelector("#made");
   const note = host.querySelector("#typenote");
   const paint = () => {
-    // a Sponty event only has free tickets: the paid kinds are locked, and a clash is explained with a one-tap fix
+    // a Sponty plan only has free tickets: the paid kinds are locked, and a clash is explained with a one-tap fix
     const free = draft.type === "guestlist";
-    note.innerHTML = free ? `<p class="notice"><b>${typeClash(draft) ? "This event is set to Sponty but it has a paid ticket." : "Sponty events only have free tickets."}</b> To sell paid tickets, switch the event type: <button type="button" class="btn small" data-settype="exclusive">Exclusive event</button> <button type="button" class="btn small" data-settype="open">Non-exclusive event</button></p>` : "";
+    note.innerHTML = free ? `<div class="notice type-notice"><b>${typeClash(draft) ? "This event is set to Sponty but it has a paid ticket." : "Sponty plans only have free tickets."}</b><span>To sell paid tickets, switch the event type:</span><div class="type-notice-btns"><button type="button" class="btn small" data-settype="exclusive">Exclusive event</button><button type="button" class="btn small" data-settype="open">Non-exclusive event</button></div></div>` : "";
     TICKET_TYPES.forEach((tt) => {
       const el = host.querySelector(`[data-t="${tt.id}"]`);
       el.classList.toggle("locked", free && tt.id !== "guest");
@@ -1278,17 +1883,19 @@ function stepTickets(host) {
       const cls = { Live: "live", "Coming Soon": "soon", "Sold Out": "out", Disabled: "off" }[st];
       const price = x.paid ? `${rupees(+x.price)}${x.order === "group" ? (+x.groupSize >= 2 ? ` for ${x.groupSize} people` : " per group") : ""}` : "Free";
       return `<div class="made-row" data-id="${x.id}">
-        <div class="made-info"><span class="pill ${cls}">${st}</span><b>${esc(x.name)}</b><span class="made-meta">${price} · Qty: ${x.qty}${x.label1 ? ` · ${esc(x.label1)}` : ""}</span></div>
+        <div class="made-info"><span class="pill ${cls}">${st}</span><b>${esc(x.name)}</b><span class="made-meta">${price} · Qty: ${ticketQtyText(x, eventSlots(draft).length)}${ticketSlotText(x, eventSlots(draft).length) ? ` · ${ticketSlotText(x, eventSlots(draft).length)}` : ""}${(x.tag || x.label1) ? ` · ${esc(x.tag || x.label1)}` : ""}</span></div>
         <div class="made-ctl"><div class="m-status"></div><div class="m-enabled"></div>
           <button type="button" class="icon-btn" data-edit-t="${x.id}" aria-label="Edit ${esc(x.name)}" title="Edit"><svg viewBox="0 0 24 24" width="1.5em" height="1.5em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></button>
           <button type="button" class="icon-btn danger" data-del-t="${x.id}" aria-label="Remove ${esc(x.name)}" title="Remove"><svg viewBox="0 0 24 24" width="1.5em" height="1.5em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></div></div>`;
     }).join("") : "";
+    const sl = eventSlots(draft); // more than one time slot: show how many tickets each one has
+    if (sl.length > 1 && draft.tickets.length) made.insertAdjacentHTML("beforeend", `<div class="slot-tot"><p class="slot-tot-h">Tickets per slot</p>${slotTotals(draft.tickets, sl.length).map((n, i) => `<div class="slot-line"><div>${esc(slotName(sl[i], i))}</div><strong>${n} tickets</strong></div>`).join("")}</div>`);
     made.querySelectorAll(".made-row").forEach((row) => {
       const x = draft.tickets.find((q) => q.id === row.dataset.id);
       dropdown(row.querySelector(".m-status"), ["Live", "Coming Soon", "Sold Out"], x.status || "Live", (v) => { x.status = v; persist(4); paint(); });
       dropdown(row.querySelector(".m-enabled"), ["Enabled", "Disabled"], x.enabled === false ? "Disabled" : "Enabled", (v) => { x.enabled = v === "Enabled"; persist(4); paint(); });
     });
-    next.disabled = !draft.tickets.length;
+    if (draft.tickets.length) host.querySelector("#tk-next-err").hidden = true;
   };
   paint();
   const add = (type, existing) => openTicketModal(type, existing, (t) => {
@@ -1304,18 +1911,23 @@ function stepTickets(host) {
   host.querySelector(".tickets").addEventListener("click", (e) => {
     const b = e.target.closest("[data-t]");
     if (!b) return;
-    if (b.classList.contains("locked")) { toast("Sponty events only have free tickets. Switch the event type to sell paid ones."); return; }
+    if (b.classList.contains("locked")) { toast("Sponty plans only have free tickets. Switch the event type to sell paid ones."); return; }
     add(TICKET_TYPES.find((t) => t.id === b.dataset.t));
   });
   made.addEventListener("click", async (e) => {
     const ed = e.target.closest("[data-edit-t]"), del = e.target.closest("[data-del-t]");
     if (ed) { const x = draft.tickets.find((q) => q.id === ed.dataset.editT); add(TICKET_TYPES.find((t) => t.id === x.type), x); }
-    if (del && (await ask({ title: "Remove this ticket?", ok: "Remove" }))) { draft.tickets = draft.tickets.filter((q) => q.id !== del.dataset.delT); persist(4); paint(); }
+    if (del && (await ask({ title: "Remove this ticket?", message: (draft.coupons || []).some((c) => c.appliesTo === del.dataset.delT) || (draft.bulk || []).some((b) => b.appliesTo === del.dataset.delT) ? "Its discounts will be removed too." : "", ok: "Remove" }))) {
+      const gone = del.dataset.delT;
+      draft.tickets = draft.tickets.filter((q) => q.id !== gone);
+      draft.coupons = (draft.coupons || []).filter((c) => c.appliesTo !== gone); draft.bulk = (draft.bulk || []).filter((b) => b.appliesTo !== gone);
+      persist(4); paint();
+    }
   });
   saveCurrent = () => persist(4);
   host.querySelector("#prev").addEventListener("click", () => { saveCurrent(); location.hash = "#/create/3"; });
   host.querySelector("#save").addEventListener("click", () => { saveCurrent(); toast("Draft saved"); draft = null; location.hash = "#/"; });
-  next.addEventListener("click", () => { if (!draft.tickets.length) return; persist(5); location.hash = "#/create/5"; });
+  next.addEventListener("click", () => { if (!draft.tickets.length) { const e = host.querySelector("#tk-next-err"); e.hidden = false; e.scrollIntoView({ behavior: "smooth", block: "center" }); return; } persist(5); location.hash = "#/create/5"; });
 }
 
 /* ---------- Step 5: Partners & artists ---------- */
@@ -1329,9 +1941,29 @@ const svg = (d, size = "1.4em") => `<svg viewBox="0 0 24 24" width="${size}" hei
 const PLATFORM = { artists: [], partners: [] };
 
 // The "Add new artist / partner" window, for people who aren't in the search
+// Social and portfolio links for artists and partners. People can type @name or a full link; only real web links are kept.
+const PERSON_LINKS = [["instagram", "Instagram", "@username or link"], ["x", "X", "@username or link"], ["youtube", "YouTube", "Channel link or @handle"], ["site", "Website or portfolio", "https://…"]];
+const LINK_HOSTS = { instagram: /(^|\.)instagram\.com$/i, x: /(^|\.)(x|twitter)\.com$/i, youtube: /(^|\.)(youtube\.com|youtu\.be)$/i };
+// Returns the cleaned web link, "" when empty, or null when it isn't valid
+function cleanLink(kind, raw) {
+  const v = String(raw || "").trim();
+  if (!v) return "";
+  let url = v;
+  if (!/^https?:\/\//i.test(v)) {
+    const handle = v.replace(/^@/, "");
+    const isAddress = v.includes("/") || /(^|\.)(instagram\.com|x\.com|twitter\.com|youtube\.com|youtu\.be)$/i.test(handle); // looks like a web address, not a handle
+    if (kind !== "site" && !isAddress) { // a handle such as @kavya
+      url = kind === "instagram" ? (/^[\w.]{1,30}$/.test(handle) ? `https://instagram.com/${handle}` : "")
+        : kind === "x" ? (/^\w{1,15}$/.test(handle) ? `https://x.com/${handle}` : "")
+        : (/^[\w.-]{2,}$/.test(handle) ? `https://youtube.com/@${handle}` : "");
+    } else url = /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(handle) ? `https://${handle}` : "";
+  }
+  try { const u = new URL(url); if (!/^https?:$/.test(u.protocol) || (LINK_HOSTS[kind] && !LINK_HOSTS[kind].test(u.hostname))) return null; return u.href; } catch { return null; }
+}
+
 function openPersonModal(kind, prefill, onAdd) {
   const isArtist = kind === "artist";
-  const P = { name: prefill || "", desc: "", logo: "" };
+  const P = { name: prefill || "", desc: "", logo: "", links: { instagram: "", x: "", youtube: "", site: "" } };
   const back = document.createElement("div");
   back.className = "modal-back";
   back.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="Add new ${kind}">
@@ -1344,6 +1976,8 @@ function openPersonModal(kind, prefill, onAdd) {
       <div class="field"><div class="lab-row full"><label for="pm-desc">Description <span class="req">*</span></label><span class="count-note" id="pm-count">0 chars</span></div>
         <textarea id="pm-desc" class="box" rows="4" maxlength="500" placeholder="Describe the ${kind}: what they do, their role in this event…"></textarea>
         <p class="hint">Both name and description are required to add ${isArtist ? "an artist" : "a partner"}.</p></div>
+      <div class="field links-block"><span class="lab">Links <span class="opt-note">optional</span></span>
+        <div class="link-grid">${PERSON_LINKS.map(([k, n, ph]) => `<div class="field link-field" id="lf-${k}"><label for="pm-${k}">${n}</label><input id="pm-${k}" class="box" type="text" inputmode="${k === "site" || k === "youtube" ? "url" : "text"}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${ph}" /><p class="err">That doesn't look like a ${n} link</p></div>`).join("")}</div></div>
     </div>
     <div class="modal-foot split"><button type="button" class="btn" id="pm-add">Add ${kind}</button><button type="button" class="btn ghost" data-x>Cancel</button></div>
   </div>`;
@@ -1354,6 +1988,7 @@ function openPersonModal(kind, prefill, onAdd) {
   const refresh = () => { $("#pm-add").disabled = !(P.name.trim().length >= 2 && P.desc.trim().length >= 3); $("#pm-count").textContent = `${P.desc.length} chars`; };
   $("#pm-name").addEventListener("input", (e) => { P.name = e.target.value; refresh(); });
   $("#pm-desc").addEventListener("input", (e) => { P.desc = e.target.value; refresh(); });
+  PERSON_LINKS.forEach(([k]) => $(`#pm-${k}`).addEventListener("input", (e) => { P.links[k] = e.target.value; $(`#lf-${k}`).classList.remove("bad"); }));
   const drop = $("#logo-drop"), file = $("#logo-file");
   const paintLogo = () => { drop.classList.toggle("has", !!P.logo); drop.style.backgroundImage = P.logo ? `url(${P.logo})` : ""; };
   const first = P.logo; // the logo it opened with; other uploads made here are deleted if they don't end up used
@@ -1365,7 +2000,14 @@ function openPersonModal(kind, prefill, onAdd) {
   const onKey = (e) => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
   back.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", close));
-  $("#pm-add").addEventListener("click", () => { if ($("#pm-add").disabled) return; added = true; onAdd({ name: P.name.trim().replace(/\s+/g, " "), desc: P.desc.trim(), logo: P.logo }); close(); });
+  $("#pm-add").addEventListener("click", () => {
+    if ($("#pm-add").disabled) return;
+    const links = {}; let bad = null;
+    PERSON_LINKS.forEach(([k]) => { const v = cleanLink(k, P.links[k]); $(`#lf-${k}`).classList.toggle("bad", v === null); if (v === null) bad = bad || $(`#lf-${k}`); else if (v) links[k] = v; });
+    if (bad) { bad.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+    added = true;
+    onAdd({ name: P.name.trim().replace(/\s+/g, " "), desc: P.desc.trim(), logo: P.logo, links }); close();
+  });
   refresh();
   $("#pm-name").focus();
 }
@@ -1398,7 +2040,7 @@ function stepPartners(host) {
   const paintAdded = () => {
     const arr = items();
     added.innerHTML = arr.length
-      ? `<div class="pa-people">${arr.map((n, i) => `<div class="pa-person"><span class="avatar" ${n.logo ? `style="background-image:url(${n.logo})"` : ""}>${n.logo ? "" : esc(n.name.trim().slice(0, 1).toUpperCase())}</span><div class="pa-who"><b>${esc(n.name)}</b>${n.desc ? `<span>${esc(n.desc)}</span>` : ""}</div><button type="button" data-rm="${i}" aria-label="Remove ${esc(n.name)}">×</button></div>`).join("")}</div>`
+      ? `<div class="pa-people">${arr.map((n, i) => `<div class="pa-person"><span class="avatar" ${n.logo ? `style="background-image:url(${n.logo})"` : ""}>${n.logo ? "" : esc(n.name.trim().slice(0, 1).toUpperCase())}</span><div class="pa-who"><b>${esc(n.name)}</b>${n.desc ? `<span>${esc(n.desc)}</span>` : ""}${n.links && Object.keys(n.links).length ? `<span class="pa-links">${PERSON_LINKS.filter(([k]) => n.links[k]).map(([, nm]) => nm).join(" · ")}</span>` : ""}</div><button type="button" data-rm="${i}" aria-label="Remove ${esc(n.name)}">×</button></div>`).join("")}</div>`
       : `<div class="pa-empty"><span class="pa-ico">${svg(tab === "artists" ? pIco.music : pIco.group, "1.8em")}</span><b>No ${tab} added yet</b><span>Search above to find and add ${tab} to your event</span></div>`;
   };
   const closeList = () => { pop.hidden = true; q.setAttribute("aria-expanded", "false"); };
@@ -1435,54 +2077,102 @@ function stepPartners(host) {
   $("#next").addEventListener("click", () => { persist(6); location.hash = "#/create/6"; });
 }
 
+/* ---------- Bank account reminder (shown on the Tickets step) ---------- */
+const ACCOUNT_TYPES = [["savings", "Savings account", "(preferred)"], ["current", "Current account", ""]];
+// Appears after a paid ticket is saved while no organizer / bank account has been added yet. Choosing an account type and
+// tapping "Add bank details" opens the Organizer step with that type already selected; closing it means "later".
+function bankReminder(beforeGo, afterLater) {
+  let pick = draft.accountType || "savings";
+  const back = document.createElement("div");
+  back.className = "modal-back centered";
+  back.innerHTML = `<div class="modal small bank-modal" role="dialog" aria-modal="true" aria-label="Bank account not added">
+    <div class="modal-head"><div><h3 class="cut">Bank account not added</h3></div><button type="button" class="modal-x" data-later aria-label="Close and do this later">×</button></div>
+    <div class="modal-body">
+      <p class="ask-msg">To get paid for your paid tickets, add your bank account details. Choose an account type below.</p>
+      <div class="bank-types" role="radiogroup" aria-label="Account type">${ACCOUNT_TYPES.map(([k, n, note]) => `<button type="button" role="radio" class="bank-type" data-atype="${k}" aria-checked="false"><i aria-hidden="true"></i><span>${n}${note ? ` <small>${note}</small>` : ""}</span></button>`).join("")}</div>
+      <p class="hint">You can also do this later. It's needed before you can create your event.</p>
+      <button type="button" class="btn bank-go" id="bank-go">Add bank details</button>
+    </div></div>`;
+  document.body.append(back);
+  const headLetters = cutHeadings(back);
+  const paint = () => back.querySelectorAll("[data-atype]").forEach((b) => b.setAttribute("aria-checked", b.dataset.atype === pick));
+  paint();
+  const close = () => { headLetters.forEach((l) => l.dispose()); document.removeEventListener("keydown", onKey); back.remove(); };
+  const later = () => { close(); if (afterLater) afterLater(); }; // closing means "later": carry on where they were
+  const onKey = (e) => { if (e.key === "Escape") later(); };
+  document.addEventListener("keydown", onKey);
+  back.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-atype]");
+    if (t) { pick = t.dataset.atype; paint(); return; }
+    if (e.target === back || e.target.closest("[data-later]")) later();
+  });
+  back.querySelector("#bank-go").addEventListener("click", () => { draft.accountType = pick; draft.wantsBank = true; persist(4); if (beforeGo) beforeGo(); close(); location.hash = "#/create/6"; });
+  back.querySelector("#bank-go").focus();
+}
+
 /* ---------- Step 6: Organizer ---------- */
 // Format checks for Indian details (shape only: nothing is verified with a bank or the tax office)
 const ORG_FIELDS = [
-  { k: "email", label: "Email id", req: true, ph: "Enter email", type: "email", ok: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v), msg: "Enter a valid email address." },
-  { k: "gst", label: "GST no.", ph: "Enter GST no.", upper: true, ok: (v) => !v || /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v), msg: "A GST number has 15 characters, like 27ABCDE1234F1Z5." },
-  { k: "holder", label: "Account holder name", req: true, ph: "Account holder name", ok: (v) => v.length >= 2, msg: "Enter the name on the bank account." },
-  { k: "account", label: "Account number", req: true, ph: "Account number", digits: true, ok: (v) => /^\d{9,18}$/.test(v), msg: "An account number has 9 to 18 digits." },
-  { k: "ifsc", label: "IFSC code", req: true, ph: "Enter IFSC code", upper: true, ok: (v) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v), msg: "An IFSC code looks like HDFC0001234." },
-  { k: "pan", label: "PAN no.", req: true, ph: "Enter PAN no.", upper: true, ok: (v) => /^[A-Z]{5}\d{4}[A-Z]$/.test(v), msg: "A PAN looks like ABCDE1234F." },
-  { k: "phone", label: "Phone no.", req: true, ph: "Enter phone no.", type: "tel", digits: true, ok: (v) => /^[6-9]\d{9}$/.test(v), msg: "Enter a 10-digit mobile number." },
+  { k: "email", label: "Email id", req: true, ph: "Enter email", type: "email", ok: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v), msg: "Enter a valid email address" },
+  { k: "gst", pay: true, label: "GST no.", ph: "Enter GST no.", upper: true, ok: (v) => !v || /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v), msg: "A GST number has 15 characters, like 27ABCDE1234F1Z5" },
+  { k: "holder", label: "Account holder name", req: true, ph: "Account holder name", ok: (v) => v.length >= 2, msg: "Enter the name on the bank account" },
+  { k: "account", pay: true, label: "Account number", req: true, ph: "Account number", digits: true, ok: (v) => /^\d{9,18}$/.test(v), msg: "An account number has 9 to 18 digits" },
+  { k: "ifsc", pay: true, label: "IFSC code", req: true, ph: "Enter IFSC code", upper: true, ok: (v) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v), msg: "An IFSC code looks like HDFC0001234" },
+  { k: "pan", pay: true, label: "PAN no.", req: true, ph: "Enter PAN no.", upper: true, ok: (v) => /^[A-Z]{5}\d{4}[A-Z]$/.test(v), msg: "A PAN looks like ABCDE1234F" },
+  { k: "phone", label: "Phone no.", req: true, ph: "Enter phone no.", type: "tel", digits: true, ok: (v) => /^[6-9]\d{9}$/.test(v), msg: "Enter a 10-digit mobile number" },
 ];
 
 function stepOrganizer(host) {
   draft.organizers ??= [];
   const form = { msmeOn: false, msme: "" };
-  const cell = (f) => `<div class="field" id="of-${f.k}"><label for="o-${f.k}">${f.label}${f.req ? " <span class=\"req\">*</span>" : ""}</label>
-      <input id="o-${f.k}" class="box ${f.upper ? "caps" : ""}" type="${f.type || "text"}" inputmode="${f.digits ? "numeric" : f.type === "email" ? "email" : "text"}" autocomplete="off" placeholder="${f.ph}" maxlength="${f.k === "gst" ? 15 : f.k === "ifsc" ? 11 : f.k === "pan" ? 10 : f.k === "phone" ? 10 : f.k === "account" ? 18 : 80}" />
+  let atype = draft.accountType || ""; // already picked in the Tickets reminder? it is chosen here too
+  const hasPaid = (draft.tickets || []).some((t) => t.paid), viaReminder = !!draft.wantsBank && !hasPaid; delete draft.wantsBank; // the reminder only opens the bank fields for this one visit
+  const paid = hasPaid || viaReminder; // bank details are only needed to get paid for paid tickets
+  const fields = ORG_FIELDS.filter((f) => paid || !f.pay);
+  const cell = (f) => `<div class="field" id="of-${f.k}"${!paid && f.pay ? " hidden" : ""}><label for="o-${f.k}">${f.k === "holder" && !paid ? "Organizer name" : f.label}${f.req ? " <span class=\"req\">*</span>" : ""}</label>
+      <input id="o-${f.k}" class="box ${f.upper ? "caps" : ""}" type="${f.type || "text"}" inputmode="${f.digits ? "numeric" : f.type === "email" ? "email" : "text"}" autocomplete="off" placeholder="${f.k === "holder" && !paid ? "Organizer name" : f.ph}" maxlength="${f.k === "gst" ? 15 : f.k === "ifsc" ? 11 : f.k === "pan" ? 10 : f.k === "phone" ? 10 : f.k === "account" ? 18 : 80}" />
       <p class="err">${f.msg}</p></div>`;
   host.innerHTML = `
     <h2 class="section-title cut">Organizer</h2>
     <div class="two">
+      <div class="field full" id="of-atype"${paid ? "" : " hidden"}><span class="lab">Account type <span class="req">*</span></span>
+        <div class="acct-row" id="o-atype" role="radiogroup" aria-label="Account type">${ACCOUNT_TYPES.map(([k, n, note]) => `<button type="button" role="radio" class="box acct" data-atype="${k}" aria-checked="false"><i aria-hidden="true"></i><span>${n}${note ? ` <small>${note}</small>` : ""}</span></button>`).join("")}</div>
+        <p class="err">Choose an account type</p></div>
       ${ORG_FIELDS.map(cell).join("")}
-      <div class="field msme"><label class="check"><input type="checkbox" id="o-msme-on" /> Do you have an MSME no.?</label>
-        <div id="of-msme" hidden><label for="o-msme" class="lab">MSME (Udyam) no. <span class="req">*</span></label><input id="o-msme" class="box caps" type="text" autocomplete="off" placeholder="UDYAM-MH-00-0000000" maxlength="19" /><p class="err">An Udyam number looks like UDYAM-MH-00-0000000.</p></div></div>
+      <div class="field msme"${paid ? "" : " hidden"}><label class="check"><input type="checkbox" id="o-msme-on" /> Do you have an MSME no.?</label>
+        <div id="of-msme" hidden><label for="o-msme" class="lab">MSME (Udyam) no. <span class="req">*</span></label><input id="o-msme" class="box caps" type="text" autocomplete="off" placeholder="UDYAM-MH-00-0000000" maxlength="19" /><p class="err">An Udyam number looks like UDYAM-MH-00-0000000</p></div></div>
     </div>
+    ${paid ? (viaReminder ? `<p class="hc-note">Not selling paid tickets after all? <button type="button" class="hc-link" id="o-free">Hide bank details</button></p>` : "") : `<p class="hc-note">Bank details are asked only if you add a paid ticket.</p>`}
     <div class="add-row"><button type="button" class="btn small" id="o-add">Add organizer</button></div>
     <div id="o-list"></div>
     <p class="notice info"><b>Private:</b> bank, PAN, GST, email and phone details are saved privately to your account. Only you and the PB&amp;J team can see them; guests only see the organizer name.</p>
     <div class="nav three"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="next">Next</button><button class="btn" type="button" id="save">Save draft</button></div>`;
   const $ = (q) => host.querySelector(q);
   const list = $("#o-list"), next = $("#next");
+  $("#o-free")?.addEventListener("click", () => stepOrganizer(host));
+  const paintType = () => $("#o-atype").querySelectorAll("[data-atype]").forEach((b) => { const on = b.dataset.atype === atype; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
+  paintType();
+  $("#o-atype").addEventListener("click", (e) => { const b = e.target.closest("[data-atype]"); if (!b) return; atype = b.dataset.atype; draft.accountType = atype; paintType(); $("#of-atype").classList.remove("bad"); });
   const val = (f) => { let v = $(`#o-${f.k}`).value.trim(); if (f.upper) v = v.toUpperCase(); if (f.digits) v = v.replace(/\D/g, ""); return v; };
   ORG_FIELDS.forEach((f) => { const el = $(`#o-${f.k}`); el.addEventListener("input", () => { if (f.upper) el.value = el.value.toUpperCase(); if (f.digits) el.value = el.value.replace(/\D/g, ""); $(`#of-${f.k}`).classList.remove("bad"); }); });
   $("#o-msme").addEventListener("input", (e) => { e.target.value = e.target.value.toUpperCase(); $("#of-msme").classList.remove("bad"); });
   $("#o-msme-on").addEventListener("change", (e) => { form.msmeOn = e.target.checked; $("#of-msme").hidden = !form.msmeOn; });
   const paint = () => {
-    list.innerHTML = draft.organizers.length ? `<h3 class="made-h">Organizers</h3>` + draft.organizers.map((o, i) => `<div class="made-row"><div class="made-info"><b>${esc(o.holder)}</b><span class="made-meta">${esc(o.email)} · ${esc(o.phone)} · A/c ••••${esc(o.account.slice(-4))}${o.msme ? " · MSME" : ""}</span></div><div class="made-ctl"><button type="button" class="icon-btn danger" data-rm-o="${i}" aria-label="Remove ${esc(o.holder)}" title="Remove"><svg viewBox="0 0 24 24" width="1.5em" height="1.5em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></div></div>`).join("") : "";
+    list.innerHTML = draft.organizers.length ? `<h3 class="made-h">Organizers</h3>` + draft.organizers.map((o, i) => `<div class="made-row"><div class="made-info"><b>${esc(o.holder)}</b><span class="made-meta">${esc(o.email)} · ${esc(o.phone)} · ${o.accountType === "current" ? "Current" : o.accountType === "savings" ? "Savings" : ""} ${o.account ? " A/c ••••" + esc(o.account.slice(-4)) : ""}${o.msme ? " · MSME" : ""}</span></div><div class="made-ctl"><button type="button" class="icon-btn danger" data-rm-o="${i}" aria-label="Remove ${esc(o.holder)}" title="Remove"><svg viewBox="0 0 24 24" width="1.5em" height="1.5em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></div></div>`).join("") : "";
   };
   paint();
   $("#o-add").addEventListener("click", () => {
     const data = {}; let firstBad = null;
-    ORG_FIELDS.forEach((f) => { const v = val(f); data[f.k] = v; const ok = (f.req ? v.length > 0 : true) && f.ok(v); $(`#of-${f.k}`).classList.toggle("bad", !ok); if (!ok && !firstBad) firstBad = $(`#of-${f.k}`); });
-    const msme = form.msmeOn ? $("#o-msme").value.trim().toUpperCase() : "";
-    const msmeOk = !form.msmeOn || /^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/.test(msme);
+    fields.forEach((f) => { const v = val(f); data[f.k] = v; const ok = (f.req ? v.length > 0 : true) && f.ok(v); $(`#of-${f.k}`).classList.toggle("bad", !ok); if (!ok && !firstBad) firstBad = $(`#of-${f.k}`); });
+    ORG_FIELDS.forEach((f) => { if (!fields.includes(f)) data[f.k] = ""; });
+    const msme = paid && form.msmeOn ? $("#o-msme").value.trim().toUpperCase() : "";
+    const msmeOk = !(paid && form.msmeOn) || /^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/.test(msme);
     $("#of-msme").classList.toggle("bad", !msmeOk);
     if (!msmeOk && !firstBad) firstBad = $("#of-msme");
+    $("#of-atype").classList.toggle("bad", paid && !atype);
+    if (paid && !atype) firstBad = $("#of-atype"); // the account type is at the top, so it comes first
     if (firstBad) { firstBad.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
-    draft.organizers.push({ ...data, msme });
+    draft.organizers.push({ ...data, msme, accountType: atype });
     ORG_FIELDS.forEach((f) => { $(`#o-${f.k}`).value = ""; });
     $("#o-msme").value = ""; $("#o-msme-on").checked = false; form.msmeOn = false; $("#of-msme").hidden = true;
     persist(6); paint(); toast("Organizer added");
@@ -1497,11 +2187,28 @@ function stepOrganizer(host) {
   next.addEventListener("click", () => { persist(7); location.hash = "#/create/7"; }); // organizer details can be added later; Review asks for them before Create event
 }
 
+/* ---------- Time slots and tickets ---------- */
+// The event's time slots: its own date and time is Slot 1, then any extra slots from "Repeat this event"
+function eventSlots(d) {
+  const first = { from: d.dateFrom || "", to: d.dateTo || d.dateFrom || "", st: d.start || { h: "", m: "" }, en: d.showEnd ? (d.end || { h: "", m: "" }) : { h: "", m: "" } };
+  const extra = d.repeat?.on ? (d.repeat.slots || []).filter((t) => t.from && t.st && t.st.h && t.st.m).map((t) => ({ from: t.from, to: t.to || t.from, st: t.st, en: t.en || { h: "", m: "" } })) : [];
+  return [first, ...extra];
+}
+// Which slots a ticket is offered in: a list of slot numbers (counting from 0), or every slot
+const ticketSlotIdx = (t, n) => { const ok = Array.isArray(t.slots) ? t.slots.filter((i) => i < n) : []; return ok.length ? ok : Array.from({ length: n }, (_, i) => i); };
+const ticketSlotText = (t, n) => (n < 2 ? "" : ticketSlotIdx(t, n).length < n ? `Slot ${ticketSlotIdx(t, n).map((i) => i + 1).join(", ")}` : "All slots");
+// The quantity is per slot: a ticket in 2 slots with quantity 30 is 60 tickets in all
+const ticketQtyText = (t, n) => { const k = ticketSlotIdx(t, n).length; return n > 1 && k > 1 ? `${t.qty} per slot (${+t.qty * k} in all)` : `${t.qty}`; };
+// How many tickets each slot has, adding up every ticket offered in it
+const slotTotals = (tickets, n) => Array.from({ length: n }, (_, i) => tickets.filter((t) => ticketSlotIdx(t, n).includes(i)).reduce((a, t) => a + (+t.qty || 0), 0));
+const slotName = (s, i) => `Slot ${i + 1} · ${s.from ? dmyShort(s.from) : "no date"}`;
+const dmyShort = (v) => { const [y, m, d] = v.split("-").map(Number); return `${d} ${SHORT[m - 1]}`; };
+
 /* ---------- Step 7: Review & create ---------- */
 const dmy = (v) => { if (!v) return "—"; const [y, m, d] = v.split("-").map(Number); return `${d} ${SHORT[m - 1]} ${y}`; };
 const hm = (t) => (t && t.h && t.m ? `${t.h}:${t.m}` : "—");
 const TYPE_SHORT = { guestlist: "Sponty", exclusive: "Exclusive", open: "Non-exclusive" };
-// a Sponty event can only have free tickets: paid tickets on one is a mix-up that has to be fixed (see the Tickets step)
+// a Sponty plan can only have free tickets: paid tickets on one is a mix-up that has to be fixed (see the Tickets step)
 const typeClash = (e) => e.type === "guestlist" && (e.tickets || []).some((t) => t.paid);
 
 function stepReview(host) {
@@ -1512,11 +2219,12 @@ function stepReview(host) {
   const tickets = d.tickets || [], orgs = d.organizers || [], images = (d.images || []).filter(Boolean);
   // Anything still missing, with the step that fixes it
   const missing = [
-    [!d.type, "Event type", 0], [typeClash(d), "Event type (a Sponty event can only have free tickets)", 4], [!d.title, "Title", 1], [!d.description || !textLen(d.description), "Description", 1],
+    [!d.type, "Event type", 0], [typeClash(d), "Event type (a Sponty plan can only have free tickets)", 4], [!d.title, "Title", 1], [!d.description || !textLen(d.description), "Description", 1],
     [!d.category, "Category", 2], [!(d.subs || []).length, "Sub categories", 2], [!d.city, "City", 2], [!images.length, "A cover image", 2],
     [!d.dateFrom, "Event dates", 3], [!(d.start && d.start.h && d.start.m), "Start time", 3],
     [!tickets.length, "At least one ticket", 4],
-    // (the organizer is optional for now: add `[!orgs.length, "An organizer", 6]` back to make it required)
+    [(d.type !== "guestlist" || tickets.some((t) => t.paid)) && !orgs.length, tickets.some((t) => t.paid) ? "Organizer & bank details (needed to get paid for paid tickets)" : "Organizer details", 6],
+    [tickets.some((t) => t.paid) && orgs.length > 0 && !orgs.some((o) => o.account), "Bank details (needed to get paid for paid tickets)", 6],
   ].filter((m) => m[0]);
   const edit = (step, label = "Edit") => `<button type="button" class="rv-edit" data-go-step="${step}">${label}</button>`;
   const field = (label, value, cls = "") => `<div class="rv-f ${cls}"><span>${label}</span><b>${value}</b></div>`;
@@ -1539,15 +2247,19 @@ function stepReview(host) {
     </div>
     ${section("Basic information", 1, `${field("Title", esc(d.title || "—"), "strong")}${field("Event type", esc((TYPES.find((t) => t.id === d.type) || {}).name || "—"))}
       <div class="rv-f"><span>Description</span><div class="rv-rich">${d.description ? clean(d.description) : "<b>—</b>"}</div></div>
-      <div class="rv-f"><span>Terms &amp; conditions</span><div class="rv-rich">${d.terms && textLen(d.terms) ? clean(d.terms) : "<b>—</b>"}</div></div>`)}
+      <div class="rv-f"><span>Terms &amp; conditions</span><div class="rv-rich">${d.terms && textLen(d.terms) ? clean(d.terms) : "<b>—</b>"}</div></div>
+      <div class="rv-f"><span>FAQs</span>${(d.faqs || []).length ? `<ol class="rv-q">${d.faqs.map((f) => `<li>${esc(f.q)}</li>`).join("")}</ol>` : "<b>—</b>"}</div>
+      <div class="rv-f"><span>Guest questions</span>${(d.questions || []).length ? `<ol class="rv-q">${d.questions.map((q) => `<li>${esc(q.text)}${q.required ? " *" : ""} <em>${esc((Q_TYPES.find((t) => t[0] === q.type) || [, ""])[1])}</em></li>`).join("")}</ol>` : "<b>—</b>"}</div>`)}
     ${section("Location & category", 2, `<div class="rv-grid">${field("City", esc(d.city || "—"))}${field("Venue", esc(d.venueStatus === "Decided" && d.venue ? d.venue : d.venueStatus || "—") + (d.venueAddress ? `<span class="rv-addr">${esc(d.venueAddress)}</span>` : "") + (d.venueLat ? ` <a class="rv-map" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${d.venueLat}&mlon=${d.venueLon}#map=17/${d.venueLat}/${d.venueLon}">Open map</a>` : ""), d.venueStatus === "To be announced" ? "warn" : "")}</div>
+      <div class="rv-f"><span>Options</span><div class="rv-tags">${d.womenOnly ? '<i class="on">Women only</i>' : ""}${d.womenOnly || d.hideLocation ? "<i>Location hidden until booking</i>" : ""}${d.womenOnly || d.hideLocation ? "" : "<b>—</b>"}</div></div>
+      <div class="rv-f"><span>Custom link</span><b>${d.slug ? `${LINK_HOST}/e/${esc(d.slug)}` : "—"}</b></div>
       <div class="rv-f"><span>Category</span><div class="rv-tags">${d.category ? `<i class="on">${esc(d.category)}</i>` : "<b>—</b>"}${(d.subs || []).map((x) => `<i>${esc(x)}</i>`).join("")}</div></div>`)}
-    ${section("Schedule", 3, `<div class="rv-grid four">${field("Start date", dmy(d.dateFrom))}${field("End date", dmy(d.dateTo || d.dateFrom))}${field("Start time", hm(d.start))}${field("End time", d.showEnd ? hm(d.end) : "—")}</div>`)}
-    ${section("Tickets", 4, tickets.length ? tickets.map((t) => `<div class="rv-row"><div><b>${esc(t.name)}</b><span>${t.qty} qty${t.label1 ? ` · ${esc(t.label1)}` : ""}</span></div><b class="rv-price">${priceOf(t)}</b></div>`).join("") : "<b>—</b>", `(${tickets.length} type${tickets.length === 1 ? "" : "s"})`)}
+    ${section("Schedule", 3, eventSlots(d).map((sl, i, all) => `<div class="rv-slot">${all.length > 1 ? `<p class="rv-slot-h">Slot ${i + 1}</p>` : ""}<div class="rv-grid four">${field("Start date", dmy(sl.from))}${field("End date", dmy(sl.to))}${field("Start time", hm(sl.st))}${field("End time", hm(sl.en))}</div></div>`).join(""), eventSlots(d).length > 1 ? `(${eventSlots(d).length} slots)` : "")}
+    ${section("Tickets", 4, tickets.length ? tickets.map((t) => `<div class="rv-row"><div><b>${esc(t.name)}</b><span>Qty: ${ticketQtyText(t, eventSlots(d).length)}${ticketSlotText(t, eventSlots(d).length) ? ` · ${ticketSlotText(t, eventSlots(d).length)}` : ""}${(t.tag || t.label1) ? ` · ${esc(t.tag || t.label1)}` : ""}${t.includes ? ` · ${esc(t.includes)}` : ""}</span></div><b class="rv-price">${priceOf(t)}</b></div>`).join("") + (eventSlots(d).length > 1 && tickets.length ? `<div class="slot-tot"><p class="slot-tot-h">Tickets per slot</p>${slotTotals(tickets, eventSlots(d).length).map((n, i) => `<div class="slot-line"><div>${esc(slotName(eventSlots(d)[i], i))}</div><strong>${n} tickets</strong></div>`).join("")}</div>` : "") : "<b>—</b>", `(${tickets.length} type${tickets.length === 1 ? "" : "s"})`)}
     ${section("Artists & partners", 5, people.length ? `<div class="rv-people">${people.map((p) => `<div class="pa-person"><span class="avatar" ${p.logo ? `style="background-image:url(${p.logo})"` : ""}>${p.logo ? "" : esc(p.name.trim().slice(0, 1).toUpperCase())}</span><div class="pa-who"><b>${esc(p.name)}</b><span>${p.role}</span></div></div>`).join("")}</div>` : "<b>—</b>", `(${people.length})`)}
-    ${section("Organizer & banking", 6, orgs.length ? orgs.map((o) => `<div class="rv-grid">${field("Organizer name", esc(o.holder))}${field("Email", `<span class="keep">${esc(o.email)}</span>`)}${field("Phone", esc(o.phone))}${field("Account number", "••••" + esc(o.account.slice(-4)))}${field("IFSC", esc(o.ifsc))}${o.gst ? field("GST no.", esc(o.gst)) : ""}</div>`).join("<hr />") : field("Organizer name", "—"))}
+    ${section("Organizer & banking", 6, orgs.length ? orgs.map((o) => `<div class="rv-grid">${field("Organizer name", esc(o.holder))}${field("Email", `<span class="keep">${esc(o.email)}</span>`)}${field("Phone", esc(o.phone))}${o.account ? field("Account type", o.accountType === "current" ? "Current" : o.accountType === "savings" ? "Savings" : "—") + field("Account number", "••••" + esc(o.account.slice(-4))) + field("IFSC", esc(o.ifsc)) : ""}${o.gst ? field("GST no.", esc(o.gst)) : ""}</div>`).join("<hr />") : field("Organizer name", "—"))}
     ${missing.length
-      ? `<p class="notice warn"><b>Almost there.</b> Still needed: ${missing.map((m) => `<button type="button" class="linkish" data-go-step="${m[2]}">${m[1]}</button>`).join(", ")}.</p>`
+      ? `<div class="notice warn miss"><b>Almost there</b><span>Still needed:</span><ul class="miss-list">${missing.map((m) => `<li><button type="button" class="linkish" data-go-step="${m[2]}">${m[1]}</button></li>`).join("")}</ul></div>`
       : `<p class="notice ready"><b>Ready to submit.</b> After you create the event, you'll choose its status.</p>`}
     <div class="nav"><button class="btn dark prev" type="button" id="prev">Previous</button><button class="btn" type="button" id="create" ${missing.length ? "disabled" : ""}>Create event</button></div>`;
   host.addEventListener("click", (e) => { const b = e.target.closest("[data-go-step]"); if (b) { saveCurrent(); location.hash = `#/create/${b.dataset.goStep}`; } });
@@ -1577,7 +2289,216 @@ function stepComing(host, step) {
 }
 
 /* ---------- Coupons (per event) ---------- */
+/* ---------- Bulk discount: a bigger discount the more tickets one person buys ---------- */
+// Each tap of "Add +" brings in the next of these as a suggestion, so a host who is unsure can just keep them
+
+/* ---------- FAQs: the popup where hosts answer common questions guests ask before booking ---------- */
+const FAQ_MAX = 10;
+function openFaqModal(existing, onSave) {
+  const blank = () => ({ id: newId(), q: "", a: "" });
+  const list = existing.map((f) => ({ ...f }));
+  if (!list.length) list.push(blank());
+  const back = document.createElement("div");
+  back.className = "modal-back";
+  back.innerHTML = `<div class="modal coupon-modal" role="dialog" aria-modal="true" aria-label="FAQs">
+    <div class="modal-head plain"><div class="gq-title"><h3 class="cut">FAQs</h3>${infoBtn("faq")}</div><button type="button" class="modal-x" data-x aria-label="Close">×</button></div>
+    <div class="modal-body"><div id="f-list"></div>
+      <button type="button" class="bk-add" id="f-add">Add another question +</button>
+      <p class="err bk-err" id="f-err" hidden></p></div>
+    <div class="modal-foot"><button type="button" class="btn ghost" data-x>Cancel</button><button type="button" class="btn" id="f-save">Save FAQs</button></div></div>`;
+  document.body.append(back);
+  document.body.style.overflow = "hidden";
+  onInfo(back);
+  const headLetters = cutHeadings(back);
+  const $ = (q) => back.querySelector(q);
+  const paint = () => {
+    $("#f-list").innerHTML = list.map((f, i) => `<div class="q-card" data-i="${i}">
+      <div class="q-top"><span class="q-num">FAQ ${i + 1}</span><button type="button" class="icon-btn danger q-rm" data-rm aria-label="Delete this FAQ">×</button></div>
+      <span class="faq-l">What should the attendee know?</span><input class="box" data-k="q" type="text" maxlength="140" placeholder="Type your question here" value="${esc(f.q)}" aria-label="Question" />
+      <textarea class="box faq-a" data-k="a" rows="4" maxlength="600" placeholder="Type your answer here" aria-label="Answer">${esc(f.a)}</textarea></div>`).join("");
+    $("#f-add").disabled = list.length >= FAQ_MAX;
+  };
+  const bad = (f) => f.q.trim() && !f.a.trim();
+  const refresh = () => {
+    const first = list.findIndex(bad);
+    $("#f-err").hidden = first < 0; $("#f-err").textContent = first < 0 ? "" : `FAQ ${first + 1}: add an answer`;
+    $("#f-save").disabled = first >= 0;
+  };
+  paint(); refresh();
+  const L = $("#f-list");
+  L.addEventListener("input", (e) => { const card = e.target.closest(".q-card"); if (!card || !e.target.dataset.k) return; list[+card.dataset.i][e.target.dataset.k] = e.target.value; refresh(); });
+  L.addEventListener("click", (e) => { const card = e.target.closest(".q-card"); if (!card || !e.target.closest("[data-rm]")) return; list.splice(+card.dataset.i, 1); if (!list.length) list.push(blank()); paint(); refresh(); });
+  $("#f-add").addEventListener("click", () => { list.push(blank()); paint(); refresh(); const t = back.querySelectorAll(".q-card [data-k=q]"); t[t.length - 1]?.focus(); });
+  const close = () => { headLetters.forEach((l) => l.dispose()); back.remove(); if (!document.querySelector(".modal-back")) document.body.style.overflow = ""; };
+  back.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } });
+  back.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", close));
+  $("#f-save").addEventListener("click", () => { onSave(list.filter((f) => f.q.trim()).map((f) => ({ id: f.id, q: f.q.trim(), a: f.a.trim() }))); close(); });
+  L.querySelector("[data-k=q]")?.focus();
+}
+
+/* ---------- Guest questions: the popup where hosts write the questions guests answer when they book ---------- */
+const Q_TYPES = [["short", "Short answer"], ["one", "Pick one"], ["many", "Pick several"], ["yesno", "Yes or no"]];
+const Q_MAX = 8, Q_OPT_MAX = 8;
+function openQuestionsModal(existing, onSave) {
+  const list = existing.map((q) => ({ ...q, options: [...(q.options || [])] }));
+  if (!list.length) list.push({ id: newId(), type: "short", text: "", required: false, options: [] });
+  const back = document.createElement("div");
+  back.className = "modal-back";
+  back.innerHTML = `<div class="modal coupon-modal" role="dialog" aria-modal="true" aria-label="Guest questions">
+    <div class="modal-head plain"><div class="gq-title"><h3 class="cut">Guest questions</h3>${infoBtn("gq")}</div><button type="button" class="modal-x" data-x aria-label="Close">×</button></div>
+    <div class="modal-body"><div id="q-list"></div>
+      <button type="button" class="bk-add" id="q-add">Add another question +</button>
+      <p class="err bk-err" id="q-err" hidden></p></div>
+    <div class="modal-foot"><button type="button" class="btn ghost" data-x>Cancel</button><button type="button" class="btn" id="q-save">Save questions</button></div></div>`;
+  document.body.append(back);
+  document.body.style.overflow = "hidden";
+  onInfo(back);
+  const headLetters = cutHeadings(back);
+  const $ = (q) => back.querySelector(q);
+  const isChoice = (q) => q.type === "one" || q.type === "many";
+  const opts = (q) => q.options.map((o) => o.trim()).filter(Boolean);
+  const bad = (q) => q.text.trim() && isChoice(q) && opts(q).length < 2;
+  const paint = () => {
+    $("#q-list").innerHTML = list.map((q, i) => `<div class="q-card" data-i="${i}">
+      <div class="q-top"><span class="q-num">Question ${i + 1}</span><button type="button" class="icon-btn danger q-rm" data-rm aria-label="Delete this question">×</button></div>
+      <input class="box" data-k="text" type="text" maxlength="140" placeholder="${["e.g. Any food allergies?", "e.g. What dish are you bringing?", "e.g. Who are you coming with?"][i % 3]}" value="${esc(q.text)}" aria-label="Question" />
+      <div class="q-type" data-type></div>
+      ${isChoice(q) ? `<div class="q-opts">${q.options.map((o, j) => `<div class="q-opt"><input class="box" data-o="${j}" type="text" maxlength="60" placeholder="Choice ${j + 1}" value="${esc(o)}" aria-label="Choice ${j + 1}" /><button type="button" class="icon-btn danger" data-orm="${j}" aria-label="Remove this choice">×</button></div>`).join("")}
+        <button type="button" class="link-btn" data-oadd ${q.options.length >= Q_OPT_MAX ? "hidden" : ""}>Add choice +</button></div>` : ""}
+      <div class="switch-row q-req"><div><b>Guests must answer</b></div><button type="button" class="switch ${q.required ? "on" : ""}" data-req role="switch" aria-checked="${!!q.required}" aria-label="Guests must answer"><i></i></button></div></div>`).join("");
+    back.querySelectorAll(".q-card").forEach((card) => { const q = list[+card.dataset.i]; dropdown(card.querySelector("[data-type]"), Q_TYPES.map((t) => t[1]), Q_TYPES.find((t) => t[0] === q.type)[1], (name) => { q.type = Q_TYPES.find((t) => t[1] === name)[0]; if (isChoice(q) && q.options.length < 2) q.options = ["", ""]; paint(); refresh(); }); });
+    $("#q-add").disabled = list.length >= Q_MAX;
+  };
+  const refresh = () => {
+    const first = list.findIndex(bad);
+    $("#q-err").hidden = first < 0; $("#q-err").textContent = first < 0 ? "" : `Question ${first + 1}: add at least 2 choices`;
+    $("#q-save").disabled = first >= 0;
+  };
+  paint(); refresh();
+  const L = $("#q-list");
+  L.addEventListener("input", (e) => {
+    const card = e.target.closest(".q-card"); if (!card) return; const q = list[+card.dataset.i];
+    if (e.target.dataset.k === "text") q.text = e.target.value; else if (e.target.dataset.o != null) q.options[+e.target.dataset.o] = e.target.value;
+    refresh();
+  });
+  L.addEventListener("click", (e) => {
+    const card = e.target.closest(".q-card"); if (!card) return; const i = +card.dataset.i, q = list[i];
+    if (e.target.closest("[data-rm]")) { list.splice(i, 1); if (!list.length) list.push({ id: newId(), type: "short", text: "", required: false, options: [] }); }
+    else if (e.target.closest("[data-req]")) q.required = !q.required;
+    else if (e.target.closest("[data-oadd]")) q.options.push("");
+    else if (e.target.closest("[data-orm]")) q.options.splice(+e.target.closest("[data-orm]").dataset.orm, 1);
+    else return;
+    paint(); refresh();
+    if (e.target.closest("[data-oadd]")) { const ins = back.querySelectorAll(`.q-card[data-i="${i}"] [data-o]`); ins[ins.length - 1]?.focus(); }
+  });
+  $("#q-add").addEventListener("click", () => { list.push({ id: newId(), type: "short", text: "", required: false, options: [] }); paint(); refresh(); const t = back.querySelectorAll(".q-card [data-k=text]"); t[t.length - 1]?.focus(); });
+  const close = () => { headLetters.forEach((l) => l.dispose()); back.remove(); if (!document.querySelector(".modal-back")) document.body.style.overflow = ""; };
+  back.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } });
+  back.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", close));
+  $("#q-save").addEventListener("click", () => {
+    const out = list.filter((q) => q.text.trim()).map((q) => ({ id: q.id, type: q.type, text: q.text.trim(), required: !!q.required, options: isChoice(q) ? opts(q) : [] }));
+    onSave(out); close();
+  });
+  L.querySelector("[data-k=text]")?.focus();
+}
+
+const EXAMPLE_TIERS = [{ from: "4", to: "8", pct: "5" }, { from: "9", to: "12", pct: "8" }, { from: "13", to: "20", pct: "15" }];
+const tierChips = (tiers) => tiers.map((x) => `<i>${x.open ? `${x.from} and above` : `${x.from}–${x.to} tickets`}: ${x.pct}% off</i>`).join("");
+
+// opts.lockTo / opts.lockName: opened from a ticket window, so it applies to that ticket only
+function openBulkModal(ev, existing, opts, onSave) {
+  const r = existing ? { ...existing, tiers: existing.tiers.map((x) => ({ ...x })) } : { id: newId(), appliesTo: opts.lockTo || "", tiers: [], active: true };
+  const taken = new Set((ev.bulk || []).filter((x) => x.id !== r.id).map((x) => x.appliesTo)); // one bulk discount per ticket
+  const choices = opts.lockTo ? [] : [["all", "All tickets"], ...(ev.tickets || []).filter((x) => x.paid).map((x) => [x.id, x.name])].filter(([id]) => !taken.has(id) || id === r.appliesTo);
+  if (!opts.lockTo && !r.appliesTo && choices.length) r.appliesTo = choices[0][0];
+  const back = document.createElement("div");
+  back.className = "modal-back";
+  back.innerHTML = `<div class="modal coupon-modal" role="dialog" aria-modal="true" aria-label="Bulk discount">
+    <div class="modal-head plain"><div><h3 class="cut">Bulk discount</h3><p>A bigger discount the more tickets someone buys</p></div><button type="button" class="modal-x" data-x aria-label="Close">×</button></div>
+    <div class="modal-body">
+      <div class="field"><span class="lab">Applies to</span>${opts.lockTo ? `<div class="box bk-lock">${esc(opts.lockName() || "This ticket")}</div>` : choices.length ? `<div id="bk-applies"></div>` : `<p class="notice info">Every paid ticket already has a bulk discount. Edit one of those instead.</p>`}</div>
+      <p class="mini-title">Set range</p>
+      <p class="hint bk-count" id="bk-count"></p>
+      <div class="bk-head"><span>Tickets bought</span><span>Percentage off</span></div>
+      <div id="bk-rows"></div>
+      <button type="button" class="link-btn bk-open" id="bk-open" hidden></button>
+      <button type="button" class="bk-add" id="bk-add">Add +</button>
+      <p class="hint bk-hint">${existing ? "" : "Tap Add + for an example tier, then keep it or change the numbers to suit your event."}</p>
+      <p class="hint bk-gaps" id="bk-gap"></p>
+      <p class="err bk-err" id="bk-err" hidden></p>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn ghost" data-x>Cancel</button><button type="button" class="btn" id="bk-save">Save bulk discount</button></div></div>`;
+  document.body.append(back);
+  document.body.style.overflow = "hidden";
+  const headLetters = cutHeadings(back);
+  const $ = (q) => back.querySelector(q);
+  if ($("#bk-applies")) { const cur = choices.find(([id]) => id === r.appliesTo) || choices[0]; dropdown($("#bk-applies"), choices.map(([, n]) => n), cur[1], (n) => { r.appliesTo = choices.find(([, x]) => x === n)[0]; refresh(); }); }
+  const n = (v) => (v === "" || v == null ? NaN : +v);
+  const hi = (x) => (x.open ? Infinity : n(x.to)); // the last range can be "and above"
+  const rowOk = (x) => Number.isInteger(n(x.from)) && n(x.from) >= 2 && (x.open || (Number.isInteger(n(x.to)) && n(x.to) >= n(x.from))) && Number.isInteger(n(x.pct)) && n(x.pct) >= 1 && n(x.pct) <= 90;
+  const overlaps = () => { const a = r.tiers.filter(rowOk).map((x) => [n(x.from), hi(x)]).sort((p, q) => p[0] - q[0]); return a.some((x, i) => i && x[0] <= a[i - 1][1]); };
+  const valid = () => !!r.appliesTo && r.tiers.length >= 1 && r.tiers.every(rowOk) && !overlaps();
+  const paintRows = () => {
+    $("#bk-rows").innerHTML = r.tiers.map((x, i) => {
+      const open = !!x.open && i === r.tiers.length - 1;
+      return `<div class="bk-row ${open ? "is-open" : ""}" data-i="${i}">
+      <input class="box" data-k="from" type="number" min="2" step="1" inputmode="numeric" placeholder="4" value="${esc(x.from ?? "")}" aria-label="From (tickets)" />
+      ${open ? '<span class="bk-above">and above</span>' : `<span class="bk-to">to</span><input class="box" data-k="to" type="number" min="2" step="1" inputmode="numeric" placeholder="8" value="${esc(x.to ?? "")}" aria-label="To (tickets)" />`}
+      <span class="bk-gap"></span>
+      <label class="bk-pct"><input class="box" data-k="pct" type="number" min="1" max="90" step="1" inputmode="numeric" placeholder="5" value="${esc(x.pct ?? "")}" aria-label="Percentage off" /><b>%</b></label>
+      <button type="button" class="icon-btn danger bk-rm" data-rm="${i}" aria-label="Remove this range">×</button></div>`;
+    }).join("");
+    const last = r.tiers[r.tiers.length - 1];
+    $("#bk-open").hidden = !last;
+    if (last) $("#bk-open").textContent = last.open ? "Set an end for the last range" : "Make the last range “and above”";
+    $("#bk-add").disabled = r.tiers.length >= 6 || !!(last && last.open);
+  };
+  // One plain sentence about the first real mistake, naming the range (empty boxes just keep Save switched off)
+  const problem = () => {
+    for (let i = 0; i < r.tiers.length; i++) {
+      const x = r.tiers[i], say = (t) => (r.tiers.length > 1 ? `Range ${i + 1}: ${t}` : t[0].toUpperCase() + t.slice(1));
+      if (x.from !== "" && !(n(x.from) >= 2)) return say("start at 2 tickets or more");
+      if (!x.open && x.from !== "" && x.to !== "" && n(x.to) < n(x.from)) return say("the end can't be lower than the start");
+      if (x.pct !== "" && !(n(x.pct) >= 1 && n(x.pct) <= 90)) return say("percentage off must be between 1 and 90");
+    }
+    return overlaps() ? "Two ranges cover the same tickets. Change one so they don't overlap" : "";
+  };
+  const refresh = () => {
+    const bad = problem();
+    $("#bk-err").hidden = !bad; $("#bk-err").textContent = bad;
+    const tip = back.querySelector(".bk-hint"); if (tip) tip.hidden = r.tiers.length > 0; // the "tap Add" tip is only for an empty window
+    $("#bk-count").textContent = r.appliesTo === "all" ? "Counts all the tickets in one order together." : "Counts how many of this ticket are in one order. A group ticket counts once per group.";
+    const ok = r.tiers.filter(rowOk).map((x) => [n(x.from), hi(x)]).sort((p, q) => p[0] - q[0]), gaps = [];
+    ok.forEach((x, i) => { if (i && x[0] > ok[i - 1][1] + 1) gaps.push(x[0] - 1 > ok[i - 1][1] + 1 ? `${ok[i - 1][1] + 1} to ${x[0] - 1}` : `${x[0] - 1}`); });
+    $("#bk-gap").textContent = gaps.length ? `Orders of ${gaps.join(" and ")} tickets get no discount.` : "";
+    $("#bk-save").disabled = !valid();
+  };
+  paintRows(); refresh();
+  $("#bk-rows").addEventListener("input", (e) => { const k = e.target.dataset.k; if (!k) return; r.tiers[+e.target.closest("[data-i]").dataset.i][k] = e.target.value; refresh(); });
+  $("#bk-rows").addEventListener("click", (e) => { const b = e.target.closest("[data-rm]"); if (!b) return; r.tiers.splice(+b.dataset.rm, 1); paintRows(); refresh(); });
+  $("#bk-open").addEventListener("click", () => { const last = r.tiers[r.tiers.length - 1]; if (!last) return; last.open = !last.open; paintRows(); refresh(); });
+  $("#bk-add").addEventListener("click", () => {
+    const last = r.tiers[r.tiers.length - 1], eg = EXAMPLE_TIERS[r.tiers.length];
+    const after = last && Number.isInteger(n(last.to)) ? n(last.to) + 1 : null; // the first ticket count the next range can start at
+    // use the example row when it fits after the last range; otherwise start a blank row right after it
+    r.tiers.push(eg && (after === null || n(eg.from) >= after) ? { ...eg } : { from: after === null ? "" : String(after), to: "", pct: "" });
+    paintRows(); refresh();
+    const rows = back.querySelectorAll(".bk-row"); rows[rows.length - 1]?.scrollIntoView({ block: "nearest" });
+  });
+  const close = () => { headLetters.forEach((l) => l.dispose()); back.remove(); if (!document.querySelector(".modal-back")) document.body.style.overflow = ""; };
+  back.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } }); // closes only this window, not the one under it
+  back.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", close));
+  $("#bk-save").addEventListener("click", () => {
+    if (!valid()) return;
+    r.tiers = r.tiers.map((x) => ({ from: n(x.from), to: x.open ? null : n(x.to), open: !!x.open, pct: n(x.pct) })).sort((p, q) => p.from - q.from);
+    onSave(r); close();
+  });
+  (back.querySelector(".bk-row input") || $("#bk-save")).focus();
+}
+
 const couponState = (c) => { const end = c.to || c.from; if (end && end < iso(new Date())) return "Expired"; return c.active ? "Active" : "Paused"; };
+// "All tickets", or the name of the ticket a coupon is tied to
+const appliesName = (c, tickets = []) => { if (!c.appliesTo || c.appliesTo === "all") return "All tickets"; const t = (tickets || []).find((x) => x.id === c.appliesTo); return t ? t.name : "A removed ticket"; };
 const discountText = (c) => (c.type === "pct" ? `${c.value}% off` : `${rupees(+c.value)} off`);
 const clock = (t) => (t && t.h && t.m ? `${t.h}:${t.m}` : "—");
 
@@ -1585,21 +2506,24 @@ function renderCoupons(id) {
   const events = load(), ev = events.find((e) => e.id === id);
   if (!ev) { location.hash = "#/"; return; }
   ev.coupons ??= [];
-  document.title = "Coupons — PeanutButterJelly.vip";
+  document.title = "Coupons — PeanutButterJelly.fun";
   let query = "";
   app.innerHTML = `
     <div class="sub-head">
       <button type="button" class="back-pill" data-back>‹ Back</button>
       <div class="sh-t"><h1 class="cut">Coupons</h1><p>Manage discount coupons for ${esc(ev.title || "this event")}</p></div>
       <div class="head-tools"><label class="search">${ic("search", "1.3em")}<input id="cp-q" type="text" placeholder="Search coupons…" aria-label="Search coupons" autocomplete="off" /></label>
+        <button type="button" class="btn create-btn" id="bk-new">+ Bulk discount</button>
         <button type="button" class="btn create-btn" id="cp-add">+ Add coupon</button></div>
     </div>
-    <div id="cp-list" class="cp-list"></div>`;
+    <div id="cp-list" class="cp-list"></div>
+    <div id="bk-list" class="cp-list bk-list"></div>`;
   const listEl = app.querySelector("#cp-list");
   const persistEv = () => save(events);
   const paint = () => {
     const q = query.trim().toLowerCase();
     const shown = ev.coupons.filter((c) => !q || c.code.toLowerCase().includes(q));
+    if (!shown.length && !ev.coupons.length && (ev.bulk || []).length) { listEl.innerHTML = `<p class="hint cp-none">No coupon codes yet. Add a discount code your guests can use at checkout.</p>`; return; } // only bulk discounts so far: keep it compact
     if (!shown.length) {
       listEl.innerHTML = `<div class="empty"><h2 class="cut" data-fill="var(--brown)" data-shadow="var(--cream)">${ev.coupons.length ? "No match" : "No coupons yet"}</h2>
         <p>${ev.coupons.length ? "No coupon matches that search." : "Add a discount code your guests can use at checkout."}</p></div>`;
@@ -1608,12 +2532,36 @@ function renderCoupons(id) {
     listEl.innerHTML = shown.map((c) => {
       const st = couponState(c);
       return `<article class="cp-card" data-id="${c.id}"><div class="cp-main"><b class="cp-code">${esc(c.code)}</b><span class="pill ${st === "Active" ? "live" : st === "Paused" ? "off" : "out"}">${st}</span></div>
-        <div class="cp-meta"><span><small>Discount</small><b>${discountText(c)}</b></span><span><small>Used</small><b>${c.used || 0} / ${c.max}</b></span><span><small>Valid</small><b>${dmy(c.from)}${c.to && c.to !== c.from ? ` → ${dmy(c.to)}` : ""}<em>${clock(c.st)} – ${clock(c.en)}</em></b></span></div>
+        <div class="cp-meta"><span><small>Discount</small><b>${discountText(c)}</b></span><span><small>Applies to</small><b>${esc(appliesName(c, ev.tickets))}</b></span><span><small>Used</small><b>${c.used || 0} / ${c.max}</b></span><span><small>Valid</small><b>${dmy(c.from)}${c.to && c.to !== c.from ? ` → ${dmy(c.to)}` : ""}<em>${clock(c.st)} – ${clock(c.en)}</em></b></span></div>
         <div class="made-ctl"><button type="button" class="switch ${c.active ? "on" : ""}" role="switch" aria-checked="${c.active}" data-toggle aria-label="Coupon active"><i></i></button>
           <button type="button" class="icon-btn" data-edit aria-label="Edit ${esc(c.code)}" title="Edit">${ic("edit", "1.5em")}</button>
           <button type="button" class="icon-btn danger" data-del aria-label="Delete ${esc(c.code)}" title="Delete"><svg viewBox="0 0 24 24" width="1.5em" height="1.5em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></div></article>`;
     }).join("");
   };
+  // Bulk discounts: tiers by how many tickets one person buys
+  ev.bulk ??= [];
+  const bulkEl = app.querySelector("#bk-list");
+  const paintBulk = () => {
+    bulkEl.innerHTML = ev.bulk.length ? `<h3 class="made-h">Bulk discounts</h3>` + ev.bulk.map((r) => `<article class="cp-card" data-bid="${r.id}"><div class="cp-main"><b class="cp-code">Bulk discount</b><span class="pill ${r.active ? "live" : "off"}">${r.active ? "Active" : "Paused"}</span></div>
+        <div class="cp-meta"><span><small>Applies to</small><b>${esc(appliesName(r, ev.tickets))}</b></span><span class="bk-tiers"><small>Discount tiers</small><b>${tierChips(r.tiers)}</b></span></div>
+        <div class="made-ctl"><button type="button" class="switch ${r.active ? "on" : ""}" role="switch" aria-checked="${r.active}" data-toggle aria-label="Bulk discount active"><i></i></button>
+          <button type="button" class="icon-btn" data-edit aria-label="Edit bulk discount" title="Edit">${ic("edit", "1.5em")}</button>
+          <button type="button" class="icon-btn danger" data-del aria-label="Delete bulk discount" title="Delete"><svg viewBox="0 0 24 24" width="1.5em" height="1.5em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></div></article>`).join("") : "";
+  };
+  paintBulk();
+  const addBulk = (existing) => openBulkModal(ev, existing, {}, (r) => {
+    const i = ev.bulk.findIndex((x) => x.id === r.id);
+    if (i >= 0) ev.bulk[i] = r; else ev.bulk.push(r);
+    persistEv(); paintBulk(); toast(i >= 0 ? "Bulk discount updated" : "Bulk discount added");
+  });
+  app.querySelector("#bk-new").addEventListener("click", () => addBulk());
+  bulkEl.addEventListener("click", async (e) => {
+    const card = e.target.closest("[data-bid]"); if (!card) return;
+    const r = ev.bulk.find((x) => x.id === card.dataset.bid);
+    if (e.target.closest("[data-toggle]")) { r.active = !r.active; persistEv(); paintBulk(); }
+    else if (e.target.closest("[data-edit]")) addBulk(r);
+    else if (e.target.closest("[data-del]") && (await ask({ title: "Delete this bulk discount?", message: "Guests will no longer get it.", ok: "Delete" }))) { ev.bulk = ev.bulk.filter((x) => x.id !== r.id); persistEv(); paintBulk(); }
+  });
   paint(); cutHeadings();
   app.querySelector("[data-back]").addEventListener("click", () => { location.hash = "#/"; });
   app.querySelector("#cp-q").addEventListener("input", (e) => { query = e.target.value; paint(); });
@@ -1634,15 +2582,16 @@ function renderCoupons(id) {
 }
 
 function openCouponModal(ev, existing, onSave) {
-  const c = existing ? { ...existing, st: { ...existing.st }, en: { ...existing.en } } : { id: newId(), code: "", max: "", type: "pct", value: "", from: "", to: "", st: { h: "", m: "" }, en: { h: "", m: "" }, active: true, used: 0 };
+  const c = existing ? { appliesTo: "all", ...existing, st: { ...existing.st }, en: { ...existing.en } } : { id: newId(), appliesTo: "all", code: "", max: "", type: "pct", value: "", from: "", to: "", st: { h: "", m: "" }, en: { h: "", m: "" }, active: true, used: 0 };
   const back = document.createElement("div");
   back.className = "modal-back";
   back.innerHTML = `<div class="modal coupon-modal" role="dialog" aria-modal="true" aria-label="${existing ? "Edit" : "New"} coupon">
     <div class="modal-head plain"><div><h3 class="cut">${existing ? "Edit coupon" : "New coupon"}</h3><p>Fill in the details to create a coupon</p></div><button type="button" class="modal-x" data-x aria-label="Close">×</button></div>
     <div class="modal-body">
       <p class="mini-title">Coupon details</p>
-      <div class="field" id="cf-code"><label for="cp-code">Coupon code <span class="req">*</span></label><input id="cp-code" class="box caps" type="text" maxlength="20" autocomplete="off" placeholder="E.g. DIWALI20" /><p class="err" id="cp-code-err">Use 3 to 20 letters or numbers.</p></div>
+      <div class="field" id="cf-code"><label for="cp-code">Coupon code <span class="req">*</span></label><input id="cp-code" class="box caps" type="text" maxlength="20" autocomplete="off" placeholder="E.g. DIWALI20" /><p class="err" id="cp-code-err">Use 3 to 20 letters or numbers</p></div>
       <div class="field"><label for="cp-max">Max uses <span class="req">*</span></label><input id="cp-max" class="box" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100 (how many times it can be used)" /></div>
+      <div class="field"><span class="lab">Applies to</span><div id="cp-applies"></div></div>
       <p class="mini-title">Discount</p>
       <div class="field"><span class="lab">Discount value <span class="req">*</span></span>
         <div class="disc"><div class="seg" role="tablist"><button type="button" data-type="pct">% PCT</button><button type="button" data-type="inr">₹ INR</button></div><input id="cp-val" class="box" type="number" min="1" step="any" inputmode="decimal" placeholder="e.g. 20" /></div></div>
@@ -1663,6 +2612,12 @@ function openCouponModal(ev, existing, onSave) {
   $("#cp-code").value = c.code; $("#cp-max").value = c.max; $("#cp-val").value = c.value;
   const evEnd = ev.dateTo || ev.dateFrom || "";
   const dates = { get from() { return c.from; }, set from(v) { c.from = v; }, get to() { return c.to; }, set to(v) { c.to = v; } };
+  // Which ticket the coupon works on: all tickets, or one of this event's tickets
+  const tix = (ev.tickets || []).map((x) => ({ id: x.id, name: x.name }));
+  const labelOf = (x, i) => (tix.filter((y) => y.name === x.name).length > 1 ? `${x.name} (${i + 1})` : x.name);
+  const choices = [["all", "All tickets"], ...tix.map((x, i) => [x.id, labelOf(x, i)])];
+  const current = choices.find(([id]) => id === c.appliesTo) || choices[0];
+  dropdown($("#cp-applies"), choices.map(([, n]) => n), current[1], (n) => { c.appliesTo = choices.find(([, x]) => x === n)[0]; });
   rangePicker($("#cp-dates"), dates, () => refresh(), { max: evEnd });
   dropdown($("#cs-h"), HOURS, c.st.h, (v) => { c.st.h = v; refresh(); }, "HH"); dropdown($("#cs-m"), MINUTES, c.st.m, (v) => { c.st.m = v; refresh(); }, "MM");
   dropdown($("#ce-h"), HOURS, c.en.h, (v) => { c.en.h = v; refresh(); }, "HH"); dropdown($("#ce-m"), MINUTES, c.en.m, (v) => { c.en.m = v; refresh(); }, "MM");
@@ -1675,7 +2630,7 @@ function openCouponModal(ev, existing, onSave) {
     $("#cp-val").placeholder = c.type === "pct" ? "e.g. 20" : "e.g. 100";
     $("#cp-on").classList.toggle("on", c.active); $("#cp-on").setAttribute("aria-checked", c.active);
     $("#cp-st-t").textContent = c.active ? "Active: coupon can be used" : "Paused: coupon can't be used";
-    const dup = taken(); $("#cf-code").classList.toggle("bad", dup); $("#cp-code-err").textContent = dup ? "This code already exists for this event." : "Use 3 to 20 letters or numbers.";
+    const dup = taken(); $("#cf-code").classList.toggle("bad", dup); $("#cp-code-err").textContent = dup ? "This code already exists for this event" : "Use 3 to 20 letters or numbers";
     $("#cp-save").disabled = !valid();
   };
   $("#cp-code").addEventListener("input", (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""); c.code = e.target.value; refresh(); });
@@ -1705,7 +2660,7 @@ const spark = (color, delay = 0, down = false) => {
 function renderSales(id) {
   const events = load(), ev = events.find((e) => e.id === id);
   if (!ev) { location.hash = "#/"; return; }
-  document.title = "Sales — PeanutButterJelly.vip";
+  document.title = "Sales — PeanutButterJelly.fun";
   let tab = "overview";
   const st = statusOf(ev), past = isPast(ev);
   const badge = past ? ["Event ended", "off"] : st === "published" ? ["Event live", "live"] : [STATUSES[st].label, st === "soldout" || st === "cancelled" ? "out" : st === "coming" ? "soon" : "off"];
@@ -1946,6 +2901,17 @@ async function drawMap(host) {
   svgEl.addEventListener("pointerup", end); svgEl.addEventListener("pointercancel", end);
 }
 
+/* ---------- Run the event's group chat ---------- */
+function renderChat(id, startTab = "", door = false) {
+  const ev = load().find((e) => e.id === id);
+  if (!ev) { location.hash = "#/"; return; }
+  const st = statusOf(ev), past = isPast(ev);
+  const badge = past ? ["Event ended", "off"] : st === "published" ? ["Event live", "live"] : [STATUSES[st].label, st === "soldout" || st === "cancelled" ? "out" : st === "coming" ? "soon" : "off"];
+  const k = { app, esc, toast, ic, dayLine, badge, ask };
+  if (door) renderCheckIn(k, ev); else renderHostChat(k, ev, startTab);
+  cutHeadings();
+}
+
 /* ---------- Routing ---------- */
 function route() {
   cutLetters.forEach((l) => l.dispose());
@@ -1959,12 +2925,15 @@ function route() {
     return;
   }
   const m = location.hash.match(/^#\/create\/(\d)$/);
-  const ev = location.hash.match(/^#\/event\/([^/]+)\/(coupons|sales)$/);
+  const ev = location.hash.match(/^#\/event\/([^/]+)\/(coupons|sales|chat|requests|checkin)$/);
   document.querySelector('[data-nav="list"]').classList.toggle("on", !m);
   document.querySelector('[data-nav="profile"]').classList.remove("on");
   if (ev) {
     draft = null;
-    if (ev[2] === "coupons") renderCoupons(ev[1]); else renderSales(ev[1]);
+    // Sponty plans are free, so they have no sales or coupons page: send people to the plan's requests instead
+    if ((ev[2] === "sales" || ev[2] === "coupons") && load().find((x) => x.id === ev[1])?.type === "guestlist") { location.hash = `#/event/${ev[1]}/requests`; return; }
+    if (ev[2] === "coupons") renderCoupons(ev[1]); else if (ev[2] === "chat" || ev[2] === "requests") renderChat(ev[1], ev[2] === "requests" ? "requests" : "");
+    else if (ev[2] === "checkin") renderChat(ev[1], "", true); else renderSales(ev[1]);
     window.scrollTo({ top: 0 });
   } else if (m) {
     const step = Math.min(+m[1], STEPS.length - 1);
@@ -2003,5 +2972,6 @@ welcomeGate(app, cutHeadings).then(async ({ session, me }) => {
   }
   if (me?.justOnboarded && !load().length) history.replaceState(null, "", "#/create/0");
   window.addEventListener("hashchange", route);
+  if (!session) await restoreDrafts(); // a local copy with no database: a reset preview browser gets its drafts back from the dev copy
   route();
 });

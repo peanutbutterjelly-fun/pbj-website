@@ -1,6 +1,6 @@
 # PB&J backend
 
-The server for PeanutButterJelly.vip, built with [FastAPI](https://fastapi.tiangolo.com/) (Python). This is a starter for now: one health check route, settings, and a test.
+The server for PeanutButterJelly.fun, built with [FastAPI](https://fastapi.tiangolo.com/) (Python). This is a starter for now: one health check route, settings, and a test.
 
 ## Run it
 

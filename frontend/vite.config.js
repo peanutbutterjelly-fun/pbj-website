@@ -1,5 +1,25 @@
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { defineConfig } from "vite";
+
+// Dev only: keeps a copy of the host drafts in frontend/.dev-data/ so they survive the preview browser being reset (see src/devBackup.js)
+const devDrafts = () => ({
+  name: "pbj-dev-drafts",
+  apply: "serve",
+  configureServer(server) {
+    const file = resolve(import.meta.dirname, ".dev-data/host-events.json");
+    server.middlewares.use("/__drafts", (req, res) => {
+      if (req.method === "GET") { res.setHeader("content-type", "application/json"); res.end(existsSync(file) ? readFileSync(file, "utf8") : "[]"); return; }
+      if (req.method === "PUT") {
+        let body = "";
+        req.on("data", (c) => { body += c; });
+        req.on("end", () => { try { JSON.parse(body); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, body); res.statusCode = 204; } catch { res.statusCode = 400; } res.end(); });
+        return;
+      }
+      res.statusCode = 405; res.end();
+    });
+  },
+});
 
 // Two pages: the main site and the scroll-flip magazine
 // Event addresses (/e/<name>-<id>) are served by event.html, like the rewrite in vercel.json does on the live site
@@ -14,6 +34,7 @@ const eventAddresses = {
 };
 
 export default defineConfig({
+  plugins: [devDrafts()],
   plugins: [eventAddresses],
   // The 3D letter pages load this file late; naming it here makes the dev server prepare it at start-up, so the
   // letters never fail with "Outdated Optimize Dep" after a restart

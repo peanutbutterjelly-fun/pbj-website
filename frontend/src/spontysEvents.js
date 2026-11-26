@@ -83,8 +83,8 @@ export function initEvents(k) {
   /* ---------- Event page: details, the host's recap, who went ---------- */
   function renderEvent(id) {
     const e = find(id);
-    if (!e) { document.title = "Not found — PeanutButterJelly.vip"; app.innerHTML = `<a class="back" href="#/">← Back</a><section class="sp-card msg-empty"><h2>We couldn't find that event</h2><p class="sp-sub">It may have been removed.</p><a class="btn" href="#/">Back to the thread</a></section>`; return; }
-    document.title = `${e.title} — PeanutButterJelly.vip`;
+    if (!e) { document.title = "Not found — PeanutButterJelly.fun"; app.innerHTML = `<a class="back" href="#/">← Back</a><section class="sp-card msg-empty"><h2>We couldn't find that event</h2><p class="sp-sub">It may have been removed.</p><a class="btn" href="#/">Back to the thread</a></section>`; return; }
+    document.title = `${e.title} — PeanutButterJelly.fun`;
     const past = isPast(e) || e.mine, mine = attended().find((a) => a.ref === id), host = e.mine ? null : personBy(e.host);
     const me = profile(), who = PEOPLE.filter((p) => p.attended.includes(id) || p.attended.includes(e.title));
     const recap = e.mine ? e : e.recap ? { summary: e.recap, best: e.best, photos: [] } : null;
@@ -115,7 +115,7 @@ export function initEvents(k) {
 
   /* ---------- Hosted: write up an event ---------- */
   function renderRecapForm() {
-    document.title = "Add an event you hosted — PeanutButterJelly.vip";
+    document.title = "Add an event you hosted — PeanutButterJelly.fun";
     let photos = [];
     app.innerHTML = `<a class="back" href="#/profile">← Back to profile</a><div class="sp-bar"><h1 class="cut">Add your event</h1></div>
       <p class="sp-sub rf-intro">Tell people what you hosted and how it went. It gets its own page on your profile.</p>
@@ -145,11 +145,11 @@ export function initEvents(k) {
     paint();
     app.querySelector("#rf").addEventListener("submit", (ev) => {
       ev.preventDefault(); const f = Object.fromEntries(new FormData(ev.target)), bad = (m) => { err.textContent = m; err.hidden = false; };
-      if (!String(f.title).trim()) return bad("Give your event a name.");
-      if (!f.date) return bad("Pick the date it happened.");
-      if (!String(f.summary).trim()) return bad("Say a little about how it went.");
+      if (!String(f.title).trim()) return bad("Give your event a name");
+      if (!f.date) return bad("Pick the date it happened");
+      if (!String(f.summary).trim()) return bad("Say a little about how it went");
       const r = { id: "r" + Date.now().toString(36), title: String(f.title).trim(), date: f.date, area: String(f.area).trim() || "Mumbai", price: String(f.price).trim() || "Free", category: CATS.find((c) => c[0] === f.category)?.[1] || "Event", kind: f.category, came: +f.came || 0, details: String(f.details).trim(), summary: String(f.summary).trim(), best: String(f.best).trim(), photos, created: Date.now() };
-      if (!save(REC, [r, ...recaps()])) return bad("That's too many photos for this browser to keep. Remove a few and try again.");
+      if (!save(REC, [r, ...recaps()])) return bad("That's too many photos for this browser to keep. Remove a few and try again");
       toast("Published to your profile"); location.hash = "#/e/" + r.id;
     });
   }

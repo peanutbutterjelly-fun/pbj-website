@@ -27,11 +27,10 @@ const I = {
   dots: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   pen: '<path d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4z"/>',
 };
-// Tiles: Corner's six, renamed for events and hidden gems. "all" shows everything.
+// Tiles: All, Want to go, Going and Recommend for now (Favorites, Okay and Not for me are held back). "all" shows everything.
 const TILES = [
-  ["all", "All", "all"], ["want", "Want to go", "want"], ["going", "Going", "tick"],
-  ["fav", "Favorites", "fav"], ["rec", "Recommend", "rec"], ["okay", "Okay", "okay"], ["no", "Not for me", "no"],
-];
+  ["all", "All", "all"], ["want", "Want to go", "want"], ["going", "Going", "tick"], ["rec", "Recommend", "rec"],
+  ];
 const AREAS = ["Bandra West", "Bandra East", "Khar", "Juhu", "Andheri", "Colaba", "Fort", "Lower Parel", "Worli", "Powai", "Versova", "Dadar", "Matunga", "Kala Ghoda", "Other"];
 
 
@@ -177,7 +176,7 @@ function lightbox(src, name) {
 /* ---------- Profile ---------- */
 let tile = "all", pview = "saved";
 function renderProfile() {
-  document.title = "My Profile — PeanutButterJelly.vip";
+  document.title = "My Profile — PeanutButterJelly.fun";
   const p = profile(), list = places();
   const count = (k) => (k === "all" ? list.length : list.filter((x) => x.list === k).length);
   const shown = tile === "all" ? list : list.filter((x) => x.list === tile);
@@ -198,7 +197,7 @@ function renderProfile() {
     <div class="pe-seg" role="tablist">${[["saved", "Saved", list.length], ["attended", "Attended", screens.ev.counts().attended], ["hosted", "Hosted", screens.ev.counts().hosted]].map(([k, l, n]) => `<button type="button" role="tab" class="${pview === k ? "on" : ""}" data-pv="${k}" aria-selected="${pview === k}">${l} <b>${n}</b></button>`).join("")}</div>
     ${pview === "saved" ? "" : screens.ev.ownTab(pview)}
     <div class="sp-tiles" role="tablist" ${pview === "saved" ? "" : "hidden"}>${TILES.map(([k, label, ico]) => `<button type="button" class="sp-tile ${tile === k ? "on" : ""}" data-tile="${k}" role="tab" aria-selected="${tile === k}">${svg(I[ico])}<b>${count(k)}</b><span>${label}</span></button>`).join("")}</div>
-    <div class="sp-soon" aria-label="Coming soon"><span class="chip">Import from Instagram Reels &amp; YouTube Shorts · soon</span><span class="chip">Import Google Maps list · soon</span><span class="chip">Friends · soon</span><span class="chip">Map · soon</span></div>
+    <div class="sp-soon" aria-label="Coming soon"><span class="chip">Import from Instagram Reels &amp; YouTube Shorts · soon</span><span class="chip">Friends · soon</span></div>
     <div class="sp-bar"><h2 class="cut">${tile === "all" ? "Your events &amp; gems" : esc(TILES.find((t) => t[0] === tile)[1])}</h2></div>
     <form class="sp-add" id="sp-add" novalidate><input class="sp-in" name="title" placeholder="Event or hidden gem" aria-label="Event or hidden gem" autocomplete="off" />
       <select class="sp-in" name="area" aria-label="Area">${AREAS.map((a) => `<option>${a}</option>`).join("")}</select><button class="btn small" type="submit">+ Add</button></form>
@@ -228,7 +227,7 @@ function renderProfile() {
 
 /* ---------- Edit profile ---------- */
 function renderEdit() {
-  document.title = "Edit profile — PeanutButterJelly.vip";
+  document.title = "Edit profile — PeanutButterJelly.fun";
   const p = profile();
   const field = (name, label, ph = "", type = "text") => `<label>${label}<input name="${name}" type="${type}" value="${esc(p[name])}" placeholder="${ph}" autocomplete="off" /></label>`;
   app.innerHTML = `<a class="back" href="#/profile">← Back to profile</a><div class="sp-bar"><h1 class="cut">Edit profile</h1></div>
@@ -276,7 +275,7 @@ function renderEdit() {
 
 /* ---------- Settings ---------- */
 function renderSettings() {
-  document.title = "Settings — PeanutButterJelly.vip";
+  document.title = "Settings — PeanutButterJelly.fun";
   const p = profile(), pr = prefs();
   const sw = (k, label, sub) => `<div class="sp-row"><div><b>${label}</b><p class="sp-sub">${sub}</p></div><button type="button" class="sp-switch" role="switch" aria-checked="${pr[k]}" aria-label="${label}" data-pref="${k}"></button></div>`;
   app.innerHTML = `<div class="sp-bar"><h1 class="cut">Settings</h1></div><div class="sp-list">
@@ -287,8 +286,8 @@ function renderSettings() {
     <h2 class="sp-group cut">Privacy</h2>
     ${sw("publicProfile", "Public profile", "Anyone with your link can see it")}${sw("showGoing", "Show events I'm going to", "Visible on your profile")}
     <h2 class="sp-group cut">Help</h2>
-    <a class="sp-link" href="mailto:hello@peanutbutterjelly.vip?subject=PB%26J%20feedback">Send feedback</a>
-    <a class="sp-link" href="mailto:hello@peanutbutterjelly.vip?subject=Contact%20PB%26J">Contact us</a>
+    <a class="sp-link" href="mailto:hello@peanutbutterjelly.fun?subject=PB%26J%20feedback">Send feedback</a>
+    <a class="sp-link" href="mailto:hello@peanutbutterjelly.fun?subject=Contact%20PB%26J">Contact us</a>
     <button class="sp-link" id="sp-legal" type="button">Legal</button>
     <button class="sp-link" id="sp-out" type="button">Sign out</button>
     <button class="sp-link danger" id="sp-del" type="button">Delete account</button></div>`;
@@ -359,7 +358,7 @@ const refreshDock = () => {
 };
 const markDock = () => {
   dock.querySelector("[data-r='messages']")?.classList.toggle("has", unreadCount() > 0);
-  const h = location.hash, cur = h.startsWith("#/messages") || h.startsWith("#/chat/") || h.startsWith("#/manage") ? "messages" : h.startsWith("#/search") ? "search" : h.startsWith("#/profile") || h.startsWith("#/edit") || h.startsWith("#/settings") ? "profile" : "feed";
+  const h = location.hash, cur = h.startsWith("#/messages") || h.startsWith("#/chat/") ? "messages" : h.startsWith("#/search") ? "search" : h.startsWith("#/profile") || h.startsWith("#/edit") || h.startsWith("#/settings") ? "profile" : "feed";
   dock.querySelectorAll("[data-r]").forEach((a) => { a.classList.toggle("on", a.dataset.r === cur); a.toggleAttribute("aria-current", a.dataset.r === cur); });
 };
 document.body.append(dock);
@@ -371,14 +370,12 @@ function route() {
   app.classList.toggle("col", col);
   app.classList.toggle("wide", h.startsWith("#/search"));
   app.classList.toggle("pwide", h.startsWith("#/u/"));
-  app.classList.toggle("feedwide", !/^#\/(profile|edit|settings|messages|chat\/|manage|search|u\/|e\/|recap)/.test(h));
+  app.classList.toggle("feedwide", !/^#\/(profile|edit|settings|messages|chat\/|search|u\/|e\/|recap)/.test(h));
   if (h.startsWith("#/edit")) renderEdit();
   else if (h.startsWith("#/settings")) renderSettings();
   else if (h.startsWith("#/profile")) renderProfile();
   else if (h.startsWith("#/messages")) screens.renderMessages();
   else if (h.startsWith("#/chat/")) screens.renderChat(decode(h.slice(7).split("?")[0]));
-  else if (h.startsWith("#/manage/")) screens.renderManage(decode(h.slice(9).split("?")[0]));
-  else if (h === "#/manage") screens.renderManageList();
   else if (h.startsWith("#/e/")) screens.ev.renderEvent(decode(h.slice(4).split("?")[0]));
   else if (h.startsWith("#/recap")) screens.ev.renderRecapForm();
   else if (h.startsWith("#/u/")) screens.renderPerson(decode(h.slice(4).split("?")[0]));

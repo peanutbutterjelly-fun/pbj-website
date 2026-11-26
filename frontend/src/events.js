@@ -4,6 +4,7 @@ import { Observer } from "gsap/Observer";
 import { Flip } from "gsap/Flip";
 import { createCutLetter } from "./cutword.js";
 import { saveLead } from "./leads.js";
+import { guestPays, rupees } from "./gst.js";
 import { currentSession, fetchMe } from "./auth.js";
 import { fetchListedEvents, safeImg, LISTED, eventPath } from "./eventsStore.js";
 import { EVENTS } from "./eventsData.js";
@@ -578,8 +579,8 @@ function setupWindows(stage, sections, LOOP) {
         const d = Object.fromEntries(new FormData(f));
         if (d.company) { closeForm(); return; } // a hidden field only robots fill in
         const name = (d.name || "").trim(), email = (d.email || "").trim();
-        if (!name) { err.textContent = "Please add your name."; f.elements.name.focus(); return; }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { err.textContent = "Please add a valid email."; f.elements.email.focus(); return; }
+        if (!name) { err.textContent = "Please add your name"; f.elements.name.focus(); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { err.textContent = "Please add a valid email"; f.elements.email.focus(); return; }
         err.textContent = ""; go.disabled = true; go.textContent = "Sending\u2026";
         const answers = {};
         let link = (d.link || "").trim() || null;
@@ -591,7 +592,7 @@ function setupWindows(stage, sections, LOOP) {
           say("Saved. Thank you!");
         } else {
           go.disabled = false; go.textContent = "Send";
-          err.textContent = r.reason === "not-connected" ? "Saving is not connected yet, so nothing was saved." : "Could not send. Please try again.";
+          err.textContent = r.reason === "not-connected" ? "Saving is not connected yet, so nothing was saved" : "Could not send. Please try again";
         }
       });
       if (matchMedia("(pointer: fine)").matches && !navigator.maxTouchPoints) f.elements.name.focus({ preventScroll: true }); // on a phone, do not pop the keyboard up before they have even seen the form
@@ -640,14 +641,14 @@ function setupWindows(stage, sections, LOOP) {
         case "view": { const k = PAD_VIEW[val]; wrap.classList.toggle("hide-" + k); showPop(popFor || $('[data-menu="View"]'), menuItems("View")); break; }
         case "date": insert(new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })); break;
         case "bullet": insert("• "); break;
-        case "sign": insert("— sent from Mumbai, via PeanutButterJelly.vip"); break;
+        case "sign": insert("— sent from Mumbai, via PeanutButterJelly.fun"); break;
         case "bold": case "italic": case "underline": if (ensure()) { document.execCommand(a); syncMarks(); } break;
         case "justify": case "left": case "center": case "right": st.align = a === "center" ? "center" : a; applyLook(); break;
         case "set-font": st.font = +val; applyLook(); break;
         case "set-size": st.size = +val; applyLook(); break;
         case "set-case": st.kase = +val; applyLook(); break;
         case "help": dialog("Help topics", "Type your own lines under the listing. The listing text itself stays put: it can’t be deleted or changed.<br><br>Keys: Ctrl+B bold, Ctrl+I italic, Ctrl+U underline, Ctrl+Z undo, Ctrl+S save, Ctrl+F find, Esc closes."); break;
-        case "about": dialog("About PBJ Pad", "PBJ Pad is a tiny notepad on PeanutButterJelly.vip.<br>Mining hidden gems around you, from Mumbai."); break;
+        case "about": dialog("About PBJ Pad", "PBJ Pad is a tiny notepad on PeanutButterJelly.fun.<br>Mining hidden gems around you, from Mumbai."); break;
         case "dlgok": closeDlg(); break;
         case "signup": openForm("signup"); break;
         case "form": openForm("form"); break;
@@ -1395,12 +1396,12 @@ function publishedEvents(today, saved) {
   return saved.filter((e) => LISTED.includes(e.status) && /^\d{4}-\d{2}-\d{2}$/.test(e.dateFrom || "") && (e.images || []).some(safeImg)).map((e) => {
     const [y, mo, d] = (e.dateTo || e.dateFrom).split("-").map(Number);
     if (new Date(y, mo - 1, d) < today) return null; // an event hides itself once its last day has passed
-    const prices = (e.tickets || []).filter((t) => t.enabled !== false).map((t) => (t.paid ? Number(t.price) || 0 : 0));
+    const prices = (e.tickets || []).filter((t) => t.enabled !== false).map(guestPays);
     const low = prices.length ? Math.min(...prices) : 0;
     return {
       real: true, kind: e.type === "guestlist" ? "sponty" : e.type === "exclusive" ? "exclusive" : "open", id: e.id, title: e.title || "Untitled event", cover: safeImg(e.images.filter(Boolean)[0]),
-      category: e.category, area: e.venueStatus === "Decided" && e.venue ? e.venue : e.city || "Mumbai",
-      price: low ? `₹${low.toLocaleString("en-IN")}` : "Free", date: e.dateFrom, time: hm(e.start),
+      category: e.category, keywords: e.subs || [], area: e.venueStatus === "Decided" && e.venue && !(e.womenOnly || e.hideLocation) ? e.venue : e.city || "Mumbai",
+      price: low ? rupees(Math.round(low)) : "Free", date: e.dateFrom, time: hm(e.start),
     };
   }).filter(Boolean);
 }
@@ -1496,7 +1497,7 @@ function buildBrowse(root, saved) {
       <button class="ev-arrow next" aria-label="Next">→</button>
     </div>
     <div class="ev-cats"><button class="ev-arrow sm prev" aria-label="Previous">←</button>
-      <div class="ev-cats-track"><button class="on" data-cat="">All events</button><button data-cat="PBJ Exclusive Events">PBJ Exclusive Events</button><button data-cat="Sponty Events">Sponty Events</button>${cats.map((c) => `<button data-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+      <div class="ev-cats-track"><button class="on" data-cat="">All events</button><button data-cat="PBJ Exclusive Events">PBJ Exclusive Events</button><button data-cat="Sponty Plans">Sponty Plans</button>${cats.map((c) => `<button data-cat="${esc(c)}">${esc(c)}</button>`).join("")}</div>
       <button class="ev-arrow sm next" aria-label="Next">→</button></div>
     <div class="ev-body">
       <aside class="ev-filters">
@@ -1540,10 +1541,10 @@ function buildBrowse(root, saved) {
   const render = () => {
     let list = upcoming.filter((ev) => {
       const d = dateOf(ev), p = priceNum(ev.price);
-      if (state.cat && state.cat !== "PBJ Exclusive Events" && state.cat !== "Sponty Events" && ev.category !== state.cat) return false;
+      if (state.cat && state.cat !== "PBJ Exclusive Events" && state.cat !== "Sponty Plans" && ev.category !== state.cat) return false;
       // PBJ Exclusive and Sponty: only that kind of event, so the cards shuffle like with the other categories
       if (state.cat === "PBJ Exclusive Events" && ev.kind !== "exclusive") return false;
-      if (state.cat === "Sponty Events" && ev.kind !== "sponty") return false;
+      if (state.cat === "Sponty Plans" && ev.kind !== "sponty") return false;
       if (state.day === "today" && !same(d, today)) return false;
       if (state.day === "tomorrow" && !same(d, tomorrow)) return false;
       if (state.day === "weekend" && ![0, 6].includes(d.getDay())) return false;

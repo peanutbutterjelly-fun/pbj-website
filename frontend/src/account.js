@@ -1,6 +1,7 @@
 // "[ Sign in ]" in the top bar opens a small card: type your email, we send a link, tapping it brings you back signed in.
 // Once signed in, the card says hello and links to your dashboard (or to "Finish your profile" until the welcome steps are done).
 import { googleButtonHtml, wireGoogle, authReady, client, hasSavedSession, cameFromLink, sendLink, signOut, takeNext, fetchMe } from "./auth.js";
+import { createCutLetter } from "./cutword.js";
 
 export function setupAccount() {
   const item = document.querySelector('.tb-item[data-menu="account"]');
@@ -11,6 +12,20 @@ export function setupAccount() {
   const form = $("#acct-form"), email = $("#acct-email"), send = $("#acct-send"), msg = $("#acct-msg");
   const signedIn = $("#acct-in"), nameEl = $("#acct-name"), mailEl = $("#acct-mail"), out = $("#acct-out"), dash = $("#acct-dash");
   const labelOut = btn.querySelector("[data-out]"), labelIn = btn.querySelector("[data-in]");
+
+  // "Squeeze me in!" is the box's heading, in the site's paper-cut lettering
+  const title = form.querySelector(".acct-title");
+  if (title) {
+    const w = document.createElement("span");
+    w.className = "acct-cut";
+    w.setAttribute("aria-hidden", "true");
+    [...("Squeeze me in!")].forEach((ch) => {
+      if (ch === " ") { w.append(" "); return; }
+      const letter = createCutLetter(ch, { fill: "var(--pop)", shadow: "var(--brown)" });
+      if (letter) w.append(letter.el); else w.append(document.createTextNode(ch));
+    });
+    title.append(w);
+  }
 
   if (!authReady()) {
     form.hidden = true;
@@ -49,7 +64,7 @@ export function setupAccount() {
     signedIn.hidden = !inNow;
     labelOut.hidden = inNow;
     labelIn.hidden = !inNow;
-    $(".tb-head").textContent = inNow ? "Signed in" : "Sign in";
+    const head = $(".tb-head"); head.textContent = "Signed in"; head.hidden = !inNow; // signed out, the "Your email" lettering is the heading
     if (inNow) { say(""); showProfile(session); }
   }
 

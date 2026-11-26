@@ -6,7 +6,6 @@ import { upcoming, priceNum, lookUp, searchPicks, words, stepOutside, STEPS } fr
 import { PEOPLE, BADGES, BADGE_ORDER, POSTS, PAST, personBy, hostedOf, attendedOf, byRef, isPast, badgeOf } from "./people.js";
 import { initEvents } from "./spontysEvents.js";
 import { initChats } from "./spontysChats.js";
-import { initConsole } from "./chatConsole.js";
 import { planState, planStates, requestPlan, chatIdForPlan, onChats as onChatChange } from "./chats.js";
 import { PREFIX, read, write, evId, safeUrl } from "./spontysStore.js";
 
@@ -28,6 +27,7 @@ export const ICONS = {
   doc: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
   chat: '<path d="M4 5h11v8H9l-3 3v-3H4z"/><path d="M9 17h6l3 3v-3h2v-8h-4"/>',
   userplus: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M18 8v6M15 11h6"/>',
+  dots: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   chev: '<path d="m6 9 6 6 6-6"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -242,7 +242,7 @@ export function initScreens(k) {
   ];
 
   function renderFeed() {
-    document.title = "For you — PeanutButterJelly.vip";
+    document.title = "For you — PeanutButterJelly.fun";
     const ups = upcoming(), list = filt(ups), hl = chip ? [] : ups.slice(0, 3).filter((e) => !missedGone.has(e.title)), rest = list.filter((e) => !hl.includes(e));
     const fol = follows();
     const head = `<header class="fd-top"><button type="button" class="fd-city" data-cities aria-haspopup="dialog">Mum${ic("chev", "1em")}</button>
@@ -304,8 +304,8 @@ export function initScreens(k) {
   }
 
   /* ---------- Search: Ask FUN (suggestion cards, then a map with numbered pins, a chat sheet that shows its steps, result cards, find more) ---------- */
-  const IDEAS = [["🍷", "post-work drinks"], ["🍻", "plan a night out near me"], ["🆓", "something free to do"], ["💸", "date night under ₹1,000"], ["🌇", "rooftop with a view"], ["💃", "dancing, not clubbing"], ["🎧", "live music this weekend"], ["😂", "comedy nights"], ["🏺", "workshops to try"]];
-  const ROWS = [[0, 1, 2, 3], [4, 5, 6, 7, 8]];
+  const IDEAS = [["🍷", "post-work drinks"], ["🍻", "plan a night out near me"], ["🆓", "something free to do"], ["💸", "date night under ₹1,000"], ["🌇", "rooftop with a view"], ["💃", "dancing, not clubbing"], ["🎧", "live music this weekend"], ["😂", "comedy nights"], ["🏺", "workshops to try"], ["🍜", "street food crawl"]];
+  const ROWS = [[0, 1, 2, 3], [4, 5, 6, 7, 8, 9]];
   const KIND = { music: "🎷", workshop: "🏺", comedy: "🎤", vinyl: "💿", film: "🎬", food: "🍜", art: "🎨", games: "🎲" };
   const LISTNAME = { want: "Want to go", going: "Going", fav: "Favorite", rec: "Recommended", okay: "Okay" };
   const sleep = (ms) => new Promise((r) => setTimeout(r, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : ms));
@@ -319,7 +319,7 @@ export function initScreens(k) {
 
   let onResize = null;
   function renderSearch(q0 = "") {
-    document.title = "Ask FUN — PeanutButterJelly.vip";
+    document.title = "Ask FUN — PeanutButterJelly.fun";
     app.innerHTML = `<div class="fs" id="fs">
       <section class="fs-hero"><h1 class="cut">Ask FUN</h1><p class="sp-sub">the more you save, the more personal it gets</p>
         <div class="fs-rows">${ROWS.map((r) => `<div class="fs-row">${r.map((n) => `<button type="button" class="fd-idea" data-idea="${esc(IDEAS[n][1])}"><span class="e">${IDEAS[n][0]}</span>${esc(IDEAS[n][1])}</button>`).join("")}</div>`).join("")}</div></section>
@@ -331,31 +331,40 @@ export function initScreens(k) {
 
     // ----- the map: all of India, zooming in to wherever the pins are -----
     const pts = (list) => list.map(([lo, la]) => `${MX(lo).toFixed(2)} ${MY(la).toFixed(2)}`);
+    const defs = sv("defs", {}, svg), gr = (id, stops, at) => { const g = sv("linearGradient", { id, ...at }, defs); stops.forEach(([o, c]) => sv("stop", { offset: o, "stop-color": c }, g)); };
+    gr("fsPinBody", [[0, "#FF7A93"], [0.38, "#E02A55"], [0.7, "#C2184F"], [1, "#7A0F34"]], { x1: 0, y1: 0, x2: 1, y2: 1 });
+    gr("fsPinRing", [[0, "#7A0F34"], [1, "#F0577F"]], { x1: 0, y1: 0, x2: 1, y2: 1 });
     sv("rect", { x: -2000, y: -2000, width: 6000, height: 6000, fill: "var(--sea)" }, svg);
     const wide = sv("g", { class: "fs-wide" }, svg), near = sv("g", { class: "fs-near" }, svg);
-    sv("path", { class: "land", d: `M${pts(INDIA).join("L")}Z` }, wide);
-    MAP_CITIES.forEach(([n, lo, la]) => { sv("circle", { cx: MX(lo), cy: MY(la), r: 0.9, fill: "var(--ink)", opacity: 0.55 }, wide); const t = sv("text", { x: MX(lo) + 2, y: MY(la) + 1, class: "fs-lbl" }, wide); t.textContent = n; });
+    const outline = sv("path", { class: "land", d: `M${pts(INDIA).join("L")}Z` }, wide);
+    // The real state-by-state map (loaded in the background); the hand-drawn outline above shows until it arrives
+    import("@svg-maps/india").then(({ default: m }) => {
+      const g = sv("g", { class: "fs-states", transform: `translate(${MX(68.1)} ${MY(35.5)}) scale(${(MX(97.4) - MX(68.1)) / 612} ${(MY(6.75) - MY(35.5)) / 696})` });
+      m.locations.filter((l) => l.id !== "an" && l.id !== "ld").forEach((l) => sv("path", { class: "land state", d: l.path }, g));
+      wide.insertBefore(g, outline); outline.remove();
+    }).catch(() => {});
+    MAP_CITIES.forEach(([n, lo, la]) => { sv("circle", { cx: MX(lo), cy: MY(la), r: 0.9, fill: "var(--ink)", opacity: 0.55 }, wide); const left = ["Mumbai", "Goa", "Kochi", "Bengaluru", "Ahmedabad"].includes(n), t = sv("text", { x: MX(lo) + (left ? -2 : 2), y: MY(la) + 1, class: "fs-lbl", "text-anchor": left ? "end" : "start" }, wide); t.textContent = n; });
     sv("path", { class: "land", d: `M${pts(COAST.map(([la, lo]) => [lo, la])).join("L")}Z` }, near);
-    sv("path", { class: "road", d: `M${MX(72.832)} ${MY(19.3)}C${MX(72.84)} ${MY(19.1)} ${MX(72.828)} ${MY(19.0)} ${MX(72.835)} ${MY(18.9)}` }, near);
     [[72.91, 19.2, 0.28, 0.14], [72.9, 19.07, 0.14, 0.08]].forEach(([lo, la, rx, ry]) => sv("ellipse", { cx: MX(lo), cy: MY(la), rx, ry, fill: "var(--bread)", opacity: 0.9 }, near));
-    Object.entries(AREAS).forEach(([n, [la, lo]]) => { const t = sv("text", { x: MX(lo) + 0.09, y: MY(la) + 0.03, class: "fs-lbl" }, near); t.textContent = n; });
+    // each area name sits on its own side of its spot so neighbours (Fort / Kala Ghoda / Colaba, Versova / Andheri) never pile up
+    const SIDE = { Versova: [-1, 0.03], "Andheri West": [1, 0.03], "Bandra West": [1, 0.03], "Lower Parel": [1, 0.03], Fort: [1, -0.02], "Kala Ghoda": [-1, 0.04], Colaba: [1, 0.07], Powai: [1, 0.03] };
+    const areaLbl = {};
+    Object.entries(AREAS).forEach(([n, [la, lo]]) => { const [d, dy] = SIDE[n] || [1, 0.03], t = sv("text", { x: MX(lo) + d * 0.09, y: MY(la) + dy, class: "fs-lbl", "text-anchor": d < 0 ? "end" : "start" }, near); t.textContent = n; areaLbl[n] = t; });
     const pinLayer = sv("g", {}, svg);
     let view = [MX(82.8), MY(21.5), 320, 340], pins = [], raf = 0;
     const size = () => ({ w: mapEl.clientWidth || 600, h: mapEl.clientHeight || 300 });
     const fitView = (list) => {
       const { w, h } = size(), a = w / h; let bw, bh, cx, cy;
-      if (!list.length) { bw = MX(97.5) - MX(68); bh = MY(37.2) - MY(6); cx = MX(82.8); cy = MY(21.6); }
+      if (!list.length) { bw = (MX(97.5) - MX(68)) * 1.06; bh = (MY(37.2) - MY(6)) * 1.12; cx = MX(82.8); cy = MY(21.9); }
       else {
         const xs = list.map((p) => p[0]), ys = list.map((p) => p[1]); bw = (Math.max(...xs) - Math.min(...xs)) * 1.5 + 1.2; bh = (Math.max(...ys) - Math.min(...ys)) * 1.5 + 1.8;
         cx = (Math.max(...xs) + Math.min(...xs)) / 2; cy = (Math.max(...ys) + Math.min(...ys)) / 2;
       }
-      const vw = Math.max(bw, bh * a, list.length ? 2 : 0); return [cx, cy, vw, vw / a];
+      const vw = Math.max(bw, bh * a, list.length ? 5 : 0), vh = vw / a; return [cx, list.length ? cy - vh * 0.07 : cy, vw, vh]; // a little headroom so the tallest pin isn't clipped
     };
     const paint = (v) => {
       view = v; const { w } = size();
       svg.setAttribute("viewBox", `${v[0] - v[2] / 2} ${v[1] - v[3] / 2} ${v[2]} ${v[3]}`);
-      const k = (46 / 26) * (v[2] / w);
-      pins.forEach((p) => p.g.setAttribute("transform", `translate(${p.x} ${p.y}) scale(${k})`));
       svg.style.setProperty("--lbl", `${v[2] / 48}px`);
       wide.setAttribute("opacity", clamp01((v[2] - 14) / 40)); // the country fades out as you zoom into the city
       svg.classList.toggle("zoomed", v[2] < 14);
@@ -370,18 +379,20 @@ export function initScreens(k) {
       };
       raf = requestAnimationFrame(step);
     };
-    const clearPins = () => { pins.forEach((p) => p.g.remove()); pins = []; };
-    const addPins = (list, from = 1) => list.forEach((e, i) => {
+    const clearPins = () => { pins = []; layer?.clear(); Object.values(areaLbl).forEach((t) => t.removeAttribute("visibility")); };
+    const addPins = (list, from = 1) => { list.forEach((e, i) => {
       const [la, lo] = AREAS[e.area] || [19.07, 72.84], dup = pins.filter((p) => p.e.area === e.area).length;
-      const x = MX(lo) + dup * 0.17 - 0.08, y = MY(la) + dup * 0.12, g = sv("g", {}, pinLayer), n = from + i;
-      g.innerHTML = `<g class="fs-pin" data-n="${n}" style="animation-delay:${i * 50}ms"><path d="M0 2C-9 -8 -13 -12 -13 -19a13 13 0 0 1 26 0C13 -12 9 -8 0 2z" fill="var(--bread)" stroke="var(--ink)" stroke-width="1" stroke-linejoin="round"/><text x="0" y="-13" text-anchor="middle" font-size="14">${KIND[e.kind] || "✨"}</text><circle cx="11" cy="-30" r="7.5" fill="var(--ink)"/><text x="11" y="-27" text-anchor="middle" font-size="9" font-weight="700" fill="var(--cream)">${n}</text></g>`;
-      pins.push({ e, g, x, y, n });
-    });
-    const hiPin = (n) => pins.forEach((p) => { p.g.firstElementChild.classList.toggle("hi", p.n === n); if (p.n === n) pinLayer.append(p.g); }); // the chosen pin comes to the front
-    svg.addEventListener("click", (ev) => {
-      const g = ev.target.closest(".fs-pin"); if (!g) return; const c = res.querySelector(`.fs-ev[data-n="${g.dataset.n}"]`);
-      if (c) { c.scrollIntoView({ block: "center", behavior: "smooth" }); c.classList.add("flash"); setTimeout(() => c.classList.remove("flash"), 900); hiPin(+g.dataset.n); }
-    });
+      const x = MX(lo) + dup * 0.17 - 0.08, y = MY(la) + dup * 0.12, n = from + i;
+      pins.push({ e, x, y, n }); Object.entries(AREAS).forEach(([an, [ala, alo]]) => { if (Math.hypot(MX(alo) - x, MY(ala) - y) < 0.45) areaLbl[an]?.setAttribute("visibility", "hidden"); }); // names under or right beside a pin would pile up
+    }); showPins(); };
+    // The pins are real 3D objects drawn by one small WebGL canvas over the map (pin3d.js, loaded when the first pins are needed)
+    let layer = null, layerReady = null;
+    const pickPin = (n) => { const c = res.querySelector(`.fs-ev[data-n="${n}"]`); if (c) { c.scrollIntoView({ block: "center", behavior: "smooth" }); c.classList.add("flash"); setTimeout(() => c.classList.remove("flash"), 900); hiPin(n); } };
+    const hiPin = (n) => layer?.hi(n);
+    const showPins = () => {
+      layerReady ||= import("./pin3d.js").then((m) => (layer = m.makePinLayer(mapEl, () => ({ x0: view[0] - view[2] / 2, y0: view[1] - view[3] / 2, vw: view[2], vh: view[3] }), { onPick: pickPin, onHover: hiPin }))).catch(() => null);
+      layerReady.then((l) => l?.set(pins.map((p) => ({ n: p.n, x: p.x, y: p.y }))));
+    };
     res.addEventListener("pointerover", (ev) => { const c = ev.target.closest(".fs-ev[data-n]"); if (c) hiPin(+c.dataset.n); });
     res.addEventListener("pointerleave", () => hiPin(0));
     let sel = 0; // tapping a card zooms the map to its pin; tapping it again zooms back out
@@ -473,8 +484,8 @@ export function initScreens(k) {
   const ptab = {};
   function renderPerson(slug) {
     const h = "@" + slug, pe = personBy(h);
-    if (!pe) { document.title = "Not found — PeanutButterJelly.vip"; app.innerHTML = `<a class="back" href="#/">← Back</a><section class="sp-card msg-empty"><h2>We couldn't find that person</h2><p class="sp-sub">They may have changed their handle.</p><a class="btn" href="#/">Back to the thread</a></section>`; return; }
-    document.title = `${pe.name} — PeanutButterJelly.vip`;
+    if (!pe) { document.title = "Not found — PeanutButterJelly.fun"; app.innerHTML = `<a class="back" href="#/">← Back</a><section class="sp-card msg-empty"><h2>We couldn't find that person</h2><p class="sp-sub">They may have changed their handle.</p><a class="btn" href="#/">Back to the thread</a></section>`; return; }
+    document.title = `${pe.name} — PeanutButterJelly.fun`;
     const hosted = hostedOf(pe), att = attendedOf(pe), up = hosted.filter((e) => !isPast(e)), past = hosted.filter(isPast);
     const posts = POSTS.filter((po) => po.by === h), view = ptab[h] || (posts.length ? "posts" : hosted.length ? "hosted" : "attended"), on = isF(h), plans = posts.filter((po) => po.plan);
     const sect = (t, rows) => rows.length ? `<h3 class="pe-h">${t}</h3><div class="fd-results">${rows.map(evRow).join("")}</div>` : "";
@@ -513,7 +524,6 @@ export function initScreens(k) {
 
   wire(app);
   const ch = initChats({ ...k, ic, KINDS, PAPER, openPeople });
-  const mg = initConsole({ ...k, ic, KINDS, PAPER });
   const ev = initEvents({ ...k, ic, when, PAPER, KINDS, bdg, fBtn, places, writePlaces, ch });
-  return { renderFeed, renderSearch, renderPerson, renderMessages: ch.renderMessages, renderChat: ch.renderChat, renderManageList: mg.renderList, renderManage: mg.renderManage, openPlus, ic, ev, ch };
+  return { renderFeed, renderSearch, renderPerson, renderMessages: ch.renderMessages, renderChat: ch.renderChat, openPlus, ic, ev, ch };
 }
