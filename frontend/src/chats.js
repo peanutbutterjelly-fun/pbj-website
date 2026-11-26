@@ -57,6 +57,10 @@ export const chatList = () => Object.values(store()).sort((a, b) => (b.messages.
 /** Can this person run the chat (send updates, read doubts)? The chat's host or planner, or anyone while DEMO_HOST_VIEW is on. */
 export const canRun = (c, myHandle = "") => Boolean(c) && (DEMO_HOST_VIEW || (Boolean(myHandle) && c.host?.handle === "@" + String(myHandle).replace(/^@/, "")));
 export const chatById = (id) => store()[id] || null;
+/** A host's own dashboard chat (h:…). It belongs to the host side only: members never see it in Messages, badges or "Updates for you". */
+export const isHostChat = (c) => String(typeof c === "string" ? c : c?.id || "").startsWith("h:");
+/** The chats this person is in as a member: event tickets and accepted plans. */
+export const memberChats = () => chatList().filter((c) => !isHostChat(c));
 export const chatIdForEvent = (title) => "e:" + slug(title);
 export const chatIdForPlan = (postId) => "p:" + postId;
 export const hasTicket = (title) => Boolean(store()[chatIdForEvent(title)]);
@@ -76,11 +80,11 @@ export function toggleMute(id) { const m = read(MUTED, {}); if (m[id]) delete m[
 export function reportChat(id, reason, note = "") { const r = read(REPORTS, []); r.push({ id: mid(), at: Date.now(), chat: id, reason, note: String(note).trim().slice(0, 300) }); write(REPORTS, r.slice(-100)); return true; }
 export const REPORT_REASONS = ["Spam or a scam", "Unsafe or threatening", "Rude or hateful", "Fake event or host", "Something else"];
 export const unreadIn = (c) => c.messages.filter((m) => m.from !== "me" && m.role !== "system" && m.at > (seen()[c.id] || 0)).length;
-export const unreadCount = () => chatList().reduce((n, c) => n + (isMuted(c.id) ? 0 : unreadIn(c)), 0);
+export const unreadCount = () => memberChats().reduce((n, c) => n + (isMuted(c.id) ? 0 : unreadIn(c)), 0);
 export const seenAt = (id) => seen()[id] || 0;
 export const markRead = (id) => { const s = seen(); s[id] = Date.now(); write(READ, s); ping(); };
 /** Unread official updates from hosts, newest first (for the For you page). */
-export const unreadUpdates = (n = 2) => chatList().filter((c) => !isMuted(c.id)).flatMap((c) => c.messages.filter((m) => (m.role === "update" || m.role === "question") && m.at > (seen()[c.id] || 0)).map((m) => ({ chat: c, msg: m }))).sort((a, b) => b.msg.at - a.msg.at).slice(0, n);
+export const unreadUpdates = (n = 2) => memberChats().filter((c) => !isMuted(c.id)).flatMap((c) => c.messages.filter((m) => (m.role === "update" || m.role === "question") && m.at > (seen()[c.id] || 0)).map((m) => ({ chat: c, msg: m }))).sort((a, b) => b.msg.at - a.msg.at).slice(0, n);
 
 /* ---------- Plans: "I'm in" is a request ---------- */
 export const planStates = () => read(PLANS, {}); // { postId: "requested" | "accepted" }
@@ -207,7 +211,7 @@ export const pendingDoubts = (c) => (c?.doubts || []).filter((d) => d.status ===
 /** A member sends one short doubt. Only the host or planner sees it. Refused when empty, too long, or the 3 are used up. */
 export function sendDoubt(chatId, text) {
   const s = store(), c = s[chatId], t = String(text || "").trim();
-  if (!c || !t || t.length > DOUBT_MAX || doubtsLeft(c) === 0 || isClosed(c)) return null;
+  if (!c || isHostChat(c) || !t || t.length > DOUBT_MAX || doubtsLeft(c) === 0 || isClosed(c)) return null; // members only (never the host's own chat)
   const d = { id: "d" + mid(), from: "me", text: t, at: Date.now(), status: "sent" };
   (c.doubts ||= []).push(d); save(s); return d;
 }

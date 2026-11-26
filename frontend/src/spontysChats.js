@@ -2,7 +2,7 @@
 // The rules (who can post, who gets updates, how "I'm in" works) are written at the top of chats.js.
 import { EVENTS } from "./eventsData.js";
 import { personBy } from "./people.js";
-import { seenAt, waitingDoubts, chatList, chatById, markRead, unreadCount, unreadUpdates, unreadIn, postUpdate, buyTicket, hasTicket, chatIdForEvent, onChats, DEMO_UPDATES, askQuestion, closeQuestion, answerQuestion, openQuestion, questionById, tally, DEMO_QUESTIONS, DEMO_EVENT_QUESTIONS, DEMO_DOUBT_UPDATE, DOUBT_MAX, DOUBT_LIMIT, myDoubts, doubtsLeft, pendingDoubts, sendDoubt, isClosed, closesAt, isMuted, toggleMute, reportChat, REPORT_REASONS, CHAT_LIFE_DAYS } from "./chats.js";
+import { seenAt, waitingDoubts, chatList, memberChats, isHostChat, chatById, markRead, unreadCount, unreadUpdates, unreadIn, postUpdate, buyTicket, hasTicket, chatIdForEvent, onChats, DEMO_UPDATES, askQuestion, closeQuestion, answerQuestion, openQuestion, questionById, tally, DEMO_QUESTIONS, DEMO_EVENT_QUESTIONS, DEMO_DOUBT_UPDATE, DOUBT_MAX, DOUBT_LIMIT, myDoubts, doubtsLeft, pendingDoubts, sendDoubt, isClosed, closesAt, isMuted, toggleMute, reportChat, REPORT_REASONS, CHAT_LIFE_DAYS } from "./chats.js";
 
 const ago = (t) => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? "now" : s < 3600 ? Math.floor(s / 60) + "m" : s < 86400 ? Math.floor(s / 3600) + "h" : Math.floor(s / 86400) + "d"; };
 
@@ -34,7 +34,7 @@ export function initChats(k) {
   /* ---------- Messages: your group chats ---------- */
   function renderMessages() {
     document.title = "Messages — PeanutButterJelly.fun";
-    const name = (k.profile().name || "you").toLowerCase(), list = chatList();
+    const name = (k.profile().name || "you").toLowerCase(), list = memberChats();
     app.innerHTML = `<header class="fd-top msg"><span></span><h1 class="cut">${esc(name)}</h1><button type="button" class="sp-ico" data-people aria-label="Find people">${ic("userplus", "1.3em")}</button></header>
       <section class="ch-how"><b>Updates from your hosts</b><p>Buy a ticket and the event's group chat opens here. Only the host posts, and updates arrive the moment they are sent. Joined a sponty plan? You're added once the planner accepts you. Last-minute doubt? Send it privately and they'll answer everyone in an update.</p></section>
       <a class="mg-entry" href="/dashboard.html"><b>Run a chat</b><span>Host or sponty planner? Open the host dashboard to send updates and answer doubts</span>${waitingDoubts() ? `<i class="bl-dot">${waitingDoubts()}</i>` : ""}</a>
@@ -59,7 +59,7 @@ export function initChats(k) {
   /* ---------- One group chat ---------- */
   let demoN = 0, demoQ = 0;
   function renderChat(id) {
-    const c = chatById(id);
+    const c = isHostChat(id) ? null : chatById(id); // a host's own chat opens in the dashboard, never here
     if (!c) { document.title = "Messages — PeanutButterJelly.fun"; app.innerHTML = `<a class="back" href="#/messages">← Messages</a><section class="sp-card msg-empty"><h2>We couldn't find that chat</h2><p class="sp-sub">It opens when you get a ticket or are accepted into a plan.</p><a class="btn" href="#/messages">Back to messages</a></section>`; return; }
     document.title = `${c.title} — PeanutButterJelly.fun`;
     const lastSeen = seenAt(id); // what you had read before opening, so the "New" line can show
