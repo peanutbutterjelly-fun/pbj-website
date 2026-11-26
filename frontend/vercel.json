@@ -1,4 +1,10 @@
 {
   "ignoreCommand": "bash scripts/vercel-ignore.sh",
-  "rewrites": [{ "source": "/e/:path*", "destination": "/event.html" }]
+  "redirects": [
+    { "source": "/", "has": [{ "type": "host", "value": "backoffice.peanutbutterjelly.fun" }], "destination": "/backoffice.html", "permanent": false }
+  ],
+  "rewrites": [{ "source": "/e/:path*", "destination": "/event.html" }],
+  "headers": [
+    { "source": "/backoffice.html", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }, { "key": "X-Frame-Options", "value": "DENY" }, { "key": "Referrer-Policy", "value": "no-referrer" }] }
+  ]
 }
