@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#463721" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Back Office — PeanutButterJelly.fun</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Chivo+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/backoffice.css" />
+  </head>
+  <body>
+    <!-- Staff only. Everything here is loaded from the server after the back office login (see backend/app/api/routes/admin.py). -->
+    <main class="bo-login" id="login" hidden>
+      <form class="bo-card bo-login-card" id="login-form" autocomplete="on">
+        <p class="bo-kicker">PB&amp;J staff only</p>
+        <h1>Back Office</h1>
+        <label>Username <input name="username" autocomplete="username" required maxlength="60" /></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password" required maxlength="200" /></label>
+        <button class="bo-btn jam" type="submit">Let me in</button>
+        <p class="bo-msg" id="login-msg" role="alert" hidden></p>
+      </form>
+    </main>
+
+    <div class="bo-app" id="app" hidden>
+      <header class="bo-top">
+        <a class="bo-logo" href="#/">PB&amp;J <small>Back Office</small></a>
+        <nav class="bo-nav" aria-label="Back office">
+          <a href="#/" data-nav="overview">Overview</a>
+          <a href="#/events" data-nav="events">Events</a>
+          <a href="#/people" data-nav="people">People</a>
+          <a href="#/reports" data-nav="reports">Reports</a>
+          <a href="#/leads" data-nav="leads">Leads</a>
+          <a href="#/picks" data-nav="picks">Picks</a>
+          <a href="#/broadcasts" data-nav="broadcasts">Broadcasts</a>
+        </nav>
+        <button type="button" class="bo-out" id="sign-out">Sign out</button>
+      </header>
+      <main class="bo-main" id="view" tabindex="-1"></main>
+    </div>
+    <div class="bo-toast" id="toast" role="status" hidden></div>
+    <script type="module" src="/src/backoffice.js"></script>
+  </body>
+</html>
