@@ -144,15 +144,15 @@ export function renderHostChat(k, ev, startTab) {
       const initials = (n) => esc(initialsOf(n));
       const who = (q, sub, acts) => `<li class="hc-req"><span class="hc-av" aria-hidden="true">${initials(q.name)}</span><div class="hc-who"><b>${esc(q.name)}</b><span>${esc(q.handle)}</span>${sub ? `<small>${sub}</small>` : ""}</div>${acts}</li>`;
       return `<section class="card hc-card"><div class="hc-head"><div><h2>Requests to join</h2><p class="hc-sub">You decide who joins. Everyone here has passed the identity check (marked by hand for now).</p></div>
-        <label class="hc-sw"><input type="checkbox" id="hc-auto" ${auto ? "checked" : ""} /><span class="hc-sw-ui" aria-hidden="true"></span><span><b>Auto-approve</b><small>${auto ? "On: people join as they ask, while spots last." : "Off: you approve each person."}</small></span></label></div>
+        <label class="hc-sw"><input type="checkbox" id="hc-auto" ${auto ? "checked" : ""}${lock} /><span class="hc-sw-ui" aria-hidden="true"></span><span><b>Auto-approve</b><small>${auto ? "On: people join as they ask, while spots last." : "Off: you approve each person."}</small></span></label></div>
         ${cap ? `<div class="hc-meter"><div class="hc-meter-top"><b>${acc.length} of ${cap} spots filled</b><span>${left} left</span></div><div class="hc-prog" role="img" aria-label="${acc.length} of ${cap} spots filled"><span style="width:${Math.min(100, Math.round((acc.length / cap) * 100))}%"></span></div></div>` : `<p class="hc-banner">Set the number of spots in the Tickets step first. Accept is off until then.</p>`}
         <div class="hc-cols">
           <div><h3 class="hc-lab">Waiting for your decision (${pend.length})</h3>
-            ${pend.length ? `<ul class="hc-reqs">${pend.map((q) => who(q, `ID verified · asked ${ago(q.at)}`, `<span class="hc-acts"><button type="button" class="btn small ghost" data-dec="${esc(q.id)}">Decline</button><button type="button" class="btn small" data-acc="${esc(q.id)}" ${left ? "" : "disabled"}>Accept</button></span>`)).join("")}</ul>${left ? "" : `<p class="hc-note hc-full">The plan is full. Remove someone to make room.</p>`}` : `<p class="hc-none">No one is waiting. New requests show up here.</p>`}</div>
+            ${pend.length ? `<ul class="hc-reqs">${pend.map((q) => who(q, `ID verified · asked ${ago(q.at)}`, `<span class="hc-acts"><button type="button" class="btn small ghost" data-dec="${esc(q.id)}"${lock}>Decline</button><button type="button" class="btn small" data-acc="${esc(q.id)}" ${left && !closed ? "" : "disabled"}>Accept</button></span>`)).join("")}</ul>${left ? "" : `<p class="hc-note hc-full">The plan is full. Remove someone to make room.</p>`}` : `<p class="hc-none">No one is waiting. New requests show up here.</p>`}</div>
           <div><h3 class="hc-lab">Accepted (${acc.length})</h3>
-            ${acc.length ? `<ul class="hc-reqs">${acc.map((q) => who(q, "", `<button type="button" class="hc-link" data-rem="${esc(q.id)}">Remove</button>`)).join("")}</ul>` : `<p class="hc-none">No one yet.</p>`}</div>
+            ${acc.length ? `<ul class="hc-reqs">${acc.map((q) => who(q, "", `<button type="button" class="hc-link" data-rem="${esc(q.id)}"${lock}>Remove</button>`)).join("")}</ul>` : `<p class="hc-none">No one yet.</p>`}</div>
         </div>
-        <p class="hc-demo">${dec ? `${dec} declined · ` : ""}<button type="button" class="hc-link" data-samplereq>Demo: add sample requests</button></p></section>`;
+        <p class="hc-demo">${dec ? `${dec} declined` : ""}${closed ? "" : `${dec ? " · " : ""}<button type="button" class="hc-link" data-samplereq>Demo: add sample requests</button>`}</p></section>`;
     },
   };
   const tidy = (t) => esc(t).replace(/\n{2,}/g, "\n").trim();
@@ -239,12 +239,14 @@ export function renderHostChat(k, ev, startTab) {
       body.querySelectorAll("[data-filter]").forEach((b) => b.addEventListener("click", () => { filter = b.dataset.filter; paint(true); }));
       list.addEventListener("click", (e) => { const b = e.target.closest("[data-ci]"); if (!b) return; const r = checkIn(id, b.dataset.ci, b.dataset.on === "1"); if (r) toast(b.dataset.on === "1" ? `${r.name} checked in` : "Check-in undone"); });
     }
-    // Plan requests
+    // Plan requests (nothing here changes once the chat has closed: it is read-only like the other tabs)
+    if (!closed) {
     body.querySelector("#hc-auto")?.addEventListener("change", (e) => { setPlanAuto(ev.id, e.target.checked); toast(e.target.checked ? "Auto-approve on" : "Auto-approve off: you approve each person"); });
     body.querySelectorAll("[data-acc]").forEach((b) => b.addEventListener("click", () => { if (!decideRequest(ev.id, b.dataset.acc, true, cap)) toast("The plan is full"); else toast("Accepted. They're in the chat"); }));
     body.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", () => { decideRequest(ev.id, b.dataset.dec, false, cap); toast("Declined"); }));
     body.querySelectorAll("[data-rem]").forEach((b) => b.addEventListener("click", async () => { if (await ask({ title: "Remove this person?", message: "They leave the plan's chat and the spot opens up.", ok: "Remove" })) { removeFromPlan(ev.id, b.dataset.rem); toast("Removed"); } }));
     body.querySelector("[data-samplereq]")?.addEventListener("click", () => { const have = new Set(planRequests(ev.id).map((q) => q.handle)); PEOPLE.filter((p) => !have.has(p.handle)).slice(0, 4).forEach((p) => receiveRequest(ev.id, { handle: p.handle, name: p.name }, cap)); });
+    }
   };
   const paint = (force = false) => {
     drawTabs();
