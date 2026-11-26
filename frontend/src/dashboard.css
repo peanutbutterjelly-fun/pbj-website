@@ -2672,3 +2672,51 @@ label .info-btn, .section-sub .info-btn { vertical-align: -0.2em; margin-left: 0
 .notice.warn.miss .miss-list li { display: inline; margin: 0; }
 .notice.warn.miss .miss-list li:not(:last-child)::after { content: ","; }
 .notice.warn.miss .miss-list .linkish { display: inline; width: auto; min-height: 0; padding: 0; }
+
+/* Sign in and the welcome steps before the dashboard (src/welcome.js) */
+.dash-nav [hidden] { display: none; }
+.dash-out { font: inherit; color: inherit; text-transform: inherit; background: none; border: 0; border-bottom: 2px solid transparent; padding: 0.6em 0; cursor: pointer; }
+.dash-out:hover { border-color: var(--bread); }
+.gated [data-nav="list"] { display: none; }
+.welcome { max-width: 760px; margin: 0 auto; }
+.welcome-card { padding: 2.4em; }
+.welcome-who { margin: 0 0 2em; opacity: 0.75; word-break: break-all; }
+.welcome-msg { min-height: 1.2em; margin: 0.4em 0 1.2em; }
+.welcome-msg[data-tone="good"] { color: #2f7a3a; }
+.welcome-msg[data-tone="bad"] { color: var(--jam); }
+.welcome .check { margin: 0.4em 0 1em; align-items: flex-start; }
+.welcome .check span { text-transform: none; line-height: 1.4; }
+.kinds { display: grid; grid-template-columns: repeat(auto-fill, minmax(13em, 1fr)); gap: 0.8em; }
+.kind { position: relative; cursor: pointer; display: block; }
+.kind input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.kind span { display: grid; gap: 0.4em; height: 100%; min-height: 44px; padding: 1.1em 1.2em; border: 1px solid var(--line); border-radius: var(--r); background: var(--card);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s, box-shadow 0.2s; }
+.kind:hover span { background: #fff6d4; transform: translateY(-2px) rotate(-0.6deg); }
+.kind input:checked + span { background: var(--bread); border-color: var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+.kind input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+.kind small { opacity: 0.7; text-transform: none; }
+.field.bad .kind span { border-color: var(--jam); }
+@media (max-width: 767px) { .welcome-card { padding: 1.4em; } .kinds { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .kind span { transition: none; } .kind:hover span { transform: none; } }
+.w-photo-row { display: flex; align-items: center; gap: 1.2em; }
+.w-avatar { width: 72px; height: 72px; flex: none; border-radius: 50%; background: var(--bread) center / cover no-repeat; border: 2px solid var(--ink); display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 28px; }
+.w-photo label.btn { cursor: pointer; }
+.w-photo-row .btn.small { min-height: 44px; }
+.w-pick.is-busy { opacity: 0.5; pointer-events: none; }
+.w-unpick[hidden] { display: none; }
+/* Delete my account (profile page) */
+.w-danger { margin-top: 1.6em; }
+.w-danger h2 { font-size: calc(var(--h) * 0.45); margin-bottom: 0.6em; color: var(--jam); }
+.w-danger p { text-transform: none; line-height: 1.5; }
+.w-del-go { background: var(--jam); }
+
+/* "Continue with Google" (auth.js googleButtonHtml), hidden until Google sign-in is switched on in Supabase */
+.g-wrap[hidden] { display: none; }
+.g-btn { display: flex; align-items: center; justify-content: center; gap: 0.7em; width: 100%; min-height: 44px; padding: 0.6em 1.2em; border: 1.5px solid var(--brown, #463721); border-radius: 999px; background: #fff; color: #463721; font: inherit; text-transform: none; cursor: pointer; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.g-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.g-btn:disabled { opacity: 0.6; cursor: default; }
+.g-btn:focus-visible { outline: 2px solid var(--brown, #463721); outline-offset: 2px; }
+.g-or { display: flex; align-items: center; gap: 0.8em; margin: 0.9em 0 0.6em; font-size: 0.85em; opacity: 0.7; }
+.g-or::before, .g-or::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.35; }
+@media (prefers-reduced-motion: reduce) { .g-btn { transition: none; } .g-btn:hover:not(:disabled) { transform: none; } }
+.w-danger [hidden] { display: none; } /* (.btn sets display, which would otherwise beat the hidden attribute) */

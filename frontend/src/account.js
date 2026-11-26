@@ -1,23 +1,7 @@
-// Sign in with an email link (Supabase). "[ Sign in ]" in the top bar opens a small card: type your email, we send a
-// link, tapping it brings you back here signed in. The Supabase library only loads when it's needed (you open the card,
-// you're already signed in, or you just came back from the link), so the page stays light for everyone else.
+// "[ Sign in ]" in the top bar opens a small card: type your email, we send a link, tapping it brings you back signed in.
+// Once signed in, the card says hello and links to your dashboard (or to "Finish your profile" until the welcome steps are done).
+import { googleButtonHtml, wireGoogle, authReady, client, hasSavedSession, cameFromLink, sendLink, signOut, takeNext, fetchMe } from "./auth.js";
 import { createCutLetter } from "./cutword.js";
-
-const SB_URL = import.meta.env.VITE_SUPABASE_URL;
-const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY; // the publishable key: safe in the browser
-const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
-
-let clientPromise;
-const client = () =>
-  (clientPromise ??= import("@supabase/supabase-js")
-    .then(({ createClient }) =>
-      createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" } })
-    )
-    .catch((err) => { clientPromise = undefined; throw err; })); // a failed load (bad connection) can be tried again
-
-const storageKey = () => `sb-${new URL(SB_URL).hostname.split(".")[0]}-auth-token`;
-const hasSavedSession = () => { try { return !!localStorage.getItem(storageKey()); } catch { return false; } };
-const cameFromLink = () => /access_token=|error_description=/.test(location.hash);
 
 export function setupAccount() {
   const item = document.querySelector('.tb-item[data-menu="account"]');
@@ -26,7 +10,7 @@ export function setupAccount() {
   const pop = document.querySelector('.tb-pop[data-menu="account"]') || item.querySelector(".tb-pop");
   const $ = (sel) => pop.querySelector(sel);
   const form = $("#acct-form"), email = $("#acct-email"), send = $("#acct-send"), msg = $("#acct-msg");
-  const signedIn = $("#acct-in"), nameEl = $("#acct-name"), mailEl = $("#acct-mail"), out = $("#acct-out");
+  const signedIn = $("#acct-in"), nameEl = $("#acct-name"), mailEl = $("#acct-mail"), out = $("#acct-out"), dash = $("#acct-dash");
   const labelOut = btn.querySelector("[data-out]"), labelIn = btn.querySelector("[data-in]");
 
   // "Squeeze me in!" is the box's heading, in the site's paper-cut lettering
@@ -43,7 +27,7 @@ export function setupAccount() {
     title.append(w);
   }
 
-  if (!SB_URL || !SB_KEY) {
+  if (!authReady()) {
     form.hidden = true;
     say("Sign-in is not connected yet.");
     return;
@@ -55,19 +39,21 @@ export function setupAccount() {
     msg.hidden = !text;
   }
 
+  form.insertAdjacentHTML("afterbegin", googleButtonHtml());
+  btn.addEventListener("click", () => wireGoogle(form, location.pathname, (t) => say(t, "bad")), { once: true }); // asks Supabase only once the card is opened
+
   let activeUser = null; // whose details the card is showing; a late answer for anyone else is ignored
 
   async function showProfile(session) {
     const userId = session.user.id;
     mailEl.textContent = session.user.email || "";
     nameEl.textContent = "";
-    if (!API) return;
+    dash.textContent = "Your dashboard";
     try {
-      const res = await fetch(`${API}/api/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) {
-        const me = await res.json();
-        if (activeUser === userId) nameEl.textContent = me.full_name ? `Hi, ${me.full_name}` : "";
-      }
+      const me = await fetchMe(session);
+      if (activeUser !== userId) return;
+      nameEl.textContent = me.full_name ? `Hi, ${me.full_name}` : "";
+      if (!me.onboarded_at) dash.textContent = "Finish your profile";
     } catch { /* the backend being away doesn't stop you being signed in */ }
   }
 
@@ -93,12 +79,16 @@ export function setupAccount() {
       })
       .catch((err) => { started = undefined; throw err; }));
 
-  // Coming back from the email link: open the card to show you're in (or why the link didn't work), and tidy the address bar
+  // Coming back from the email link: carry on to the page they were heading for (the dashboard, say),
+  // or open the card to show you're in (or why the link didn't work), and tidy the address bar
   if (cameFromLink()) {
     const params = new URLSearchParams(location.hash.slice(1));
     const error = params.get("error_description");
-    start().then(() => {
+    start().then(async (sb) => {
       history.replaceState(null, "", location.pathname + location.search);
+      const next = takeNext();
+      const { data } = await sb.auth.getSession();
+      if (!error && data.session && next && next !== location.pathname) { location.replace(next); return; }
       if (error) say(error.includes("expired") ? "That link has expired. Ask for a new one." : error, "bad");
       btn.click();
     }).catch(() => {
@@ -120,8 +110,8 @@ export function setupAccount() {
     send.disabled = true;
     say("Sending…");
     try {
-      const sb = await start();
-      const { error } = await sb.auth.signInWithOtp({ email: address, options: { emailRedirectTo: location.origin + location.pathname } });
+      await start();
+      const { error } = await sendLink(address);
       if (error) {
         say(error.status === 429 ? "Too many links asked for. Try again in a few minutes." : error.message, "bad");
       } else {
@@ -137,8 +127,8 @@ export function setupAccount() {
 
   out.addEventListener("click", async () => {
     try {
-      const sb = await start();
-      await sb.auth.signOut();
+      await start();
+      await signOut();
       say("Signed out.");
     } catch {
       say("Couldn't sign out. Check your connection and try again.", "bad");

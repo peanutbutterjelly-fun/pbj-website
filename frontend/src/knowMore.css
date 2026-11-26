@@ -42,7 +42,7 @@
   cursor: auto; user-select: text; -webkit-user-select: text;
 }
 .km-card.is-open::after { display: none; }
-.km-page { display: none; position: absolute; inset: 0; z-index: 2; background: var(--page); color: var(--brown); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; outline: none; text-align: left; }
+.km-page { display: none; position: absolute; inset: 0; z-index: 2; background: var(--page); color: var(--ink); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; outline: none; text-align: left; }
 .km-card.is-open .km-page { display: block; }
 .km-page > * { text-align: left; }
 
@@ -94,7 +94,7 @@
 
 .km-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 1em; row-gap: 0; counter-reset: s; }
 /* like the cards: each step spans three rows (number, title, text) shared with its neighbours, so the texts line up */
-.km-steps li { padding: 1.2em 1em 0 0; border-top: 1px solid var(--brown); display: grid; grid-template-rows: subgrid; grid-row: span 3; row-gap: 0; align-content: start; margin-bottom: 1em; }
+.km-steps li { padding: 1.2em 1em 0 0; border-top: 1px solid var(--ink); display: grid; grid-template-rows: subgrid; grid-row: span 3; row-gap: 0; align-content: start; margin-bottom: 1em; }
 .km-steps i { justify-self: start; }
 .km-promises { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 1.4em; row-gap: 0; }
 /* like the numbered cards: each one spans two rows (title, text) shared with its neighbours, so the texts line up */
@@ -103,7 +103,7 @@
 .km-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .km-table { width: 100%; min-width: 34em; border-collapse: separate; border-spacing: 0; font: 400 0.9em/1.2 var(--mono); text-transform: uppercase; }
 .km-table th, .km-table td { padding: 1.1em 1em; text-align: left; border-bottom: 1px solid rgba(70, 55, 33, 0.2); font-weight: 400; }
-.km-table thead th { border-bottom: 1px solid var(--brown); }
+.km-table thead th { border-bottom: 1px solid var(--ink); }
 .km-table .us { background: var(--bg); color: var(--ink); }
 
 .km-faq details { border-top: 1px solid var(--brown); padding: 1.1em 0; }
@@ -132,7 +132,7 @@
   .km-card.is-open { inset: 0.4em 0.5em 0.6em; border-radius: 18px; }
   .km-hero { padding: 4em 1.4em 2.6em; display: block; }
   .km-sub { margin-top: 1.6em; }
-  .km-close { min-height: 36px; padding: 0 0.8em; font-size: 0.65em; margin: 10px 10px -46px auto; top: 10px; }
+  .km-close { min-height: 44px; padding: 0 0.9em; font-size: 0.65em; margin: 10px 10px -46px auto; top: 10px; }
   .km-run b { font-size: 0.7em; }
   .km-ctas .km-btn { flex: 1 1 100%; min-height: 52px; }
   .km-hero .km-ctas { margin-top: 1.6em; }

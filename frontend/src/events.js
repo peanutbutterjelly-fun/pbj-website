@@ -5,6 +5,8 @@ import { Flip } from "gsap/Flip";
 import { createCutLetter } from "./cutword.js";
 import { saveLead } from "./leads.js";
 import { guestPays, rupees } from "./gst.js";
+import { currentSession, fetchMe } from "./auth.js";
+import { fetchListedEvents, safeImg, LISTED, eventPath } from "./eventsStore.js";
 import { EVENTS } from "./eventsData.js";
 
 gsap.registerPlugin(Flip, ScrollTrigger, Observer);
@@ -519,6 +521,15 @@ function setupWindows(stage, sections, LOOP) {
         </form>`;
       formEl.hidden = false;
       const f = formEl.querySelector("form"), err = formEl.querySelector(".err"), go = formEl.querySelector(".go");
+      // Signed in? Fill in what we already know and link what they send to their account
+      let session = null;
+      currentSession().then(async (s) => {
+        session = s;
+        if (!s || !f.isConnected) return;
+        const fill = (name, v) => { if (v && !f.elements[name].value) f.elements[name].value = v; };
+        fill("email", s.user.email);
+        try { const me = await fetchMe(s); if (f.isConnected) { fill("name", me.full_name); fill("phone", me.phone); } } catch { /* fine: they can type it */ }
+      }).catch(() => {});
       formEl.querySelector(".ev-win-fx").addEventListener("click", closeForm);
       formEl.querySelector(".ev-win-fmin").addEventListener("click", () => formEl.classList.toggle("fmin")); // shrinks to its title bar along the bottom
       formEl.querySelector(".ev-win-fmax").addEventListener("click", () => { // opens the whole window out to full size, and puts it back the way it was
@@ -574,7 +585,7 @@ function setupWindows(stage, sections, LOOP) {
         const answers = {};
         let link = (d.link || "").trim() || null;
         qs.forEach((x, i) => { let v = (d["q" + i] || "").trim(); if (x.type === "place" && d["q" + i + "n"]) { const r = d["q" + i + "s"] || "region not chosen"; v = "Not in Mumbai (" + r + ")" + (v ? ": " + v : ""); } if (!v) return; if (x.type === "pick" && (isOther(v) || (x.more && x.more[v]))) { const more = (d["q" + i + "o"] || "").trim(); if (more) v += ": " + more; } answers[x.q] = v; if (x.type === "link" && !link) link = v; });
-        const r = await saveLead({ kind, role: def.win.title, name, email, phone: (d.phone || "").trim() || null, link, message: (d.message || "").trim() || null, answers: Object.keys(answers).length ? answers : null, page: location.pathname });
+        const r = await saveLead({ kind, role: def.win.title, name, email, phone: (d.phone || "").trim() || null, link, message: (d.message || "").trim() || null, answers: Object.keys(answers).length ? answers : null, page: location.pathname }, session ?? (await currentSession().catch(() => null)));
         if (r.ok) {
           f.innerHTML = `<p class="thanks">Thank you, ${esc(name.split(" ")[0])}! You are on the list.</p><div class="row"><button type="button" class="go">Done</button></div>`;
           f.querySelector(".go").addEventListener("click", closeForm);
@@ -1371,27 +1382,24 @@ function poster() { return emptyCard(); }
 function card(ev) { return ev.real ? `<a class="ev-card-b real" href="${eventUrl(ev)}">${coverCard(ev)}</a>` : `<div class="ev-card-b">${emptyCard()}</div>`; }
 
 // A real event: its cover on the poster, then category, title, date and price (the belt shows the poster with the title on it)
-const eventUrl = (ev) => `/event.html?id=${encodeURIComponent(ev.id)}`;
+const eventUrl = (ev) => eventPath(ev);
 function coverCard(ev, onBelt = false) {
-  const poster = `<div class="ev-poster ev-cover" style="background-image:url('${ev.cover}')"${onBelt ? ` role="img" aria-label="${esc(ev.title)}"` : ""}></div>`;
+  const poster = `<div class="ev-poster ev-cover" style="background-image:url('${esc(safeImg(ev.cover))}')"${onBelt ? ` role="img" aria-label="${esc(ev.title)}"` : ""}></div>`;
   if (onBelt) return poster;
   return `${poster}<p class="ev-cat">${esc(ev.category || "Event")}</p><h3>${esc(ev.title)}</h3>
     <p class="ev-line">${longDate(ev)}${ev.time ? ` · ${esc(ev.time)}` : ""}</p><p class="ev-line">${esc(ev.area)} · <span class="ev-price">${esc(ev.price)}</span></p>`;
 }
 
-// PREVIEW ONLY: events published in the host dashboard (they are saved in this browser, so only you can see them for now).
-// Once there is a place on the internet to keep them, this is the one spot to swap for the real list.
-function publishedEvents(today) {
-  let saved = [];
-  try { saved = JSON.parse(localStorage.getItem("pbj-host-events")) || []; } catch { /* nothing saved */ }
+// Events hosts have published in the dashboard, from the database (src/eventsStore.js), as cards
+function publishedEvents(today, saved) {
   const hm = (t) => { const h = Number(t?.h), m = String(t?.m ?? "00").padStart(2, "0"); return Number.isFinite(h) ? `${h % 12 || 12}:${m} ${h >= 12 ? "PM" : "AM"}` : ""; };
-  return saved.filter((e) => e.status === "published" && e.dateFrom && (e.images || []).some(Boolean)).map((e) => {
+  return saved.filter((e) => LISTED.includes(e.status) && /^\d{4}-\d{2}-\d{2}$/.test(e.dateFrom || "") && (e.images || []).some(safeImg)).map((e) => {
     const [y, mo, d] = (e.dateTo || e.dateFrom).split("-").map(Number);
     if (new Date(y, mo - 1, d) < today) return null; // an event hides itself once its last day has passed
     const prices = (e.tickets || []).filter((t) => t.enabled !== false).map(guestPays);
     const low = prices.length ? Math.min(...prices) : 0;
     return {
-      real: true, kind: e.type === "guestlist" ? "sponty" : e.type === "exclusive" ? "exclusive" : "open", id: e.id, title: e.title || "Untitled event", cover: e.images.filter(Boolean)[0].replace(/'/g, "%27"),
+      real: true, kind: e.type === "guestlist" ? "sponty" : e.type === "exclusive" ? "exclusive" : "open", id: e.id, title: e.title || "Untitled event", cover: safeImg(e.images.filter(Boolean)[0]),
       category: e.category, keywords: e.subs || [], area: e.venueStatus === "Decided" && e.venue && !(e.womenOnly || e.hideLocation) ? e.venue : e.city || "Mumbai",
       price: low ? rupees(Math.round(low)) : "Free", date: e.dateFrom, time: hm(e.start),
     };
@@ -1456,13 +1464,19 @@ const FILTERS = {
   price: { label: "Price", opts: [["free", "Free"], ["u500", "Under ₹500"], ["u1000", "₹500 to ₹1,000"], ["o1000", "Over ₹1,000"]] },
 };
 
+// The published events arrive from the database first (giving up after a few seconds), then the page is built
 function setupBrowse(root) {
+  if (!root.querySelector(".ev-browse")) return;
+  const slow = new Promise((resolve) => setTimeout(() => resolve([]), 5000));
+  Promise.race([fetchListedEvents().catch(() => []), slow]).then((saved) => buildBrowse(root, saved));
+}
+
+function buildBrowse(root, saved) {
   const host = root.querySelector(".ev-browse");
-  if (!host) return;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   // real (published) events first, soonest first, then the "Coming soon" placeholders
-  const upcoming = [...publishedEvents(today), ...makePlaceholders(today)].sort((a, b) => (b.real ? 1 : 0) - (a.real ? 1 : 0) || a.date.localeCompare(b.date));
+  const upcoming = [...publishedEvents(today, saved), ...makePlaceholders(today)].sort((a, b) => (b.real ? 1 : 0) - (a.real ? 1 : 0) || a.date.localeCompare(b.date));
   if (!upcoming.length) {
     host.innerHTML = `<p class="lineup-empty">The next lineup is being mined. Check back soon.</p>`;
     return;

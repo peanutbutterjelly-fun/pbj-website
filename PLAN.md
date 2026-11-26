@@ -14,7 +14,7 @@ Build the skeleton of the full PeanutButterJelly.fun site (not a single page) so
 - Partner program: venues (free repeating listings, "PBJ Partner" badge, we fill their quiet weekday slots) and brands (sponsor "PBJ Originals" nights, priced per event)
 
 ## The Site, Tab by Tab
-Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Secret.**
+Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Know More.**
 - Computers: tabs along the right edge; hovering shows the full label.
 - Phones: tabs stacked close together at the top with part of each label showing. Tap to peek (the tab slides out to show its full label), tap again to open. Switching tabs feels like shuffling through folders.
 
@@ -42,7 +42,7 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 
 **Meet Our Hosts:** an endless, draggable grid of 3D magazine covers, one per host. Tapping a cover grows it to the middle while the others drift away, then the magazine opens wide and people tap to flip its pages (cover, host profile, past events, current events, then teasers of future events; each host's page count varies). Built (blank) in `src/hosts.js` and `src/magazine.js`; the details and design come later. The partner-program pitch ("Be Our Partner") moves elsewhere for now.
 
-**Our Secret:** "What PBJ does differently: it's a secret we can share if you reach out." Helps hosts see why to choose us over other platforms, and sparks curiosity in guests. Ends with a "reach out" button.
+**Know More (was Our Secret):** three cards stacked at the centre (For Hosts, For Brands, For Spontys). A small [next] button shuffles the card behind to the top; tapping a card widens it into a full page laid out like offlyn.life (hero, perks strip, numbered feature cards, how it works, FAQ, closing call to action). Built in `src/knowMore.js` and `src/knowMore.css`; the copy is placeholder (no fees or numbers promised). Buttons on the pages jump to List Your Event on the matching role.
 
 ## Must-Haves (all needed for launch)
 - All six tabs working, with the folder effect on computers and phones
@@ -80,6 +80,14 @@ Six folder tabs: **Home, Events, About, List Your Event, Meet Our Hosts, Our Sec
 - Curator program (3rd wave)
 - Sections for hobby learners and parents (2nd and 3rd waves)
 - AI helper to catch events cancelled before their date
+
+## Spontys dashboard (built: first version)
+Page `spontys.html` (`src/spontys.js`, `src/spontysScreens.js`, `src/spontys.css`), modelled on the Corner app (see INSPIRATION.md). Bottom bar: **For you** (feed with filter tags, invite card, what you missed, lists, top hosts), **Map** (coming soon), **Messages** (empty state), **Search** ("Ask FUN": emoji suggestion cards, then a hand-drawn Mumbai map with numbered pins, a chat sheet that shows its steps with a progress bar, big result cards, thumbs up/down, "more events we considered", "find more" and follow-up chips; all over the Events lineup), **Profile** (list tiles, Edit Profile with photo crop, Settings) and a round **+** menu (create a post works; lists and imports are "coming soon"). Events shown are the sample lineup in `src/eventsData.js`. Everything is kept in the browser until accounts and a database exist. **People and the thread:** `src/people.js` holds 15 made-up accounts (one badge each: PBJ Exclusive Host, Professional Host, Newbie Host, Sponty Planner, Here For The Vibes), their hosted and attended events and a thread of posts (event announcements, spontaneous plans with an "I'm in" button, recaps). The For you feed is that thread; every name opens a profile at `#/u/handle` with Follow, Hosted and Attended; people pick their own badge in Edit profile. Not linked from the website yet.
+
+## Spontys Messages: host updates and group chats (built: first version)
+Only hosts send official updates, for events you hold a ticket for. Buying a ticket opens that event's group chat (`frontend/src/chats.js` holds the rules, `frontend/src/spontysChats.js` the screens). An update lands in the chat the moment it is posted. A logged-in member also sees it as an "Updates for you" card on For you, a badge on the bell and a dot on the Messages icon; a guest buyer gets it at the email or number saved in the browser when they bought (the "outbox", for a backend job to send). On the For you thread, "I'm in" on a sponty plan is a request: once the planner accepts, you are added to the plan's group chat with the others going. Stand-ins until the backend exists: everything is kept in the browser, the planner's Accept is automatic after a few seconds (`DEMO_AUTO_ACCEPT`), and no email or text is actually sent. Next: a "Send update" button for hosts in the host dashboard, the planner's Accept list, and the guest contact form on the public ticket page.
+Update: group chats are read-only for everyone except the host (or sponty planner). The host or planner can send one optional quick question at a time (2 to 4 tap-to-answer options and, if they allow it, a short note); everyone sees the counts after answering, names and notes stay with the asker. Members can also send one short private "last-minute doubt" (160 characters, 3 per chat) that only the host or planner sees; they answer the group with an update marked "answering questions from the group". Letting members write in plan chats was tried and removed for now.
+Host and planner screen (built, demo view): `#/manage` lists the chats you run; `#/manage/<chat>` (`frontend/src/chatConsole.js`) lets a host or sponty planner send an update, read members' last-minute doubts (with names), tick the ones an update answers and post it, set a doubt aside, send one quick question (2 to 4 options, optional note), watch the counts and notes, and close it. It currently opens any chat in the browser; once accounts exist it should only list the chats you host or plan. Next: put the same screen in the host dashboard, and make members' doubts and answers arrive from the backend.
 
 ## Rules decided by the owner (15 Nov 2026): who can do what
 - **Accounts.** Every host and every Sponty planner has their own account with us. Anyone with an account can list an event through the My Events dashboard. Only the **PBJ Exclusive** badge is decided by the PB&J team.

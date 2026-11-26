@@ -1,4 +1,4 @@
-"""What anyone can see about a person: their public profile page. No login needed, and never their email or birthday."""
+"""What anyone can see about a person: their public profile page. No login needed, and never their email, phone, birthday, role or welcome answers."""
 
 from typing import Annotated
 
@@ -10,7 +10,7 @@ from app.db import get_db
 router = APIRouter(prefix="/people", tags=["people"])
 Db = Annotated[Connection, Depends(get_db)]
 
-PUBLIC_COLUMNS = "handle, full_name, avatar_url, city, badge, bio, instagram, youtube, x_handle, created_at"
+PUBLIC_COLUMNS = "handle, full_name, avatar_url, city, badge, about, instagram, youtube, x_handle, created_at"
 
 
 @router.get("/{handle}")

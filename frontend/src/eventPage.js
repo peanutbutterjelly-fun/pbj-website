@@ -1,11 +1,17 @@
-// PREVIEW ONLY: how a published event will look to the public. It reads the event from this browser (saved by the host dashboard),
-// so only you can see it for now. Once events live on the internet, this page reads them from there instead.
+// One event's own page (/e/<name>-<id>; the older /event.html?id=<id> still works). Reads the event from the database (src/eventsStore.js): anyone can open a listed event,
+// and the host can also preview their own drafts. Everything the host typed is escaped or cleaned before it goes on the page.
+import { fetchEvent, fetchListedEvents, safeImg as remoteImg, LISTED, eventPath, eventIdFromUrl } from "./eventsStore.js";
+import { currentSession, authReady } from "./auth.js";
 const app = document.getElementById("app");
 import { guestPays, rupees, hasGst, gstParts } from "./gst.js";
 import { restoreDrafts } from "./devBackup.js";
 import { createCutLetter } from "./cutword.js";
 // While building, set this to true to show the yellow "Preview" bar at the top of the page; false shows the page as the public will see it.
 const SHOW_PREVIEW_NOTE = false;
+// Photos: plain web links only. A local copy with no database keeps the host's own photos inline (data:), so those are allowed there.
+const NO_DB = !authReady();
+const safeImg = (u) => (NO_DB && typeof u === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(u) ? u : remoteImg(u));
+const localListed = () => { try { return (JSON.parse(localStorage.getItem("pbj-host-events")) || []).filter((e) => LISTED.includes(e.status)); } catch { return []; } };
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -96,13 +102,18 @@ const entry = (tickets, price) => {
 };
 const clock = (t) => { const h = Number(t?.h); return Number.isFinite(h) && t?.h !== "" ? `${h % 12 || 12}:${String(t.m || "00").padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}` : ""; };
 
-function load() {
-  const id = new URLSearchParams(location.search).get("id");
-  try { return (JSON.parse(localStorage.getItem("pbj-host-events")) || []).find((e) => e.id === id || (e.slug && e.slug === id)); } catch { return null; }
+// The event in the address. Without the database (a local copy with no keys), the dashboard's own browser copy is used, as before.
+async function load() {
+  const id = eventIdFromUrl();
+  if (!authReady()) {
+    try { const e = (JSON.parse(localStorage.getItem("pbj-host-events")) || []).find((x) => x.id === id || (x.slug && x.slug === id)); return e ? { ...e, mine: true } : null; } catch { return null; }
+  }
+  const session = await currentSession().catch(() => null);
+  return fetchEvent(id, session);
 }
 
-function missing() {
-  app.innerHTML = `<section class="ep-miss"><h1>Event not found</h1><p>This event isn't saved in this browser, or it was removed.</p><a class="btn" href="/">Back to site</a></section>`;
+function missing(text = "This event doesn't exist, or it isn't listed yet.") {
+  app.innerHTML = `<section class="ep-miss"><h1>Event not found</h1><p>${esc(text)}</p><a class="btn" href="/">Back to site</a></section>`;
 }
 
 const svg = (path, size = "1.3em") => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
@@ -183,24 +194,22 @@ function mapSection(e) {
     <a class="btn ghost" href="${directions}" target="_blank" rel="noopener noreferrer">Get directions</a></div></section>`;
 }
 
-// ---- More like this: other published events in this browser, same category first ----
-function similar(e) {
-  let all = [];
-  try { all = JSON.parse(localStorage.getItem("pbj-host-events")) || []; } catch { /* nothing saved */ }
+// ---- More like this: other published events, same category first ----
+function similar(e, all = []) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const rest = all.filter((x) => x.id !== e.id && x.status === "published" && x.dateFrom && (x.images || []).some(Boolean) && new Date(...(x.dateTo || x.dateFrom).split("-").map((n, i) => (i === 1 ? n - 1 : n))) >= today);
+  const rest = all.filter((x) => x.id !== e.id && LISTED.includes(x.status) && x.dateFrom && (x.images || []).some(Boolean) && new Date(...(x.dateTo || x.dateFrom).split("-").map((n, i) => (i === 1 ? n - 1 : n))) >= today);
   rest.sort((a, b) => (b.category === e.category) - (a.category === e.category) || a.dateFrom.localeCompare(b.dateFrom));
   if (!rest.length) return "";
   const card = (x) => {
     const [y, m, d] = x.dateFrom.split("-").map(Number);
-    return `<a class="ep-card" href="/event.html?id=${encodeURIComponent(x.id)}"><div class="ep-card-img" style="background-image:url('${x.images.filter(Boolean)[0].replace(/'/g, "%27")}')"></div><b>${esc(x.title || "Untitled event")}</b><small>${d} ${MONTHS[m - 1]} ${y}${x.category ? ` · ${esc(x.category)}` : ""}</small></a>`;
+    return `<a class="ep-card" href="${eventPath(x)}"><div class="ep-card-img" style="background-image:url('${esc(safeImg(x.images.filter(Boolean)[0]))}')"></div><b>${esc(x.title || "Untitled event")}</b><small>${d} ${MONTHS[m - 1]} ${y}${x.category ? ` · ${esc(x.category)}` : ""}</small></a>`;
   };
   return `<section class="ep-sec"><h2>More like this</h2><div class="ep-more">${rest.slice(0, 4).map(card).join("")}</div></section>`;
 }
 
-function show(e) {
+function show(e, others = []) {
   document.title = `${e.title || "Event"} — PeanutButterJelly.fun`;
-  const imgs = (e.images || []).filter(Boolean);
+  const imgs = (e.images || []).map(safeImg).filter(Boolean);
   const live = e.status === "published";
   // "Repeat this event": extra time slots the host added; guests pick one
   const extraSlots = e.repeat?.on ? (e.repeat.slots || []).filter((t) => t.from && t.st?.h) : [];
@@ -216,7 +225,7 @@ function show(e) {
     const items = Object.entries(p.links || {}).filter(([k, u]) => LINK_NAMES[k] && /^https?:\/\//i.test(String(u)));
     return items.length ? `<span class="ep-links">${items.map(([k, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${LINK_NAMES[k]}</a>`).join("")}</span>` : "";
   };
-  const people = (list, h) => (list || []).length ? `<section class="ep-sec"><h2>${h}</h2><div class="ep-people">${list.map((p) => `<div class="ep-person">${p.logo ? `<img src="${p.logo}" alt="" />` : `<span class="ep-init">${esc((p.name || "?")[0])}</span>`}<div><b>${esc(p.name)}</b><p>${esc(p.desc || "")}</p>${personLinks(p)}</div></div>`).join("")}</div></section>` : "";
+  const people = (list, h) => (list || []).length ? `<section class="ep-sec"><h2>${h}</h2><div class="ep-people">${list.map((p) => `<div class="ep-person">${safeImg(p.logo) ? `<img src="${esc(safeImg(p.logo))}" alt="" />` : `<span class="ep-init">${esc((p.name || "?")[0])}</span>`}<div><b>${esc(p.name)}</b><p>${esc(p.desc || "")}</p>${personLinks(p)}</div></div>`).join("")}</div></section>` : "";
   const orgs = (e.organizers || []).length ? `<section class="ep-sec"><h2>Hosted by</h2><div class="ep-people">${e.organizers.map((o) => `<div class="ep-person"><span class="ep-init">${esc((o.holder || "?")[0])}</span><div><b>${esc(o.holder)}</b></div></div>`).join("")}</div></section>` : "";
 
   // each ticket: is it on sale today, and how many can be picked
@@ -275,11 +284,11 @@ function show(e) {
   const group = (t) => (t.type === "group" && Number(t.groupSize) > 1 ? ` · for ${Number(t.groupSize)}` : "");
 
   app.innerHTML = `
-    ${SHOW_PREVIEW_NOTE ? `<div class="ep-note">${live ? "Preview: this is how your event looks to the public. Only you can see it for now." : "Preview: this event isn't published yet. Guests won't see it until you publish it."}<a href="/dashboard.html">Back to dashboard</a></div>` : ""}
+    ${SHOW_PREVIEW_NOTE && e.mine ? `<div class="ep-note">${live ? "This is your event, as guests see it." : e.status === "draft" ? "Preview: this event isn't published yet. Guests won't see it until you publish it." : "This is your event, as guests see it (it isn't open for bookings)."}<a href="/dashboard.html">Back to dashboard</a></div>` : ""}
     <article class="ep-grid">
       <div class="ep-media">
-        ${imgs.length ? `<div class="ep-hero"><img id="ep-main" src="${imgs[0]}" alt="${esc(e.title)}" /></div>` : `<div class="ep-hero ep-none">No cover image</div>`}
-        ${imgs.length > 1 ? `<div class="ep-thumbs">${imgs.map((s, i) => `<button type="button" class="${i ? "" : "on"}" data-i="${i}" aria-label="Show image ${i + 1}"><img src="${s}" alt="" /></button>`).join("")}</div>` : ""}
+        ${imgs.length ? `<div class="ep-hero"><img id="ep-main" src="${esc(imgs[0])}" alt="${esc(e.title)}" /></div>` : `<div class="ep-hero ep-none">No cover image</div>`}
+        ${imgs.length > 1 ? `<div class="ep-thumbs">${imgs.map((s, i) => `<button type="button" class="${i ? "" : "on"}" data-i="${i}" aria-label="Show image ${i + 1}"><img src="${esc(s)}" alt="" /></button>`).join("")}</div>` : ""}
         ${youtube(e.youtube)}
       </div>
       <div class="ep-info">
@@ -319,7 +328,7 @@ function show(e) {
     ${mapSection(e)}
     ${people(e.artists, "Artists")}${people(e.partners, "Partners")}${orgs}
     ${(e.terms || "").replace(/<[^>]*>/g, "").trim() ? `<section class="ep-sec ep-wide"><h2>Terms &amp; conditions</h2><div class="ep-rich ep-terms">${rich(e.terms)}</div></section>` : ""}
-    ${similar(e)}`;
+    <div id="ep-similar">${similar(e, others)}</div>`;
 
   // gallery
   const main = app.querySelector("#ep-main");
@@ -421,4 +430,15 @@ function show(e) {
   }
 }
 
-restoreDrafts().then(() => { const ev = load(); ev ? show(ev) : missing(); });
+// The event shows as soon as it arrives; "More like this" fills in afterwards, whenever the other events come in
+app.innerHTML = `<section class="ep-miss"><p>Loading…</p></section>`;
+const othersP = NO_DB ? Promise.resolve(localListed()) : fetchListedEvents().catch(() => []);
+(NO_DB ? restoreDrafts() : Promise.resolve()).then(load) // a local copy with no database gets its dev drafts back first
+  .then((ev) => {
+    if (!ev) return missing();
+    // show the event's own tidy address (its current name), whichever link was used to get here
+    if (location.pathname !== eventPath(ev)) history.replaceState(null, "", eventPath(ev) + location.hash);
+    show(ev);
+    othersP.then((others) => { const box = app.querySelector("#ep-similar"); if (box) box.innerHTML = similar(ev, others); });
+  })
+  .catch(() => missing("Couldn't load this event. Check your connection and try again."));

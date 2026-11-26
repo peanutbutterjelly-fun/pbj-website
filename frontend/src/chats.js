@@ -18,17 +18,29 @@
 //  button, need the backend; the outbox lists exactly what would be sent. See DEMO_AUTO_ACCEPT below.
 import { EVENTS } from "./eventsData.js";
 import { PEOPLE, POSTS, personBy, hostOfEvent } from "./people.js";
+import { PREFIX, read, write } from "./spontysStore.js";
 
 export const DEMO_AUTO_ACCEPT = true; // stand-in for the planner pressing Accept: the request is accepted a few seconds later. Turn off when planners have a real Accept button.
 const ACCEPT_AFTER_MS = 6000;
+// Stand-in until accounts exist: anyone can open the host and planner screen of any chat in this browser, clearly marked as a demo.
+// With this off, only the chat's own host or planner (matched by handle) sees it. The server must check this too once chats are real.
+export const DEMO_HOST_VIEW = true;
 
-const CHATS = "pbj-chats", PLANS = "pbj-sponty-plans", READ = "pbj-chats-read", OUTBOX = "pbj-outbox", CONTACT = "pbj-buyer-contact";
-const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+// All kept under the shared Spontys prefix, so "Delete account" and signing out clear chats too
+const CHATS = PREFIX + "chats", PLANS = PREFIX + "plans", READ = PREFIX + "chats-read", OUTBOX = PREFIX + "outbox", CONTACT = PREFIX + "buyer-contact";
 const ping = () => window.dispatchEvent(new CustomEvent("pbj-chats")); // same tab; other tabs hear the "storage" event
 const mid = () => "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 
-const store = () => read(CHATS, {});
+/** A time as milliseconds, whether it was saved as a number (this browser) or an ISO date string (the server, later). 0 when unreadable. */
+export const ms = (at) => { const t = typeof at === "string" ? Date.parse(at) : Number(at); return Number.isFinite(t) ? t : 0; };
+/** One chat with every list present and every time in milliseconds, so odd or half-saved data can't break a screen. */
+const tidy = (c) => ({
+  ...c, host: c.host || { handle: "@pbj", name: "PB&J" },
+  members: Array.isArray(c.members) ? c.members : [], audience: Array.isArray(c.audience) ? c.audience : [],
+  messages: (Array.isArray(c.messages) ? c.messages : []).map((m) => ({ ...m, at: ms(m.at) })),
+  questions: Array.isArray(c.questions) ? c.questions : [], doubts: (Array.isArray(c.doubts) ? c.doubts : []).map((d) => ({ ...d, at: ms(d.at) })),
+});
+const store = () => { const s = read(CHATS, {}), out = {}; if (s && typeof s === "object") for (const [id, c] of Object.entries(s)) if (c && typeof c === "object") out[id] = tidy({ id, ...c }); return out; };
 const save = (s) => { write(CHATS, s); ping(); };
 
 /** A few other people who are going, picked the same way every time for the same chat (made-up people for now). */
@@ -42,6 +54,8 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g
 
 /* ---------- Reading ---------- */
 export const chatList = () => Object.values(store()).sort((a, b) => (b.messages.at(-1)?.at || 0) - (a.messages.at(-1)?.at || 0));
+/** Can this person run the chat (send updates, read doubts)? The chat's host or planner, or anyone while DEMO_HOST_VIEW is on. */
+export const canRun = (c, myHandle = "") => Boolean(c) && (DEMO_HOST_VIEW || (Boolean(myHandle) && c.host?.handle === "@" + String(myHandle).replace(/^@/, "")));
 export const chatById = (id) => store()[id] || null;
 export const chatIdForEvent = (title) => "e:" + slug(title);
 export const chatIdForPlan = (postId) => "p:" + postId;
@@ -98,14 +112,22 @@ export function buyTicket(title, who = { loggedIn: true }) {
 /** The contact a guest gave in this browser when buying (the public ticket page reads it back so they aren't asked twice). */
 export const guestContact = () => read(CONTACT, null);
 
+// The demo's stand-in planner: one timer per waiting request, cleared when it is withdrawn
+const timers = {};
+const arm = (postId, wait = ACCEPT_AFTER_MS) => {
+  if (!DEMO_AUTO_ACCEPT) return;
+  clearTimeout(timers[postId]);
+  timers[postId] = setTimeout(() => { delete timers[postId]; if (planState(postId) === "requested") acceptPlan(postId); }, wait);
+};
 /** Tap "I'm in" on a plan. Needs the planner to accept. Tapping again withdraws. */
 export function requestPlan(postId) {
   const st = planStates();
-  if (st[postId]) { delete st[postId]; write(PLANS, st); ping(); return "none"; }
-  st[postId] = "requested"; write(PLANS, st); ping();
-  if (DEMO_AUTO_ACCEPT) setTimeout(() => { if (planState(postId) === "requested") acceptPlan(postId); }, ACCEPT_AFTER_MS);
+  if (st[postId]) { clearTimeout(timers[postId]); delete timers[postId]; delete st[postId]; write(PLANS, st); ping(); return "none"; }
+  st[postId] = "requested"; write(PLANS, st); ping(); arm(postId);
   return "requested";
 }
+// Requests still waiting from an earlier visit get their (demo) answer too
+Object.entries(planStates()).forEach(([id, st]) => { if (st === "requested") arm(id, 1500); });
 /** The planner accepts you: you are in the plan's group chat with the others who are going. */
 export function acceptPlan(postId) {
   const po = POSTS.find((x) => x.id === postId); if (!po?.plan) return null;

@@ -105,7 +105,7 @@ const pageHTML = (c) => `
     <p class="km-kicker">■ ${esc(c.kicker)}</p>
     <h2 class="km-head">${esc(c.head)}</h2>
     <p class="km-sub">${esc(c.sub)}</p>
-    <p class="km-ctas"><button type="button" class="km-btn km-go" data-role="${esc(c.role)}">${esc(c.cta[0])}</button><button type="button" class="km-btn alt km-go" data-role="${esc(c.role)}">${esc(c.cta[1])}</button></p>
+    <p class="km-ctas"><button type="button" class="km-btn km-go" data-role="${esc(c.role)}">${esc(c.cta[0])}</button><button type="button" class="km-btn alt km-go" data-role="${esc(c.role)}"${c.cta[1] === "See events" ? ' data-tab="events"' : ""}>${esc(c.cta[1])}</button></p>
   </header>
   <div class="km-strip" aria-hidden="true"><div class="km-run">${[0, 1].map(() => `<span>${c.strip.map((s) => `<b>${esc(s)}</b>`).join("")}</span>`).join("")}</div></div>
   <section class="km-sec"><h3>${esc(c.featuresTitle)}</h3>
@@ -120,7 +120,7 @@ const pageHTML = (c) => `
   <section class="km-sec"><h3>Questions</h3>
     <div class="km-faq">${c.faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join("")}</div></section>
   <footer class="km-closer"><h3>${esc(c.closer)}</h3>
-    <p class="km-ctas"><button type="button" class="km-btn km-go" data-role="${esc(c.role)}">${esc(c.cta[0])}</button><button type="button" class="km-btn alt km-go" data-role="${esc(c.role)}">${esc(c.cta[1])}</button></p></footer>`;
+    <p class="km-ctas"><button type="button" class="km-btn km-go" data-role="${esc(c.role)}">${esc(c.cta[0])}</button><button type="button" class="km-btn alt km-go" data-role="${esc(c.role)}"${c.cta[1] === "See events" ? ' data-tab="events"' : ""}>${esc(c.cta[1])}</button></p></footer>`;
 
 export function setupKnowMore(panel) {
   panel.innerHTML = `<div class="km" style="--n:${CARDS.length}">
@@ -160,7 +160,7 @@ export function setupKnowMore(panel) {
   });
   place(true);
   // the headline on each card is paper-cut lettering that shakes like our other headings (only while the cards are showing)
-  const LOOK = { hosts: ["var(--cream)", "#F0A830"], brands: ["var(--honey)", "var(--brown)"], spontys: ["var(--honey)", "var(--brown)"] }; // the headline colours of each card (the colours were rotated one place: Hosts has the old Brands look, Brands the old Spontys look, Spontys the old Hosts look)
+  const LOOK = { hosts: ["var(--cream)", "var(--pop)"], brands: ["var(--honey)", "var(--brown)"], spontys: ["var(--honey)", "var(--brown)"] }; // the headline colours of each card (the colours were rotated one place: Hosts has the old Brands look, Brands the old Spontys look, Spontys the old Hosts look)
   cards.forEach((c) => cutText(c.querySelector(".km-teaser"), ...LOOK[c.dataset.id], () => !panel.hidden && !openCard));
   addEventListener("resize", () => { if (!openCard) place(true); });
 
@@ -208,7 +208,7 @@ export function setupKnowMore(panel) {
   // the page fades away, the card shrinks back to its place, and the headline fades back in as it lands.
   // The main headings on a page are paper-cut lettering (the small card and step titles stay plain, except the titles on the red promise and feature cards) (made the first time the card is opened), and every one of them shakes, but only
   // while it is on screen inside the open page (so hundreds of letters out of sight never cost anything).
-  const CREAM = { hosts: ["#F0A830", "var(--brown)"], brands: ["#F0A830", "var(--brown)"], spontys: ["#F0A830", "var(--brown)"] }; // headings on the cream part of a page
+  const CREAM = { hosts: ["var(--pop)", "var(--brown)"], brands: ["var(--pop)", "var(--brown)"], spontys: ["var(--pop)", "var(--brown)"] }; // headings on the cream part of a page
   const cutHeadings = (card, page) => {
     if (page.dataset.cut) return;
     page.dataset.cut = "1";
@@ -226,6 +226,7 @@ export function setupKnowMore(panel) {
     if (busy || openCard) return;
     busy = true;
     openCard = card;
+    cards.forEach((c) => (c.inert = c !== card)); nextBtn.inert = true; // keyboard users stay on the open page, not the cards hidden behind it
     document.documentElement.setAttribute("data-loop-lock", ""); // the page scrolls inside itself, not the folder
     root.classList.add("open");
     const face = card.querySelector(".km-face"), page = card.querySelector(".km-page");
@@ -261,6 +262,7 @@ export function setupKnowMore(panel) {
     const face = card.querySelector(".km-face"), page = card.querySelector(".km-page");
     const finish = () => {
       busy = false; openCard = null;
+      cards.forEach((c) => (c.inert = false)); nextBtn.inert = false;
       document.documentElement.removeAttribute("data-loop-lock");
       gsap.set(page, { opacity: 1 }); gsap.set(face, { opacity: 1 });
       card.style.zIndex = order.indexOf(card) === 1 ? "3" : "2"; // now it can take its place in the row
@@ -278,7 +280,7 @@ export function setupKnowMore(panel) {
       card.classList.remove("is-open");
       place(true);
       const to = box(card), slot = slotOf(order.indexOf(card)); // (its box in the row, and its tilt and size there)
-      if (instant || calm) { settle(); finish(); return; }
+      if (instant || calm) { gsap.set(card, { clearProps: "left,top,width,height,margin" }); settle(); finish(); return; } // (a grow cut short by leaving the tab leaves sizes on the card)
       card.classList.add("is-open"); // (kept on for a moment, so the page can fade while the card is already on its way)
       // the shrinking card stays in front of the others until it has landed (it never slips behind the middle card on the way)
       card.style.zIndex = "50";
@@ -300,7 +302,8 @@ export function setupKnowMore(panel) {
       if (card.classList.contains("is-open")) {
         if (e.target.closest(".km-close")) close();
         const go = e.target.closest(".km-go");
-        if (go) document.dispatchEvent(new CustomEvent("pbj-role", { detail: go.dataset.role })); // to List Your Event, on that role
+        if (go?.dataset.tab) document.dispatchEvent(new CustomEvent("pbj-tab", { detail: go.dataset.tab })); // "See events" opens the Events tab
+        else if (go) document.dispatchEvent(new CustomEvent("pbj-role", { detail: go.dataset.role })); // to List Your Event, on that role
         return;
       }
       open(card);
@@ -310,7 +313,7 @@ export function setupKnowMore(panel) {
     });
   });
   document.addEventListener("keydown", (e) => {
-    if (panel.hidden) return;
+    if (panel.hidden || e.target.closest?.("input, textarea, select, [contenteditable]")) return; // typing (say, in the sign-in box) never shuffles the cards
     if (e.key === "Escape" && openCard) close();
     else if (!openCard && e.key === "ArrowRight") next();
     else if (!openCard && e.key === "ArrowLeft") shift(-1);

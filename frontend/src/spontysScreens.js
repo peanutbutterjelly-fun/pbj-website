@@ -3,14 +3,13 @@
 // Nothing is sent anywhere yet: saves, likes and follows are kept in this browser (localStorage).
 import { EVENTS } from "./eventsData.js";
 import { upcoming, priceNum, lookUp, searchPicks, words, stepOutside, STEPS } from "./assistant.js";
-import { PEOPLE, BADGES, BADGE_ORDER, POSTS, PAST, personBy, hostedOf, attendedOf, byRef, isPast } from "./people.js";
+import { PEOPLE, BADGES, BADGE_ORDER, POSTS, PAST, personBy, hostedOf, attendedOf, byRef, isPast, badgeOf } from "./people.js";
 import { initEvents } from "./spontysEvents.js";
 import { initChats } from "./spontysChats.js";
 import { planState, planStates, requestPlan, chatIdForPlan, onChats as onChatChange } from "./chats.js";
+import { PREFIX, read, write, evId, safeUrl } from "./spontysStore.js";
 
-const LIKES = "pbj-sponty-likes", FOLLOW = "pbj-sponty-follow", JOINED = "pbj-sponty-in";
-const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const FOLLOW = PREFIX + "follow";
 
 export const ICONS = {
   people: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14.3c3 0 4.8 2 4.8 4.7"/>',
@@ -49,17 +48,18 @@ const PAPER = { sun: "var(--bread)", jam: "var(--strawberry)", cream: "var(--car
 const CITIES = [["Ahmedabad","Gujarat","🪁"],["Amritsar","Punjab","🛕"],["Bengaluru","Karnataka","🌳"],["Bhopal","Madhya Pradesh","🏞️"],["Bhubaneswar","Odisha","🛕"],["Chandigarh","Chandigarh","🌹"],["Chennai","Tamil Nadu","🎭"],["Coimbatore","Tamil Nadu","🧶"],["Dehradun","Uttarakhand","⛰️"],["Delhi","Delhi","🏛️"],["Goa","Goa","🏖️"],["Guwahati","Assam","🍵"],["Gurugram","Haryana","🏢"],["Hyderabad","Telangana","🍲"],["Indore","Madhya Pradesh","🍛"],["Jaipur","Rajasthan","🏰"],["Jodhpur","Rajasthan","🔵"],["Kochi","Kerala","⛵"],["Kolkata","West Bengal","🍬"],["Kozhikode","Kerala","🌴"],["Lucknow","Uttar Pradesh","🕌"],["Ludhiana","Punjab","🧵"],["Madurai","Tamil Nadu","🪔"],["Mangaluru","Karnataka","🦀"],["Mumbai","Maharashtra","🎬"],["Mysuru","Karnataka","👑"],["Nagpur","Maharashtra","🍊"],["Nashik","Maharashtra","🍇"],["Noida","Uttar Pradesh","🌆"],["Patna","Bihar","📖"],["Puducherry","Puducherry","🥐"],["Pune","Maharashtra","📚"],["Raipur","Chhattisgarh","🌾"],["Rishikesh","Uttarakhand","🧘"],["Surat","Gujarat","💎"],["Trivandrum","Kerala","🥥"],["Udaipur","Rajasthan","🛶"],["Vadodara","Gujarat","🎶"],["Varanasi","Uttar Pradesh","🪔"],["Visakhapatnam","Andhra Pradesh","🌊"]];
 
 
-// Love / Like / Curious: how a visitor feels about an event. Each pick also files the event in the matching list on their profile.
-const REACT = "pbj-sponty-react";
+// Love / Like / Curious: how a visitor feels about an event. Each pick files the event in the matching list on their profile,
+// and the pick is read back from those lists, so moving or removing the event on the profile changes or clears the pick too.
 const RX = {
   love: { icon: "heart", label: "Love", list: "fav", done: "Loved it. Added to Favorites" },
   like: { icon: "thumb", label: "Like", list: "rec", done: "Liked. Added to Recommend" },
   curious: { icon: "eye", label: "Curious", list: "want", done: "Curious. Added to Want to go" },
 };
-const reactions = () => read(REACT, {});
 
 export function initScreens(k) {
   const { app, esc, svg, toast, bread, places, writePlaces, newId, enhanceSelects } = k;
+  /** Each event's pick (love, like or curious), read from the saved lists. */
+  const reactions = () => { const m = {}; places().forEach((x) => { const r = x.src && Object.keys(RX).find((id) => RX[id].list === x.list); if (r && !m[x.src]) m[x.src] = r; }); return m; };
   const ic = (n, s = "1.2em") => `<span class="ic" style="width:${s};height:${s}">${svg(ICONS[n] || "")}</span>`;
   const saved = (e) => places().some((x) => x.src === e.title);
   const follows = () => read(FOLLOW, []);
@@ -77,21 +77,19 @@ export function initScreens(k) {
     ${rxBtn(e)}</div>`;
   /* ---------- People: badges, follow buttons, the thread ---------- */
   const KINDS = { music: "🎷", workshop: "🏺", comedy: "🎤", vinyl: "💿", film: "🎬", food: "🍜", art: "🎨", games: "🎲", outdoors: "🚲", market: "🛍️" };
-  const bdg = (b) => `<span class="bd bd-${b}">${esc(BADGES[b]?.label || "")}</span>`;
+  const bdg = (b) => (badgeOf(b) ? `<span class="bd bd-${badgeOf(b)}">${esc(BADGES[badgeOf(b)].label)}</span>` : "");
   const isF = (h) => follows().includes(h);
   const fBtn = (h, cls = "") => `<button type="button" class="th-follow ${cls} ${isF(h) ? "on" : ""}" data-f="${esc(h)}" aria-pressed="${isF(h)}">${isF(h) ? "Following" : "Follow"}</button>`;
-  const joined = () => read(JOINED, []);
-  const eid = (e) => e.id || "u" + EVENTS.findIndex((x) => x.title === e.title);
-  const pastRow = (e) => `<a class="fd-ev pe-ev" href="#/e/${esc(eid(e))}"><span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${e.paper === "jam" || e.paper === "brown" ? "var(--cream)" : "var(--brown)"}">${KINDS[e.kind] || "✨"}</span>
+  const pastRow = (e) => `<a class="fd-ev pe-ev" href="#/e/${esc(evId(e))}"><span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${e.paper === "jam" || e.paper === "brown" ? "var(--cream)" : "var(--brown)"}">${KINDS[e.kind] || "✨"}</span>
     <span class="fd-ev-t"><b>${esc(e.title)}</b><em>${esc(e.category)} · past</em><small>${esc(e.area)} · ${esc(e.price)} · ${when(e)}${e.going ? ` · ${e.going} went` : ""}</small></span><span class="pe-tag">Past</span></a>`;
   /** One row for any event: the live ones can be saved with the heart, the past ones show how many went. */
   const evRow = (e) => (isPast(e) ? pastRow(e) : `<div class="fd-ev pe-ev"><span class="fd-thumb" style="background:${PAPER[e.paper] || "var(--bread)"};color:${e.paper === "jam" || e.paper === "brown" ? "var(--cream)" : "var(--brown)"}">${KINDS[e.kind] || "✨"}</span>
     <span class="fd-ev-t"><b>${esc(e.title)}</b><em>${esc(e.category)} · coming up</em><small>${esc(e.area)} · ${esc(e.price)} · ${when(e)} · ${esc(e.time)}</small></span>${rxBtn(e)}</div>`);
   // "I'm in" is a request: the planner accepts, and only then are you in the plan's group chat
   const planBtn = (po) => { const st = planState(po.id);
-    return `<button type="button" class="btn small ${st === "none" ? "" : "ghost"}" data-in="${po.id}" data-st="${st}" aria-pressed="${st !== "none"}">${st === "accepted" ? "You're in ✓ Open chat" : st === "requested" ? "Requested · waiting" : "I'm in"}</button>`; };
+    return `<button type="button" class="btn small ${st === "none" ? "" : "ghost"}" data-in="${esc(po.id)}" data-st="${st}" aria-pressed="${st !== "none"}">${st === "accepted" ? "You're in ✓ Open chat" : st === "requested" ? "Requested · waiting" : "I'm in"}</button>`; };
   const planCard = (po) => { const acc = planState(po.id) === "accepted", left = Math.max(0, po.plan.spots - (acc ? 1 : 0));
-    return `<div class="th-plan"><span class="th-plan-t"><b>${esc(po.plan.title)}</b><small>${esc(po.plan.when)} · ${esc(po.plan.area)}</small><small>Free · <span data-left="${po.id}">${left}</span> spot${left === 1 ? "" : "s"} left</small></span>
+    return `<div class="th-plan"><span class="th-plan-t"><b>${esc(po.plan.title)}</b><small>${esc(po.plan.when)} · ${esc(po.plan.area)}</small><small>Free · <span data-left="${esc(po.id)}">${left}</span> spot${left === 1 ? "" : "s"} left</small></span>
       ${planBtn(po)}</div>`; };
   const person = (po) => personBy(po.by);
   /** One post in the thread: who, their badge, what they said, and the event or plan it points at. */
@@ -121,10 +119,10 @@ export function initScreens(k) {
   };
   const setReaction = (title, r) => {
     const e = EVENTS.find((x) => x.title === title); if (!e) return;
-    const m = reactions(), cur = m[title]; let list = places().filter((x) => x.src !== title);
-    if (cur === r) { delete m[title]; toast("Removed your pick"); }
-    else { m[title] = r; list = [{ id: newId(), title, area: e.area, list: RX[r].list, src: title }, ...list]; toast(RX[r].done); }
-    write(REACT, m); writePlaces(list); syncRx(title);
+    const cur = reactions()[title]; let list = places().filter((x) => x.src !== title);
+    if (cur !== r) list = [{ id: newId(), title, area: e.area, list: RX[r].list, src: title }, ...list];
+    if (!writePlaces(list)) return; // couldn't save, and writePlaces already said so
+    toast(cur === r ? "Removed your pick" : RX[r].done); syncRx(title);
   };
   const openTray = (btn) => {
     closeTray();
@@ -144,8 +142,8 @@ export function initScreens(k) {
 
   /** Re-draws every "I'm in" button and the spots left (also when a planner accepts you a moment later). */
   const paintPlans = () => POSTS.filter((po) => po.plan).forEach((po) => {
-    document.querySelectorAll(`[data-in="${po.id}"]`).forEach((b) => b.replaceWith(Object.assign(document.createElement("div"), { innerHTML: planBtn(po) }).firstElementChild));
-    document.querySelectorAll(`[data-left="${po.id}"]`).forEach((n) => { n.textContent = Math.max(0, po.plan.spots - (planState(po.id) === "accepted" ? 1 : 0)); });
+    document.querySelectorAll(`[data-in="${CSS.escape(po.id)}"]`).forEach((b) => b.replaceWith(Object.assign(document.createElement("div"), { innerHTML: planBtn(po) }).firstElementChild));
+    document.querySelectorAll(`[data-left="${CSS.escape(po.id)}"]`).forEach((n) => { n.textContent = Math.max(0, po.plan.spots - (planState(po.id) === "accepted" ? 1 : 0)); });
   });
   let lastPlans = planStates();
   onChatChange(() => {
@@ -174,8 +172,6 @@ export function initScreens(k) {
     });
   };
 
-
-
   /* ---------- Find people (the person+ button on Messages) ---------- */
   function openPeople() {
     const people = PEOPLE.map((pe) => ({ name: pe.name, handle: pe.handle, badge: pe.badge }));
@@ -188,7 +184,7 @@ export function initScreens(k) {
     const paint = (q) => {
       const t = q.trim().toLowerCase().replace(/^@/, "");
       const fol = follows(), hits = people.filter((p) => p.name.toLowerCase().includes(t) || p.handle.toLowerCase().includes(t));
-      list.innerHTML = hits.length ? hits.map((p) => { const on = fol.includes(p.handle); return `<div class="pp-row"><a class="pp-av" href="#/u/${esc(p.handle.slice(1))}" data-close>${bread({ name: p.name })}</a><a class="pp-who" href="#/u/${esc(p.handle.slice(1))}" data-close><b>${esc(p.name)}</b><small>${esc(p.handle)} · ${esc(BADGES[p.badge].label)}</small></a><button type="button" class="pp-follow ${on ? "on" : ""}" data-h="${esc(p.handle)}" aria-pressed="${on}">${on ? "Following" : "Follow"}</button></div>`; }).join("") : `<p class="pp-tag">No one found. Try a different name.</p>`;
+      list.innerHTML = hits.length ? hits.map((p) => { const on = fol.includes(p.handle); return `<div class="pp-row"><a class="pp-av" href="#/u/${esc(p.handle.slice(1))}" data-close>${bread({ name: p.name })}</a><a class="pp-who" href="#/u/${esc(p.handle.slice(1))}" data-close><b>${esc(p.name)}</b><small>${esc(p.handle)} · ${esc(BADGES[badgeOf(p.badge)]?.label || "")}</small></a><button type="button" class="pp-follow ${on ? "on" : ""}" data-h="${esc(p.handle)}" aria-pressed="${on}">${on ? "Following" : "Follow"}</button></div>`; }).join("") : `<p class="pp-tag">No one found. Try a different name.</p>`;
     };
     paint("");
     input.addEventListener("input", () => paint(input.value));
@@ -241,7 +237,7 @@ export function initScreens(k) {
   const filt = (list) => chip === "new" ? [...list].reverse() : chip === "trending" ? list.filter((_, i) => i % 2 === 0) : list;
   const LISTS = [
     { name: "this weekend plans", q: "this weekend", g: "linear-gradient(150deg,#c2184f,#f0a830)" },
-    { name: "laughs & open mics", q: "comedy", g: "linear-gradient(150deg,#6b2d5c,#c2184f)" },
+    { name: "laughs & open mics", q: "comedy", g: "linear-gradient(150deg,#8a4b1e,#c2184f)" },
     { name: "lowkey under ₹500", q: "under ₹500", g: "linear-gradient(150deg,#f0a830,#ffe386)", dark: true },
   ];
 
@@ -272,7 +268,7 @@ export function initScreens(k) {
         ${hl.slice(1, 3).map((_, i) => `<div class="fd-missed back" style="--i:${i + 1}" aria-hidden="true"></div>`).join("")}
         <section class="fd-missed top"><button type="button" class="fd-x" data-gone="${esc(hl[0].title)}" aria-label="Dismiss">${ic("close", "1.1em")}</button>
         <div class="fd-mhead"><div class="fd-av">${bread({ name: "PB" })}</div><p class="fd-line"><b>pbj</b> <span class="fd-pick">PB&amp;J highlight</span> <span>${when(hl[0])}</span></p></div>
-        <div class="fd-poster" style="--bg:${hl[0].paper === "cream" ? "var(--grape)" : PAPER[hl[0].paper] || "var(--bread)"}"><span class="fd-big" aria-hidden="true">${esc(hl[0].title.slice(0, 1))}</span>
+        <div class="fd-poster" style="--bg:${hl[0].paper === "cream" ? "var(--crust)" : PAPER[hl[0].paper] || "var(--bread)"}"><span class="fd-big" aria-hidden="true">${esc(hl[0].title.slice(0, 1))}</span>
           ${rxBtn(hl[0], "poster")}
           <div class="fd-cap"><b>${esc(hl[0].title)}</b><em>${esc(hl[0].category)}</em><small>${esc(hl[0].area)} · ${esc(hl[0].price)}</small></div></div>
         <div class="fd-macts"><button type="button" data-soon="Comments are coming soon" aria-label="Comment">${ic("comment", "1.5em")}</button>
@@ -290,12 +286,19 @@ export function initScreens(k) {
     app.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { chip = chip === b.dataset.chip ? null : b.dataset.chip; renderFeed(); }));
     const top = app.querySelector(".fd-missed.top");
     if (top) {
-      const dismiss = (dir = 1) => { top.style.transition = "transform .28s ease, opacity .28s"; top.style.transform = `translateX(${dir * 130}%) rotate(${dir * 8}deg)`; top.style.opacity = "0"; setTimeout(() => { missedGone.add(top.querySelector("[data-gone]").dataset.gone); renderFeed(); }, 260); };
+      const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const gone = top.querySelector("[data-gone]").dataset.gone;
+      // the card swipes away, then the feed shows the next one (only if the feed is still on screen by then)
+      const next = () => { missedGone.add(gone); if (top.isConnected) renderFeed(); };
+      const dismiss = (dir = 1) => {
+        if (still()) return next();
+        top.style.transition = "transform .28s ease, opacity .28s"; top.style.transform = `translateX(${dir * 130}%) rotate(${dir * 8}deg)`; top.style.opacity = "0"; setTimeout(next, 260);
+      };
       top.querySelectorAll("[data-gone]").forEach((g) => g.addEventListener("click", () => dismiss(1)));
       let x0 = null;
       top.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return; x0 = e.clientX; top.setPointerCapture(e.pointerId); });
       top.addEventListener("pointermove", (e) => { if (x0 == null) return; const dx = e.clientX - x0; top.style.transition = "none"; top.style.transform = `translateX(${dx}px) rotate(${dx / 30}deg)`; });
-      const end = (e) => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 70) dismiss(dx > 0 ? 1 : -1); else { top.style.transition = "transform .3s cubic-bezier(.34,1.56,.64,1)"; top.style.transform = ""; } };
+      const end = (e) => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 70) dismiss(dx > 0 ? 1 : -1); else { top.style.transition = still() ? "none" : "transform .3s cubic-bezier(.34,1.56,.64,1)"; top.style.transform = ""; } };
       top.addEventListener("pointerup", end); top.addEventListener("pointercancel", end);
     }
   }
@@ -314,6 +317,7 @@ export function initScreens(k) {
   const MX = (lon) => (lon - 67) * 10, MY = (lat) => (38 - lat) * 10;
   const NS = "http://www.w3.org/2000/svg", sv = (tag, at = {}, parent) => { const n = document.createElementNS(NS, tag); for (const k in at) n.setAttribute(k, at[k]); parent?.append(n); return n; };
 
+  let onResize = null;
   function renderSearch(q0 = "") {
     document.title = "Ask FUN — PeanutButterJelly.fun";
     app.innerHTML = `<div class="fs" id="fs">
@@ -341,7 +345,7 @@ export function initScreens(k) {
     }).catch(() => {});
     MAP_CITIES.forEach(([n, lo, la]) => { sv("circle", { cx: MX(lo), cy: MY(la), r: 0.9, fill: "var(--ink)", opacity: 0.55 }, wide); const left = ["Mumbai", "Goa", "Kochi", "Bengaluru", "Ahmedabad"].includes(n), t = sv("text", { x: MX(lo) + (left ? -2 : 2), y: MY(la) + 1, class: "fs-lbl", "text-anchor": left ? "end" : "start" }, wide); t.textContent = n; });
     sv("path", { class: "land", d: `M${pts(COAST.map(([la, lo]) => [lo, la])).join("L")}Z` }, near);
-    [[72.91, 19.2, 0.28, 0.14], [72.9, 19.07, 0.14, 0.08]].forEach(([lo, la, rx, ry]) => sv("ellipse", { cx: MX(lo), cy: MY(la), rx, ry, fill: "#dbe7bf", opacity: 0.9 }, near));
+    [[72.91, 19.2, 0.28, 0.14], [72.9, 19.07, 0.14, 0.08]].forEach(([lo, la, rx, ry]) => sv("ellipse", { cx: MX(lo), cy: MY(la), rx, ry, fill: "var(--bread)", opacity: 0.9 }, near));
     // each area name sits on its own side of its spot so neighbours (Fort / Kala Ghoda / Colaba, Versova / Andheri) never pile up
     const SIDE = { Versova: [-1, 0.03], "Andheri West": [1, 0.03], "Bandra West": [1, 0.03], "Lower Parel": [1, 0.03], Fort: [1, -0.02], "Kala Ghoda": [-1, 0.04], Colaba: [1, 0.07], Powai: [1, 0.03] };
     const areaLbl = {};
@@ -429,7 +433,7 @@ export function initScreens(k) {
       const r = await stepOutside(q); if (id !== run) return;
       const ans = document.createElement("div"); ans.className = "as-answer"; box.append(ans);
       if (!r.ok) { ans.innerHTML = `<p>${r.reason === "not-connected" ? "I can't step outside PB&amp;J just yet, because my outside connection isn't switched on. Everything on PB&amp;J is still here for you." : "I couldn't reach outside PB&amp;J just now. Please try again in a bit."}</p>`; return; }
-      ans.innerHTML = `<p class="as-tag">From outside PB&amp;J. Not checked by us, so double-check before you go.</p><p>${esc(r.answer)}</p>${r.items.length ? `<div class="fd-results">${r.items.map((it) => `<a class="fd-ev as-out" href="${esc(it.url || "#")}" target="_blank" rel="noopener"><span class="fd-thumb">${esc(String(it.title || "?").slice(0, 1))}</span><span class="fd-ev-t"><b>${esc(it.title || "")}</b><small>${esc(it.note || "")}</small></span></a>`).join("")}</div>` : ""}`;
+      ans.innerHTML = `<p class="as-tag">From outside PB&amp;J. Not checked by us, so double-check before you go.</p><p>${esc(r.answer)}</p>${r.items.length ? `<div class="fd-results">${r.items.map((it) => `<a class="fd-ev as-out" href="${esc(safeUrl(it.url))}" target="_blank" rel="noopener noreferrer"><span class="fd-thumb">${esc(String(it.title || "?").slice(0, 1))}</span><span class="fd-ev-t"><b>${esc(it.title || "")}</b><small>${esc(it.note || "")}</small></span></a>`).join("")}</div>` : ""}`;
     };
     const go = async (q) => {
       q = q.trim(); if (!q) return;
@@ -469,7 +473,10 @@ export function initScreens(k) {
     };
     form.addEventListener("submit", (e) => { e.preventDefault(); const q = form.q.value; form.q.value = ""; go(q); });
     fs.addEventListener("click", (e) => { const b = e.target.closest("[data-idea]"); if (b) { form.q.value = ""; go(b.dataset.idea); } });
-    addEventListener("resize", () => { if (fs.isConnected && fs.classList.contains("live")) paint(fitView(pins.map((p) => [p.x, p.y]))); });
+    // one resize listener at a time: a new search replaces the last one's
+    if (onResize) removeEventListener("resize", onResize);
+    onResize = () => { if (!fs.isConnected) { removeEventListener("resize", onResize); onResize = null; } else if (fs.classList.contains("live")) paint(fitView(pins.map((p) => [p.x, p.y]))); };
+    addEventListener("resize", onResize);
     if (q0) go(q0);
   }
 
@@ -498,12 +505,9 @@ export function initScreens(k) {
     app.querySelectorAll("[data-pt]").forEach((b) => b.addEventListener("click", () => { ptab[h] = b.dataset.pt; renderPerson(slug); }));
   }
 
-  /* ---------- Messages ---------- */
-
-
   /* ---------- "+" menu ---------- */
   function openPlus(done) {
-    const rows = [["circlePlus", "create a post", "post"], ["list", "create a list", "Lists are coming soon"], ["collab", "collaborative list", "Collaborative lists are coming soon"], ["tray", "import from Instagram & YouTube", "Imports are coming soon"], ["pin", "import from Google Maps", "Imports are coming soon"], ["doc", "import docs, notes & texts", "Imports are coming soon"]];
+    const rows = [["circlePlus", "add an event or gem", "post"], ["list", "create a list", "Lists are coming soon"], ["collab", "collaborative list", "Collaborative lists are coming soon"], ["tray", "import from Instagram & YouTube", "Imports are coming soon"], ["pin", "import from Google Maps", "Imports are coming soon"], ["doc", "import docs, notes & texts", "Imports are coming soon"]];
     const back = document.createElement("div"); back.className = "pl-back";
     back.innerHTML = `<div class="pl-sheet" role="menu">${rows.map(([i, t, a], n) => `<button type="button" role="menuitem" data-a="${esc(a)}" style="--n:${n}">${ic(i, "1.6em")}<span>${esc(t)}</span></button>`).join("")}</div>`;
     const close = () => { document.removeEventListener("keydown", onKey); back.classList.remove("show"); setTimeout(() => back.remove(), 220); done?.(); };

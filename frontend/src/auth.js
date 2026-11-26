@@ -1,0 +1,142 @@
+// Sign-in shared by every page (the top bar card, the List Your Event forms and the dashboard).
+// The Supabase library only loads when it's needed (someone signs in, is already signed in, or just tapped the email link),
+// so the page stays light for everyone else.
+const SB_URL = import.meta.env.VITE_SUPABASE_URL;
+const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY; // the publishable key: safe in the browser
+const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const NEXT = "pbj-after-signin"; // where to go once the email link brings someone back
+
+export const authReady = () => Boolean(SB_URL && SB_KEY);
+export const apiReady = () => Boolean(API);
+
+let clientPromise;
+export const client = () =>
+  (clientPromise ??= import("@supabase/supabase-js")
+    .then(({ createClient }) =>
+      createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" } })
+    )
+    .catch((err) => { clientPromise = undefined; throw err; })); // a failed load (bad connection) can be tried again
+
+const storageKey = () => `sb-${new URL(SB_URL).hostname.split(".")[0]}-auth-token`;
+export const hasSavedSession = () => { if (!authReady()) return false; try { return !!localStorage.getItem(storageKey()); } catch { return false; } };
+export const cameFromLink = () => /access_token=|error_description=/.test(location.hash);
+
+// The signed-in session, or null. Doesn't load the library for people who aren't signed in.
+export async function currentSession() {
+  if (!authReady() || (!hasSavedSession() && !cameFromLink())) return null;
+  const sb = await client();
+  const { data } = await sb.auth.getSession();
+  return data.session;
+}
+
+// Email a sign-in link. `next` is the page to land on afterwards (also remembered here, in case Supabase sends people home instead).
+export async function sendLink(email, next = location.pathname) {
+  const sb = await client();
+  try { localStorage.setItem(NEXT, next); } catch { /* private mode: they land on the page the link opens */ }
+  return sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + next } });
+}
+
+// After the email link: the page someone asked to go to, once (then forgotten)
+export function takeNext() {
+  try { const n = localStorage.getItem(NEXT); localStorage.removeItem(NEXT); return n; } catch { return null; }
+}
+
+// scope "local" just forgets the sign-in on this device (used when it has already run out)
+export async function signOut(scope = "global") {
+  const sb = await client();
+  return sb.auth.signOut({ scope });
+}
+
+// The person's profile from the backend: { full_name, phone, host_kind, link, about, wants_call, onboarded_at, email, ... }
+export async function fetchMe(session) {
+  if (!API) throw new Error("no-api");
+  const res = await fetch(`${API}/api/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+  if (!res.ok) throw await problem(res);
+  return res.json();
+}
+
+// A failed /api/me answer as an error that also carries the status (409: handle taken, 422: a field the server refused) and its detail.
+// The message stays "me-<status>", as before.
+async function problem(res) {
+  const err = new Error(`me-${res.status}`);
+  err.status = res.status;
+  try { err.detail = (await res.json()).detail; } catch { /* no readable body */ }
+  return err;
+}
+
+// Calls fn(event, session) on every sign-in change; the first call (INITIAL_SESSION) says who is signed in now. Resolves to a stop function.
+export async function onAuthChange(fn) {
+  const sb = await client();
+  const { data } = sb.auth.onAuthStateChange(fn);
+  return () => data.subscription.unsubscribe();
+}
+
+export async function saveMe(session, changes) {
+  if (!API) throw new Error("no-api");
+  const res = await fetch(`${API}/api/me`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+  if (!res.ok) throw await problem(res);
+  return res.json();
+}
+
+// ---- Deleting the account (India's DPDP Act: people can erase their data) ----
+/** Deletes the signed-in person's account for good: their photos first (storage only lets people delete their own folder),
+ *  then the account and everything linked to it on the server, then the sign-in on this device. Throws if the server refused. */
+export async function deleteAccount(session) {
+  if (!API) throw new Error("no-api");
+  const sb = await client();
+  const bucket = sb.storage.from("images");
+  for (const kind of ["profile", "events", "logos"]) {
+    const dir = `${session.user.id}/${kind}`;
+    for (let round = 0; round < 50; round++) { // 100 files at a time
+      const { data, error } = await bucket.list(dir, { limit: 100 });
+      if (error || !data?.length) break;
+      const { error: removeError } = await bucket.remove(data.map((f) => `${dir}/${f.name}`));
+      if (removeError || data.length < 100) break;
+    }
+  }
+  const res = await fetch(`${API}/api/me`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ confirm: "DELETE" }),
+  });
+  if (!res.ok && res.status !== 404) throw new Error(`me-${res.status}`);
+  try { await sb.auth.signOut({ scope: "local" }); } catch { /* the login is already gone on the server */ }
+}
+
+// ---- "Continue with Google" ----
+// The button stays hidden until Supabase has Google switched on (Authentication > Sign In / Providers), so nothing looks
+// broken before that's set up. Supabase says which sign-in ways are on at /auth/v1/settings (public, needs only the publishable key).
+let providersP;
+export const providers = () =>
+  (providersP ??= authReady()
+    ? fetch(`${SB_URL}/auth/v1/settings`, { headers: { apikey: SB_KEY } }).then((r) => (r.ok ? r.json() : {})).then((s) => s.external || {}).catch(() => ({}))
+    : Promise.resolve({}));
+
+export async function signInWithGoogle(next = location.pathname) {
+  const sb = await client();
+  try { localStorage.setItem(NEXT, next); } catch { /* private mode: Google brings them back to the page it was sent */ }
+  return sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + next } });
+}
+
+const G_LOGO = `<svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>`;
+/** The button and the "or" line under it, hidden until Google is switched on. Put it at the top of a sign-in form. */
+export const googleButtonHtml = () =>
+  `<div class="g-wrap" data-google hidden><button type="button" class="g-btn">${G_LOGO}<span>Continue with Google</span></button><p class="g-or"><span>or use your email</span></p></div>`;
+/** Shows the button when Google is on, and starts the Google sign-in when tapped. say(text) shows a problem. */
+export function wireGoogle(root, next, say = () => {}) {
+  const wrap = root.querySelector("[data-google]");
+  if (!wrap) return;
+  providers().then((p) => { if (p.google) wrap.hidden = false; });
+  wrap.querySelector("button").addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    try {
+      const { error } = await signInWithGoogle(next);
+      if (error) { say("Google sign-in isn't working just now. Use your email instead."); b.disabled = false; }
+      // on success the browser goes to Google, then comes back signed in
+    } catch { say("Couldn't reach the sign-in service. Check your connection and try again."); b.disabled = false; }
+  });
+}
