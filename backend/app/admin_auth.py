@@ -70,6 +70,9 @@ def staff(request: Request, creds: Annotated[HTTPBasicCredentials | None, Depend
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many wrong tries. Wait 15 minutes and try again.")
         if key in _ok:
             return creds.username
+        # Count this try as wrong before checking it, so many tries sent at the same moment can't all slip past the limit.
+        # A right password takes the mark back off.
+        recent.append(now)
     good = hmac.compare_digest(creds.username.encode(), settings.admin_username.encode())
     good = password_matches(creds.password, settings.admin_password_hash) and good
     with _lock:
@@ -77,7 +80,6 @@ def staff(request: Request, creds: Annotated[HTTPBasicCredentials | None, Depend
             _ok.add(key)
             _fails.pop(who, None)
             return creds.username
-        _fails.setdefault(who, []).append(now)
     time.sleep(0.5)
     raise _refused()
 

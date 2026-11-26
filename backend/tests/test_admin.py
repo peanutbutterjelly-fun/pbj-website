@@ -3,6 +3,8 @@ office login gets in, and each staff action does what it says, also for what the
 
 import base64
 import json
+import threading
+import time
 import uuid
 
 import pytest
@@ -45,6 +47,20 @@ def test_wrong_guesses_are_refused_for_a_while(admin):
     assert c.post("/api/admin/login", headers=login()).status_code == 429  # even the right password waits now
 
 
+def test_guesses_sent_at_the_same_moment_still_count(admin, monkeypatch):
+    c, _ = admin
+    real = admin_auth.password_matches
+    monkeypatch.setattr(admin_auth, "password_matches", lambda *a: time.sleep(0.3) or real(*a))  # each check takes a while
+    codes = []
+    threads = [threading.Thread(target=lambda: codes.append(c.post("/api/admin/login", headers=login(password="guess")).status_code))
+               for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(codes) == [401] * admin_auth.MAX_FAILS + [429] * (8 - admin_auth.MAX_FAILS)
+
+
 def test_the_password_itself_is_never_stored():
     stored = get_settings().admin_password_hash
     assert stored.startswith("scrypt$") and admin_auth.password_matches("not it", stored) is False
@@ -71,6 +87,7 @@ def test_hiding_an_event_takes_it_off_the_site_but_not_from_its_host(admin):
             # ...and can keep editing it, but can't un-hide it (or mark it reviewed) themselves
             conn.execute("update public.events set hidden_at = null, hidden_reason = null, reviewed_at = null, data = data || '{\"title\": \"New\"}' where id = %s", (eid,))
             conn.execute("insert into public.events (id, status, hidden_at, reviewed_at) values (%s, 'published', null, now())", (eid + "b",))
+            assert conn.execute("delete from public.events where id = %s", (eid,)).rowcount == 0  # ...nor delete it to make it again
         finally:
             conn.execute("reset role")
         row = conn.execute("select hidden_at is not null, reviewed_at is not null, data->>'title' from public.events where id = %s", (eid,)).fetchone()

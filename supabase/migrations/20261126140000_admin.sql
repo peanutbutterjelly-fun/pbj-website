@@ -45,6 +45,13 @@ create policy "anyone sees listed events" on public.events
   for select to anon, authenticated
   using (status <> 'draft' and hidden_at is null);
 
+-- ...and its host can't delete it either (deleting and saving it again would clear the staff's "hidden" mark).
+-- Staff can still delete it from the back office.
+drop policy "hosts delete their own events" on public.events;
+create policy "hosts delete their own events" on public.events
+  for delete to authenticated
+  using ((select auth.uid()) = host_id and hidden_at is null);
+
 create table public.featured (
   id          uuid primary key default gen_random_uuid(),
   kind        text not null check (kind in ('highlight', 'list')),
