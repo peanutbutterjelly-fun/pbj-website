@@ -245,7 +245,8 @@ function show(e, others = []) {
   const slotStartAt = (idx) => { if (idx === 0) return evStartAt; const sl = extraSlots[idx - 1]; return sl && sl.st && sl.st.h ? `${sl.from}T${pad(+sl.st.h)}:${pad(+sl.st.m)}` : ""; };
   const shiftAt = (at, hours) => { if (!at) return ""; const d = new Date(at); if (isNaN(d)) return ""; d.setHours(d.getHours() - hours); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const endAt = (t, idx) => { const m = t.saleEnd && t.saleEnd.mode; return m === "custom" ? t.saleEndAt || "" : shiftAt(slotStartAt(idx), m === "24h" ? 24 : m === "1h" ? 1 : 0); };
-  const stateOf = (t) => { const end = endAt(t, selSlot); return end && end < nowAt ? "closed" : "open"; };
+  // A ticket the host marked "Sold Out" or "Coming Soon" can't be picked; otherwise sales close at the closing minute itself (inclusive)
+  const stateOf = (t) => { if (t.status === "Sold Out") return "soldout"; if (t.status === "Coming Soon") return "soon"; const end = endAt(t, selSlot); return end && end <= nowAt ? "closed" : "open"; };
   // Bulk discounts: a rule for one ticket counts how many of that ticket are in the order; a rule for "all tickets" counts every ticket in the order.
   // The best discount that applies to a line is used.
   const bulkRules = (e.bulk || []).filter((r) => r.active !== false && Array.isArray(r.tiers) && r.tiers.length);
@@ -274,11 +275,14 @@ function show(e, others = []) {
   // a guest can take up to 10 of one ticket, or more when a bulk discount has higher bands, but never more than are on offer
   const maxOf = (t) => { const tiers = rulesFor(t).flatMap((r) => r.tiers), top = tiers.some((x) => x.open) ? Infinity : Math.max(10, ...tiers.map((x) => Number(x.to) || 0)); return Math.max(0, Math.min(top, Number(t.qty) || 10)); }; // an "and above" band lets a guest take everything on offer
   const note = (t) => {
-    if (stateOf(t) === "closed") return "Sales closed";
+    const st = stateOf(t);
+    if (st === "soldout") return "Sold out";
+    if (st === "soon") return "On sale soon";
+    if (st === "closed") return "Sales closed";
     const end = endAt(t, selSlot); // "N left" is a tag now, only when the last few are going (see lowLeft)
     return end ? `Sales end ${endText(end)}` : "";
   };
-  const lowLeft = (t) => stateOf(t) !== "closed" && Number(t.qty) > 0 && Number(t.qty) <= 5; // only the last few tickets get a "left" tag
+  const lowLeft = (t) => stateOf(t) === "open" && Number(t.qty) > 0 && Number(t.qty) <= 5; // only the last few tickets get a "left" tag
   const TKI = { group: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3.2 2.7-5 6-5s6 1.8 6 5"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.8M18 14.3c1.9.6 3 2.2 3 4.7"/>', season: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>', ticket: '<path d="M3 9a2 2 0 0 1 0 6v2.5A1.5 1.5 0 0 0 4.5 19h15a1.5 1.5 0 0 0 1.5-1.5V15a2 2 0 0 1 0-6V6.5A1.5 1.5 0 0 0 19.5 5h-15A1.5 1.5 0 0 0 3 6.5z"/><path d="M14 5v2.5M14 11v2M14 16.5V19"/>' };
   const tkIcon = (t) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${TKI[t.type] || TKI.ticket}</svg>`;
   const group = (t) => (t.type === "group" && Number(t.groupSize) > 1 ? ` · for ${Number(t.groupSize)}` : "");
