@@ -15,9 +15,19 @@ export const isoToday = () => { const d = new Date(); return `${d.getFullYear()}
 
 export const eventsOnline = () => Boolean(SB_URL && KEY);
 
+// The exact place of an event whose host chose "share the location after booking" (and every women-only event).
+// It goes in the private half, and only the host and ticket holders get it back (the database also moves it there on its own).
+export const VENUE_FIELDS = ["venue", "venueAddress", "venueLat", "venueLon"];
+export const locationHidden = (e) => !!(e.womenOnly || e.hideLocation);
+
 // One dashboard event -> the two rows saved in the database
 export function splitEvent(e) {
   const { organizers = [], coupons, ...rest } = e;
+  let venue = null;
+  if (locationHidden(e)) {
+    venue = {};
+    for (const k of VENUE_FIELDS) { if (rest[k] != null && rest[k] !== "") venue[k] = rest[k]; delete rest[k]; }
+  }
   return {
     row: {
       id: e.id,
@@ -26,7 +36,7 @@ export function splitEvent(e) {
       ends_on: day(e.dateTo) || day(e.dateFrom),
       data: { ...rest, organizers: organizers.map((o) => ({ holder: o.holder || "" })) },
     },
-    priv: { event_id: e.id, data: { organizers, ...(coupons ? { coupons } : {}) } },
+    priv: { event_id: e.id, data: { organizers, ...(coupons ? { coupons } : {}), ...(venue ? { venue } : {}) } },
   };
 }
 
@@ -44,6 +54,7 @@ function joinEvent(row, priv) {
   if (priv) {
     e.organizers = priv.organizers || [];
     if (priv.coupons) e.coupons = priv.coupons;
+    if (priv.venue && typeof priv.venue === "object") for (const k of VENUE_FIELDS) if (priv.venue[k] != null) e[k] = priv.venue[k];
   }
   return e;
 }
@@ -131,4 +142,16 @@ export function eventIdFromUrl(loc = location) {
   const m = loc.pathname.match(/^\/e\/([^/]+?)\/?$/);
   if (m) return decodeURIComponent(m[1]).split("-").pop() || null;
   return new URLSearchParams(loc.search).get("id");
+}
+
+// The exact place of a hidden-location event, for its host or a guest with a ticket (null for anyone else)
+const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+export async function fetchVenue(id, session) {
+  if (!API || !session || !id) return null;
+  const res = await fetch(`${API}/api/events/${encodeURIComponent(id)}/venue`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+  if (!res.ok) return null;
+  const v = await res.json();
+  const out = {};
+  for (const k of VENUE_FIELDS) if (v && v[k] != null && v[k] !== "") out[k] = v[k];
+  return Object.keys(out).length ? out : null;
 }
