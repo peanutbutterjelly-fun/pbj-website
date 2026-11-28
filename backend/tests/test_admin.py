@@ -91,7 +91,7 @@ def test_hiding_an_event_takes_it_off_the_site_but_not_from_its_host(admin):
         finally:
             conn.execute("reset role")
         row = conn.execute("select hidden_at is not null, reviewed_at is not null, data->>'title' from public.events where id = %s", (eid,)).fetchone()
-        assert row == (True, True, "New")
+        assert row == (True, False, "New")  # still hidden; the edit sends it back to staff for another look
         assert conn.execute("select reviewed_at from public.events where id = %s", (eid + "b",)).fetchone()[0] is None
     assert c.post(f"/api/admin/events/{eid}/unhide", headers=login()).json()["hidden_at"] is None
     assert c.get(f"/api/events/{eid}/rsvp").status_code == 200
