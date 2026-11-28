@@ -32,7 +32,7 @@ def public_data(pg, eid) -> dict:
         return conn.execute("select data from public.events where id = %s", (eid,)).fetchone()[0]
 
 
-def test_a_hidden_location_never_reaches_the_public_event(api):
+def test_a_hidden_location_never_reaches_the_public_event(api):  # noqa: F811  (api is the fixture imported above)
     _, pg = api
     host = person(pg, "pvhost1")
     for flag in ("womenOnly", "hideLocation"):
@@ -47,14 +47,14 @@ def test_a_hidden_location_never_reaches_the_public_event(api):
                                 (eid,)).fetchone()[0] == PLACE["venueAddress"]
 
 
-def test_an_open_location_stays_public(api):
+def test_an_open_location_stays_public(api):  # noqa: F811  (api is the fixture imported above)
     _, pg = api
     eid = f"e{uuid.uuid4().hex[:10]}"
     save(pg, person(pg, "pvhost2"), eid)
     assert public_data(pg, eid)["venueAddress"] == PLACE["venueAddress"]
 
 
-def test_only_the_host_and_ticket_holders_get_the_exact_place(api):
+def test_only_the_host_and_ticket_holders_get_the_exact_place(api):  # noqa: F811  (api is the fixture imported above)
     c, pg = api
     host, guest, stranger = person(pg, "pvhost3"), person(pg, "pvguest3"), person(pg, "pvstranger3")
     eid = f"e{uuid.uuid4().hex[:10]}"
