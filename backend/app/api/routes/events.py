@@ -122,6 +122,27 @@ def rsvp_state(event_id: EventId, db: Db, user: OptionalUser) -> dict:
     }
 
 
+VENUE_FIELDS = ("venue", "venueAddress", "venueLat", "venueLon")
+
+
+@router.get("/{event_id}/venue")
+def exact_venue(event_id: EventId, user: LoggedIn, db: Db) -> dict:
+    """The exact place of an event whose host chose "share the location after booking" (or a women-only event). The database
+    keeps it in the host-only private half; only the host and people holding a ticket get it here."""
+    ev = facts(db, event_id)
+    if ev is None or (ev["status"] == "draft" or ev["hidden"]) and user.id != ev["host_id"]:
+        raise HTTPException(404, "Event not found")
+    if user.id != ev["host_id"]:
+        t = db.execute("select status from public.tickets where event_id = %s and user_id = %s", (event_id, user.id)).fetchone()
+        if t is None or t["status"] != "going":
+            raise HTTPException(403, "The exact place is shared once you have a ticket")
+    row = db.execute(
+        "select coalesce(p.data->'venue', '{}'::jsonb) as private, e.data as public from public.events e "
+        "left join public.event_private p on p.event_id = e.id where e.id = %s", (event_id,)).fetchone()
+    found = {k: row["private"].get(k, row["public"].get(k)) for k in VENUE_FIELDS}
+    return {k: v for k, v in found.items() if v not in (None, "")}
+
+
 @router.put("/{event_id}/ticket")
 def get_ticket(event_id: EventId, user: LoggedIn, db: Db, body: TicketIn | None = None) -> dict:
     """Ask for a ticket. For a Sponty event this records a request the host accepts or declines; otherwise the ticket is
