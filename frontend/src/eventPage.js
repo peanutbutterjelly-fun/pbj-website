@@ -254,7 +254,9 @@ function show(e, others = []) {
   const CHEV = '<svg class="tk-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const INFO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.5"/><path d="M12 7.6v.1"/></svg>';
   const infoBtn = (key, label) => `<button type="button" class="tk-i" data-pop="${key}" aria-label="${label}" aria-haspopup="dialog">${INFO}</button>`;
-  const bulkRows = (t) => { const rs = rulesFor(t); return rs.length ? rs[0].tiers.map((x) => `<p class="tk-row"><span>${x.open ? `${x.from} or more tickets` : x.from === x.to ? `${x.from} tickets` : `${x.from} to ${x.to} tickets`}</span><b>${x.pct}% off</b></p>`).join("") : ""; };
+  // The tiers come from the host's saved event, so each value is forced to a plain number before it goes on the page
+  const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const bulkRows = (t) => { const rs = rulesFor(t); return rs.length ? rs[0].tiers.map((x) => { const from = num(x.from), to = num(x.to), pct = num(x.pct); return `<p class="tk-row"><span>${x.open ? `${from} or more tickets` : from === to ? `${from} tickets` : `${from} to ${to} tickets`}</span><b>${pct}% off</b></p>`; }).join("") : ""; };
   const gstRows = (t) => { const p = gstParts(t); return `<p class="tk-row"><span>Ticket price</span><b>${rupees(p.base)}</b></p><p class="tk-row"><span>GST${p.label ? ` (${esc(p.label)})` : ` (${p.pct}%)`}</span><b>${rupees(p.tax)}</b></p><p class="tk-row tot"><span>You pay</span><b>${rupees(p.total)}</b></p>`; };
   // One pop-up in the middle of the page, used by every (i)
   const popup = (title, note, rows) => {
