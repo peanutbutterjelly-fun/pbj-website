@@ -2250,7 +2250,7 @@ function stepReview(host) {
       <div class="rv-f"><span>Terms &amp; conditions</span><div class="rv-rich">${d.terms && textLen(d.terms) ? clean(d.terms) : "<b>—</b>"}</div></div>
       <div class="rv-f"><span>FAQs</span>${(d.faqs || []).length ? `<ol class="rv-q">${d.faqs.map((f) => `<li>${esc(f.q)}</li>`).join("")}</ol>` : "<b>—</b>"}</div>
       <div class="rv-f"><span>Guest questions</span>${(d.questions || []).length ? `<ol class="rv-q">${d.questions.map((q) => `<li>${esc(q.text)}${q.required ? " *" : ""} <em>${esc((Q_TYPES.find((t) => t[0] === q.type) || [, ""])[1])}</em></li>`).join("")}</ol>` : "<b>—</b>"}</div>`)}
-    ${section("Location & category", 2, `<div class="rv-grid">${field("City", esc(d.city || "—"))}${field("Venue", esc(d.venueStatus === "Decided" && d.venue ? d.venue : d.venueStatus || "—") + (d.venueAddress ? `<span class="rv-addr">${esc(d.venueAddress)}</span>` : "") + (d.venueLat ? ` <a class="rv-map" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${d.venueLat}&mlon=${d.venueLon}#map=17/${d.venueLat}/${d.venueLon}">Open map</a>` : ""), d.venueStatus === "To be announced" ? "warn" : "")}</div>
+    ${section("Location & category", 2, `<div class="rv-grid">${field("City", esc(d.city || "—"))}${field("Venue", esc(d.venueStatus === "Decided" && d.venue ? d.venue : d.venueStatus || "—") + (d.venueAddress ? `<span class="rv-addr">${esc(d.venueAddress)}</span>` : "") + (d.venueLat ? ` <a class="rv-map" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${asNum(d.venueLat)}&mlon=${asNum(d.venueLon)}#map=17/${asNum(d.venueLat)}/${asNum(d.venueLon)}">Open map</a>` : ""), d.venueStatus === "To be announced" ? "warn" : "")}</div>
       <div class="rv-f"><span>Options</span><div class="rv-tags">${d.womenOnly ? '<i class="on">Women only</i>' : ""}${d.womenOnly || d.hideLocation ? "<i>Location hidden until booking</i>" : ""}${d.womenOnly || d.hideLocation ? "" : "<b>—</b>"}</div></div>
       <div class="rv-f"><span>Custom link</span><b>${d.slug ? `${LINK_HOST}/e/${esc(d.slug)}` : "—"}</b></div>
       <div class="rv-f"><span>Category</span><div class="rv-tags">${d.category ? `<i class="on">${esc(d.category)}</i>` : "<b>—</b>"}${(d.subs || []).map((x) => `<i>${esc(x)}</i>`).join("")}</div></div>`)}
@@ -2403,7 +2403,8 @@ function openQuestionsModal(existing, onSave) {
 }
 
 const EXAMPLE_TIERS = [{ from: "4", to: "8", pct: "5" }, { from: "9", to: "12", pct: "8" }, { from: "13", to: "20", pct: "15" }];
-const tierChips = (tiers) => tiers.map((x) => `<i>${x.open ? `${x.from} and above` : `${x.from}–${x.to} tickets`}: ${x.pct}% off</i>`).join("");
+const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; }; // saved values could be anything, so only numbers reach the page
+const tierChips = (tiers) => tiers.map((x) => `<i>${x.open ? `${asNum(x.from)} and above` : `${asNum(x.from)}–${asNum(x.to)} tickets`}: ${asNum(x.pct)}% off</i>`).join("");
 
 // opts.lockTo / opts.lockName: opened from a ticket window, so it applies to that ticket only
 function openBulkModal(ev, existing, opts, onSave) {
