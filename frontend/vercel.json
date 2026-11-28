@@ -1,10 +1,70 @@
 {
   "ignoreCommand": "bash scripts/vercel-ignore.sh",
   "redirects": [
-    { "source": "/", "has": [{ "type": "host", "value": "backoffice.peanutbutterjelly.fun" }], "destination": "/backoffice.html", "permanent": false }
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "backoffice.peanutbutterjelly.fun"
+        }
+      ],
+      "destination": "/backoffice.html",
+      "permanent": false
+    }
   ],
-  "rewrites": [{ "source": "/e/:path*", "destination": "/event.html" }],
+  "rewrites": [
+    {
+      "source": "/e/:path*",
+      "destination": "/event.html"
+    }
+  ],
   "headers": [
-    { "source": "/backoffice.html", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }, { "key": "X-Frame-Options", "value": "DENY" }, { "key": "Referrer-Policy", "value": "no-referrer" }] }
+    {
+      "source": "/((?!backoffice\\.html).*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self'"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/backoffice.html",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'none'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    }
   ]
 }
