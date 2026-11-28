@@ -1,6 +1,6 @@
 // One event's own page (/e/<name>-<id>; the older /event.html?id=<id> still works). Reads the event from the database (src/eventsStore.js): anyone can open a listed event,
 // and the host can also preview their own drafts. Everything the host typed is escaped or cleaned before it goes on the page.
-import { fetchEvent, fetchListedEvents, safeImg as remoteImg, LISTED, eventPath, eventIdFromUrl } from "./eventsStore.js";
+import { fetchEvent, fetchVenue, fetchListedEvents, safeImg as remoteImg, LISTED, eventPath, eventIdFromUrl, locationHidden } from "./eventsStore.js";
 import { currentSession, authReady } from "./auth.js";
 const app = document.getElementById("app");
 import { guestPays, rupees, hasGst, gstParts } from "./gst.js";
@@ -109,7 +109,13 @@ async function load() {
     try { const e = (JSON.parse(localStorage.getItem("pbj-host-events")) || []).find((x) => x.id === id || (x.slug && x.slug === id)); return e ? { ...e, mine: true } : null; } catch { return null; }
   }
   const session = await currentSession().catch(() => null);
-  return fetchEvent(id, session);
+  const e = await fetchEvent(id, session);
+  // A hidden location is kept private: the host and people with a ticket get the exact place from the server
+  if (e && locationHidden(e) && session) {
+    const place = await fetchVenue(e.id, session).catch(() => null);
+    if (place) Object.assign(e, place, { venueShared: true });
+  }
+  return e;
 }
 
 function missing(text = "This event doesn't exist, or it isn't listed yet.") {
@@ -142,7 +148,7 @@ const setSaved = (id, on) => { try { const l = savedList().filter((x) => x !== i
 const pad = (n) => String(n).padStart(2, "0");
 const fmtLocal = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
 const hasTime = (t) => t && t.h !== "" && t.h != null && Number.isFinite(Number(t.h));
-const locHidden = (e) => !!(e.womenOnly || e.hideLocation); // exact venue stays private until a guest books
+const locHidden = (e) => locationHidden(e) && !e.venueShared; // exact venue stays private until a guest books (or it's the host)
 function calendarInfo(e) {
   const [y, m, d] = e.dateFrom.split("-").map(Number);
   const [y2, m2, d2] = (e.dateTo || e.dateFrom).split("-").map(Number);
