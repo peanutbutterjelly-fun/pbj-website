@@ -272,3 +272,51 @@ def test_saved_lists_are_private_and_draft_recaps_are_hidden(conn):
         assert count(conn, "public.saved_items where list_id = %s", list_id) == 1
     finally:
         conn.execute("reset role")
+
+
+# ---- staff takedowns and reviews (the back office) ----
+
+def test_a_host_cannot_rename_a_hidden_event_to_bring_its_link_back(conn):
+    host = person(conn)
+    eid = host_event(conn, host)
+    conn.execute("update public.events set hidden_at = now(), hidden_reason = 'Fake listing' where id = %s", (eid,))  # staff hide it
+    try:
+        as_person(conn, host)
+        conn.execute("delete from public.event_private where event_id = %s", (eid,))
+        with pytest.raises(Refused):  # the rename that used to carry the hidden mark away
+            conn.execute("update public.events set id = %s where id = %s", (new_id(), eid))
+        with pytest.raises(psycopg.errors.UniqueViolation):  # so the original link can't be made again
+            conn.execute("insert into public.events (id, status) values (%s, 'published')", (eid,))
+    finally:
+        conn.execute("reset role")
+    assert conn.execute("select hidden_at is not null from public.events where id = %s", (eid,)).fetchone()[0] is True
+
+
+def test_a_host_cannot_backdate_an_event(conn):
+    host = person(conn)
+    try:
+        as_person(conn, host)
+        eid = new_id()
+        conn.execute("insert into public.events (id, status, created_at) values (%s, 'published', '2000-01-01')", (eid,))
+        conn.execute("update public.events set created_at = '2000-01-01' where id = %s", (eid,))
+    finally:
+        conn.execute("reset role")
+    assert conn.execute("select created_at > now() - interval '1 hour' from public.events where id = %s", (eid,)).fetchone()[0] is True
+
+
+def test_an_event_changed_after_review_goes_back_to_staff(conn):
+    host = person(conn)
+    eid = host_event(conn, host)
+    conn.execute("update public.events set reviewed_at = now() where id = %s", (eid,))  # staff said it looks good
+    reviewed = lambda: conn.execute("select reviewed_at is not null from public.events where id = %s", (eid,)).fetchone()[0]  # noqa: E731
+    try:
+        as_person(conn, host)
+        conn.execute("update public.events set status = status where id = %s", (eid,))  # saving without changes
+        conn.execute("reset role")
+        assert reviewed() is True
+        as_person(conn, host)
+        conn.execute("update public.events set data = '{\"title\": \"Something else entirely\"}' where id = %s", (eid,))
+        conn.execute("reset role")
+        assert reviewed() is False
+    finally:
+        conn.execute("reset role")
